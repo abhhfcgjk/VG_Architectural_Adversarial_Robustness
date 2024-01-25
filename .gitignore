@@ -1,0 +1,7 @@
+NIPS_test/
+
+LinearityIQA/
+
+__pycache__/
+
+results*
