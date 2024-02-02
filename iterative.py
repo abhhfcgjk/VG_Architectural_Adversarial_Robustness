@@ -1,13 +1,17 @@
 from torch.autograd import Variable
 import torch
-import torch.nn as nn
-import numpy as np
+
 
 # iterative attack baseline (IFGSM attack)
-def attack( image, model=None, metric_range=100, device='cpu',
-            eps = 10 / 255,
-            iters = 10,
-            alpha = 1/255):
+def attack(
+    image,
+    model=None,
+    metric_range=100,
+    device="cpu",
+    eps=10 / 255,
+    iters=10,
+    alpha=1 / 255,
+):
     """
     Attack function.
     Args:
@@ -22,33 +26,30 @@ def attack( image, model=None, metric_range=100, device='cpu',
     """
     image = Variable(image.clone().to(device), requires_grad=True)
 
-    additive = torch.zeros_like(image).to(device)
+    # additive = torch.zeros_like(image).to(device)
+    additive = torch.rand_like(image).to(device)
     additive = Variable(additive, requires_grad=True)
-    
-    loss_fn = torch.nn.MSELoss()
-    loss_fn = lambda score,m_range: 1 - score/m_range
 
-    dmodel = model
+    loss_fn = lambda score, m_range: 1 - score / m_range
 
     for _ in range(iters):
-        
         img = Variable(image + additive, requires_grad=True)
         # img = image + additive
-        img.data.clamp_(0., 1.)
-        output = dmodel(img)
+        img.data.clamp_(0.0, 1.0)
+        output = model(img)
 
         avr_output = torch.stack(output).mean()
         loss = loss_fn(avr_output, metric_range)
 
         # print(loss)
-        dmodel.zero_grad()
+        model.zero_grad()
         loss.backward()
         input_grad = img.grad.data
 
         gradient_sign = input_grad.sign()
-        additive.data -= alpha*gradient_sign # 0.25*eps*gradient_sign
+        additive.data -= alpha * gradient_sign  # 0.25*eps*gradient_sign
         additive.data.clamp_(-eps, eps)
-    
+
     res_image = image + additive
     res_image = (res_image).data.clamp_(min=0, max=1)
 
