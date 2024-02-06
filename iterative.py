@@ -26,8 +26,8 @@ def attack(
     """
     image = Variable(image.clone().to(device), requires_grad=True)
 
-    # additive = torch.zeros_like(image).to(device)
-    additive = torch.rand_like(image).to(device)
+    additive = torch.zeros_like(image).to(device)
+    # additive = torch.rand_like(image).to(device)
     additive = Variable(additive, requires_grad=True)
 
     loss_fn = lambda score, m_range: 1 - score / m_range

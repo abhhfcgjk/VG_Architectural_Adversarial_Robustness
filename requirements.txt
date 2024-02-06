@@ -1,6 +1,7 @@
 absl-py==2.1.0
 # apex 
 cachetools==4.2.4
+# certifi 
 charset-normalizer==3.3.2
 cycler==0.11.0
 fonttools==4.38.0
@@ -35,6 +36,7 @@ tensorboard==2.0.1
 tensorboardX==1.9
 torch==1.8.1
 torchvision==0.9.1
+tqdm==4.66.1
 typing_extensions==4.7.1
 urllib3==2.0.7
 Werkzeug==2.2.3

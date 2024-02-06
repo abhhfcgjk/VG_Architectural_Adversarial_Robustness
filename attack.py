@@ -11,46 +11,61 @@ from LinearityIQA.IQAmodel import IQAModel
 from torchvision.transforms.functional import resize, to_tensor, normalize
 import iterative
 
+from LinearityIQA.activ import ReLU_to_SILU
+
+
 PATH = "LinearityIQA/checkpoints/p1q2.pth"
+PATH_silu = "LinearityIQA/checkpoints/activation=silu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
+PATH_relu = "LinearityIQA/checkpoints/activation=relu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
 EPS = 1e-6
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-class MetricModel(torch.nn.Module):
-    def __init__(self, dev, model_path=PATH, batch_size=8):
-        global device
-        super().__init__()
-        device = dev
-        self.model = IQAModel(
-            arch=args.architecture,
-            pool=args.pool,
-            use_bn_end=args.use_bn_end,
-            P6=args.P6,
-            P7=args.P7,
-        ).to(device)
-        self.lower_better = False
-        self.full_reference = False
+# class MetricModel(torch.nn.Module):
+#     def __init__(self, dev, model_path=PATH, batch_size=8):
+#         global device
+#         super().__init__()
+#         device = dev
+#         self.model = IQAModel(
+#             arch=args.architecture,
+#             pool=args.pool,
+#             use_bn_end=args.use_bn_end,
+#             P6=args.P6,
+#             P7=args.P7,
+#         ).to(device)
+#         self.lower_better = False
+#         self.full_reference = False
 
-    def forward(self, image, inference=False):
-        return self.model.predict_with_grads(image)[:, 0]
+#     def forward(self, image, inference=False):
+#         return self.model.predict_with_grads(image)[:, 0]
 
 
 def test_attack(
     attack_callback,
     model,
     dataset_path="./NIPS_test/",
-    checkpoints_path="LinearityIQA/checkpoints/p1q2.pth",
-    attack_type="FGSM",
+    activation="relu",
     device_="cpu",
     csv_results_dir=".",
+    debug=False
 ):
-    epsilons = np.array([2, 4, 8, 10]) / 255.0
+    checkpoints_path = PATH
+    if activation=='silu':
+        checkpoints_path = PATH_silu
+    else:
+        checkpoints_path = PATH_relu
+
+    epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
+    # iterations = np.array([1, 2, 3, 4, 5])
     device = torch.device(device_)
     results = pd.DataFrame(columns=["image_name", "clear_val", "attacked_val"])
-    checkpoint = torch.load(checkpoints_path, map_location=device)
+    data = [pd.DataFrame(columns=["image_num", "clear_val", "attacked_val"]) for _ in range(len(epsilons))]
+    checkpoint = torch.load(checkpoints_path, map_location=device_)
+    # print(checkpoint)
     model.load_state_dict(checkpoint["model"])
     model.eval()
-    # count = 5
+    count = 5
+    image_num = 0
     for image_path in tqdm(
         Path(dataset_path).iterdir(),
         total=len([x for x in Path(dataset_path).iterdir()]),
@@ -68,10 +83,13 @@ def test_attack(
 
         with torch.no_grad():
             clear_val = model(im)
+            mean_clear_val = np.mean([elem.cpu().numpy() for elem in clear_val])
+            # print(clear_val, mean_clear_val)
 
-        for eps in epsilons:
+
+        for eps_i, eps in enumerate(epsilons):
             im_attacked = attack_callback(
-                im, model=model, metric_range=100, device=device_, eps=eps
+                im, model=model, metric_range=100, device=device_, eps=eps, iters=1, alpha=1/255
             )
 
             with torch.no_grad():
@@ -81,18 +99,26 @@ def test_attack(
                 im_attacked = im + diff
 
                 attacked_val = model(im_attacked)
+                mean_attacked_val = np.mean([elem.cpu().numpy() for elem in attacked_val])
 
                 results.loc[len(results.index)] = [
                     Path(image_path).stem,
-                    np.mean(clear_val),
-                    np.mean(attacked_val),
+                    mean_clear_val,
+                    mean_attacked_val,
                 ]
                 diffs[int(eps * 255)].append(
                     float(torch.abs(diff).mean().detach().cpu().item())
                 )
-        # count-=1
-        # if not count:
-        #     break
+                data[eps_i].loc[len(data[eps_i].index)] = [
+                    image_num,
+                    mean_clear_val,
+                    mean_attacked_val,
+                ]
+        if debug:
+            count-=1
+            if not count:
+                break
+        image_num += 1
     res = []
     for int_eps in diffs.keys():
         res.append(np.array(diffs[int_eps]).mean())
@@ -102,11 +128,20 @@ def test_attack(
         )
 
     if csv_results_dir is not None:
-        csv_path = os.path.join(csv_results_dir, "results.csv")
+        csv_path = os.path.join(csv_results_dir, "results_{}.csv".format(activation))
         results.to_csv(csv_path)
         print(f"Results saved to {csv_path}")
 
+    if not os.path.exists('graph_data'):
+        os.makedirs('graph_data')
+    for i, result in enumerate(data):
+        csv_data_path = f"graph_data/eps={np.int32(epsilons[i]*255)}-activation={activation}.csv"
+        result.to_csv(csv_data_path)
+        print(f"{csv_data_path} saved.")
+
     return np.array(res).mean()
+
+
 
 
 if __name__ == "__main__":
@@ -150,9 +185,12 @@ if __name__ == "__main__":
         "--resize_size_w", default=664, type=int, help="resize_w (default: 664)"
     )
 
+    parser.add_argument("--activation", type=str, default="relu")
     parser.add_argument("--attack_type", type=str, default="FGSM")
     parser.add_argument("--dataset_path", type=str, default="./NIPS_test/")
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--csv_results_dir", type=str, default=".")
+    parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
 
@@ -167,9 +205,19 @@ if __name__ == "__main__":
         P7=args.P7,
     ).to(args.device)
 
+    if args.activation.lower() == 'silu':
+        ReLU_to_SILU(model)
+    else:
+        pass
+
     metric_range = 100
 
-    total_score = test_attack(iterative.attack, model=model)
+
+
+    print("Device: ", args.device)
+    total_score = test_attack(iterative.attack if args.attack_type=="FGSM" else None, model=model, 
+                              activation=args.activation, device_=args.device,
+                              csv_results_dir=args.csv_results_dir, debug=args.debug)
     print(
         "Result for {} type attack: {:.4f}".format(
             args.attack_type.capitalize(), total_score
