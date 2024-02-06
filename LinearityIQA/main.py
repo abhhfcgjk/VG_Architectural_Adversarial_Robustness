@@ -17,9 +17,18 @@ import os
 import numpy as np
 import random
 from argparse import ArgumentParser
+<<<<<<< HEAD
 
 
 from activation import ReLU_to_SILU
+=======
+# import amp_C
+# import apex_C
+
+
+
+from activ import ReLU_to_SILU
+>>>>>>> master
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 def writer_add_scalar(writer, status, dataset, scalars, iter):
@@ -31,12 +40,20 @@ def run(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = IQAModel(arch=args.architecture, pool=args.pool, use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7).to(device)  #
     
+<<<<<<< HEAD
     if args.activation.lower() is 'silu':
+=======
+    if args.activation.lower() == 'silu':
+>>>>>>> master
         ReLU_to_SILU(model)
     else:
         pass
 
     print(model)
+<<<<<<< HEAD
+=======
+    print(device)
+>>>>>>> master
     if args.ft_lr_ratio == .0:
         for param in model.features.parameters():
             param.requires_grad = False
