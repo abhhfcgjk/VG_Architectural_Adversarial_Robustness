@@ -1,0 +1,12 @@
+# NIPS_test/
+
+LinearityIQA/KonIQ-10k
+
+
+__pycache__/
+
+LinearityIQA/runs
+LinearityIQA/results
+LinearityIQA/checkpoints/*
+*.pth
+LinearityIQA/results_in_the_paper/*.pdf
