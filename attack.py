@@ -17,6 +17,7 @@ from LinearityIQA.activ import ReLU_to_SILU
 PATH = "LinearityIQA/checkpoints/p1q2.pth"
 PATH_silu = "LinearityIQA/checkpoints/activation=silu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
 PATH_relu = "LinearityIQA/checkpoints/activation=relu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
+# PATH_relu = "LinearityIQA/checkpoints/activation=relu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
 EPS = 1e-6
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -52,7 +53,7 @@ def test_attack(
     checkpoints_path = PATH
     if activation=='silu':
         checkpoints_path = PATH_silu
-    else:
+    elif activation=='relu':
         checkpoints_path = PATH_relu
 
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
