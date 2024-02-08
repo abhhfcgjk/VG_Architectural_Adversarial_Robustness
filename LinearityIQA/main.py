@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 
 
 
-from activ import ReLU_to_SILU
+from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 def writer_add_scalar(writer, status, dataset, scalars, iter):
@@ -36,8 +36,8 @@ def run(args):
     
     if args.activation.lower() == 'silu':
         ReLU_to_SILU(model)
-    else:
-        pass
+    elif args.activation.lower() == 'relu_silu':
+        ReLU_to_ReLUSiLU(model)
 
     print(model)
     print(device)
