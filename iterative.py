@@ -25,7 +25,6 @@ def attack(
         torch.Tensor of shape [1,3,H,W]: adversarial image with same shape as image argument.
     """
     image = Variable(image.clone().to(device), requires_grad=True)
-    eps = 10/255
     additive = torch.zeros_like(image).to(device)
     # additive = torch.rand_like(image).to(device)
     additive = Variable(additive, requires_grad=True)

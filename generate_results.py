@@ -11,11 +11,11 @@ linewidth = 3.0
 epsilons = np.array([2, 4, 6, 8, 10])
 activations = ['relu', 'silu']
 
-
+colors = ['blue', 'orange', 'green', 'red']
 
 legends = ()
 # for i, epsilon in enumerate(epsilons):
-for activation in activations:
+for color_num,activation in enumerate(activations):
 	fig, axs = plt.subplots(len(epsilons), figsize=(12,12))
 	stage = 'eps'
 	# for activation in activations:
@@ -25,8 +25,9 @@ for activation in activations:
 		attacked_val = np.asarray(data.iloc[:,3])
 		clear_val = np.asarray(data.iloc[:,2])
 		baseline = np.repeat(attacked_val[0], len(img_num))
-		l1, = axs[i].plot(img_num, clear_val, zorder=1, linewidth=linewidth)
-		l2, = axs[i].plot(img_num, attacked_val, zorder=1, linewidth=linewidth)
+		l2, = axs[i].plot(img_num, attacked_val, zorder=1, linewidth=linewidth, color=colors[2*color_num+1])
+		l1, = axs[i].plot(img_num, clear_val, zorder=1, linewidth=linewidth, color=colors[2*color_num])
+		
 
 		# if i == 1:
 		legends = legends + (l1, ) + (l2, )

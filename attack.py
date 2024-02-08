@@ -90,7 +90,7 @@ def test_attack(
 
         for eps_i, eps in enumerate(epsilons):
             im_attacked = attack_callback(
-                im, model=model, metric_range=100, device=device_, eps=eps, iters=1, alpha=1/255
+                im, model=model, metric_range=100, device=device_, eps=10/255, iters=1, alpha=eps
             )
 
             with torch.no_grad():
