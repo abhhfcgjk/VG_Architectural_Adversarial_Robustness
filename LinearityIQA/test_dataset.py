@@ -4,7 +4,7 @@
 
 import torch
 from torch.optim import Adam, SGD, Adadelta, lr_scheduler
-from apex import amp
+# from apex import amp
 from ignite.engine import create_supervised_evaluator, Events
 from modified_ignite_engine import create_supervised_trainer
 from IQAdataset import IQADataset

@@ -16,6 +16,7 @@ class IQAPerformance(Metric):
         self.status = status
         self.mapping = mapping
 
+
     def reset(self):
         self._y_pred  = []
         self._y_pred1 = []

@@ -50,4 +50,4 @@ def ReLU_to_ReLUSiLU(model):
         if isinstance(layer, ReLU):
             setattr(model, name, ReLU_SiLU())
         else:
-            ReLU_to_SILU(layer)
+            ReLU_to_ReLUSiLU(layer)

@@ -4,7 +4,7 @@
 
 import torch
 from torch.optim import Adam, SGD, Adadelta, lr_scheduler
-from apex import amp
+# from apex import amp
 from ignite.engine import create_supervised_evaluator, Events
 from modified_ignite_engine import create_supervised_trainer
 from IQAdataset import get_data_loaders
@@ -17,17 +17,18 @@ import os
 import numpy as np
 import random
 from argparse import ArgumentParser
-# import amp_C
-# import apex_C
 
+from torch.cuda import amp
 
 
 from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
+# scaler = amp.grad_scaler.GradScaler()
 def writer_add_scalar(writer, status, dataset, scalars, iter):
     for metric_print in metrics_printed:
         writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
+
 
 
 def run(args):
@@ -55,7 +56,7 @@ def run(args):
                      lr=args.learning_rate, weight_decay=args.weight_decay) # Adam can be changed to other optimizers, such as SGD, Adadelta.
 
     # Initialization
-    model, optimizer = amp.initialize(model, optimizer, opt_level=args.opt_level)
+    # model, optimizer = amp.initialize(model, optimizer, opt_level=args.opt_level)
 
     mapping = True #  args.loss_type != 'mae' and args.loss_type != 'mse'
 
@@ -79,7 +80,8 @@ def run(args):
     scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
     loss_func = IQALoss(loss_type=args.loss_type, alpha=args.alpha, beta=args.beta, p=args.p, q=args.q, 
                         monotonicity_regularization=args.monotonicity_regularization, gamma=args.gamma, detach=args.detach)
-    trainer = create_supervised_trainer(model, optimizer, loss_func, device=device, accumulation_steps=args.accumulation_steps)
+    scaler = amp.grad_scaler.GradScaler()
+    trainer = create_supervised_trainer(model, optimizer, loss_func, scaler, device=device, accumulation_steps=args.accumulation_steps)
 
     if args.pbar:
         from ignite.contrib.handlers import ProgressBar
@@ -91,12 +93,14 @@ def run(args):
 
     current_time = datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
     writer = SummaryWriter(log_dir='{}/{}-{}'.format(args.log_dir, args.format_str, current_time))
-    global best_val_criterion, best_epoch
+    global best_val_criterion, best_epoch, max_pred, min_pred
     best_val_criterion, best_epoch = -100, -1  # larger, better, e.g., SROCC or PLCC. If RMSE is used, best_val_criterion <- 10000
-
+    max_pred, min_pred = -200, 200 # max and min predictions; necessary for normalization
     @trainer.on(Events.ITERATION_COMPLETED)
     def iter_event_function(engine):
+        global max_pred, min_pred
         writer.add_scalar("train/loss", engine.state.output, engine.state.iteration)
+        max_pred, min_pred = max(max_pred,engine.state.output[0]), min(min_pred,engine.state.output[0])
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def epoch_event_function(engine):
@@ -121,14 +125,19 @@ def run(args):
             performance = evaluator.state.metrics
             writer_add_scalar(writer, 'test', args.dataset, performance, engine.state.epoch)
 
-        global best_val_criterion, best_epoch
+        global best_val_criterion, best_epoch, max_pred, min_pred
         if val_criterion > best_val_criterion: # If RMSE is used, then change ">" to "<".
+            if args.debug:
+                print('max:', max_pred, 'min:', min_pred)
+
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'amp': amp.state_dict(),
                 'k': k,
-                'b': b
+                'b': b,
+                'max': max_pred,
+                'min': min_pred
             }
             torch.save(checkpoint, args.trained_model_file)
             best_val_criterion = val_criterion
@@ -148,17 +157,25 @@ def run(args):
         if args.test_during_training:
             k = checkpoint['k']
             b = checkpoint['b']
+            max_pred = checkpoint['max']
+            min_pred = checkpoint['min']
         else:
             evaluator_for_train.run(train_loader)
             performance = evaluator_for_train.state.metrics
             k = performance['k']
             b = performance['b']
+            max_pred = checkpoint['max']
+            min_pred = checkpoint['min']
+            if args.debug:
+                print('max:', max_pred, 'min:', min_pred)
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
                 'amp': amp.state_dict(),
                 'k': k,
-                'b': b
+                'b': b,
+                'max': max_pred,
+                'min': min_pred
             }
             torch.save(checkpoint, args.trained_model_file)
 

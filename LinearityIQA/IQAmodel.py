@@ -63,7 +63,6 @@ class IQAModel(nn.Module):
                 in_features = [256, 512]
             else:
                 in_features = [1024, 2048]
-                # in_features = [1024, 10240]
         else: 
             print('The arch is not implemented!')
         self.features = nn.Sequential(*features)

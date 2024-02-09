@@ -1,7 +1,8 @@
 from ignite.utils import convert_tensor
 from ignite.engine.engine import Engine
-from apex import amp
-
+# from apex import amp
+from torch.cuda.amp.grad_scaler import GradScaler
+from torch.cuda.amp.autocast_mode import autocast
 
 def _prepare_batch(batch, device=None, non_blocking=False):
     """Prepare batch for training: pass to a device with options.
@@ -12,7 +13,7 @@ def _prepare_batch(batch, device=None, non_blocking=False):
             convert_tensor(y, device=device, non_blocking=non_blocking))
 
 
-def create_supervised_trainer(model, optimizer, loss_fn,
+def create_supervised_trainer(model, optimizer, loss_fn, scaler: GradScaler,
                               device=None, accumulation_steps=1, non_blocking=False,
                               prepare_batch=_prepare_batch,
                               output_transform=lambda x, y, y_pred, loss: loss.item()):
@@ -46,11 +47,14 @@ def create_supervised_trainer(model, optimizer, loss_fn,
         x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
         y_pred = model(x)
         loss = loss_fn(y_pred, y) / accumulation_steps
-        with amp.scale_loss(loss, optimizer) as scaled_loss:
-            scaled_loss.backward()
-        if engine.state.iteration % accumulation_steps == 0:
-            optimizer.step()
-            optimizer.zero_grad()
+        with autocast(enable=True):
+            scaler.scale(loss).backward()
+            
+            if engine.state.iteration % accumulation_steps == 0:
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad()
         return output_transform(x, y, y_pred, loss)
 
     return Engine(_update)
+
