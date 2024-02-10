@@ -5,7 +5,6 @@ LinearityIQA/KonIQ-10k
 
 __pycache__/
 
-LinearityIQA/runs
 LinearityIQA/results
 LinearityIQA/checkpoints/*
 *.pth
