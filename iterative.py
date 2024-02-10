@@ -1,6 +1,8 @@
 from torch.autograd import Variable
 import torch
 
+def normalize_output(output, mmin, mmax, metric_range):
+    return (output*metric_range - mmin*metric_range)/(mmax - mmin)
 
 # iterative attack baseline (IFGSM attack)
 def attack(
@@ -11,6 +13,10 @@ def attack(
     eps=10 / 255,
     iters=10,
     alpha=1 / 255,
+    k=[1,1,1],
+    b=[0,0,0],
+    mmin=0,
+    mmax=100
 ):
     """
     Attack function.
@@ -35,10 +41,12 @@ def attack(
         img = Variable(image + additive, requires_grad=True)
         # img = image + additive
         img.data.clamp_(0.0, 1.0)
-        output = model(img)
+        y = model(img)
+        output = normalize_output(y[-1].item() * k[0] + b[0], mmin=mmin, mmax=mmax, metric_range=metric_range)
+        
 
-        avr_output = torch.stack(output).mean()
-        loss = loss_fn(avr_output, metric_range)
+        # avr_output = torch.stack(output).mean()
+        loss = loss_fn(output, metric_range)
 
         # print(loss)
         model.zero_grad()
@@ -46,7 +54,7 @@ def attack(
         input_grad = img.grad.data
 
         gradient_sign = input_grad.sign()
-        additive.data -= alpha * gradient_sign  # 0.25*eps*gradient_sign
+        additive.data -= alpha * gradient_sign
         additive.data.clamp_(-eps, eps)
 
     res_image = image + additive

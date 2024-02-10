@@ -10,3 +10,4 @@ LinearityIQA/results
 LinearityIQA/checkpoints/*
 *.pth
 LinearityIQA/results_in_the_paper/*.pdf
+*.pdf

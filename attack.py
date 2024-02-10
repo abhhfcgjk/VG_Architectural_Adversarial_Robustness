@@ -22,24 +22,6 @@ EPS = 1e-6
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-# class MetricModel(torch.nn.Module):
-#     def __init__(self, dev, model_path=PATH, batch_size=8):
-#         global device
-#         super().__init__()
-#         device = dev
-#         self.model = IQAModel(
-#             arch=args.architecture,
-#             pool=args.pool,
-#             use_bn_end=args.use_bn_end,
-#             P6=args.P6,
-#             P7=args.P7,
-#         ).to(device)
-#         self.lower_better = False
-#         self.full_reference = False
-
-#     def forward(self, image, inference=False):
-#         return self.model.predict_with_grads(image)[:, 0]
-
 
 def test_attack(
     attack_callback,
@@ -65,6 +47,12 @@ def test_attack(
     # print(checkpoint)
     model.load_state_dict(checkpoint["model"])
     model.eval()
+
+    k = checkpoint['k']
+    b = checkpoint['b']
+    max_pred = checkpoint['max']
+    min_pred = checkpoint['min']
+
     count = 5
     image_num = 0
     for image_path in tqdm(
@@ -84,13 +72,15 @@ def test_attack(
 
         with torch.no_grad():
             clear_val = model(im)
+            clear_val = clear_val[-1].item()*k[0] + b[0]
             mean_clear_val = np.mean([elem.cpu().numpy() for elem in clear_val])
             # print(clear_val, mean_clear_val)
 
 
         for eps_i, eps in enumerate(epsilons):
             im_attacked = attack_callback(
-                im, model=model, metric_range=100, device=device_, eps=10/255, iters=1, alpha=eps
+                im, model=model, metric_range=100, device=device_, 
+                eps=10/255, iters=1, alpha=eps, k=k, b=b, mmin=min_pred, mmax=max_pred
             )
 
             with torch.no_grad():
@@ -99,7 +89,7 @@ def test_attack(
                 # print("DIFF:", torch.sum(diff))
                 im_attacked = im + diff
 
-                attacked_val = model(im_attacked)
+                attacked_val = model(im_attacked) # поменять значение
                 mean_attacked_val = np.mean([elem.cpu().numpy() for elem in attacked_val])
 
                 results.loc[len(results.index)] = [
@@ -192,6 +182,9 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--csv_results_dir", type=str, default=".")
     parser.add_argument("--debug", action="store_true")
+
+    parser.add_argument('--trained_model_file', default='LinearityIQA/checkpoints/p1q2.pth', type=str,
+                    help='trained_model_file')
 
     args = parser.parse_args()
 
