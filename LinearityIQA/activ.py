@@ -6,20 +6,31 @@ from torch.autograd import Function
 
 class Activaion_forward_ReLU_backward_SiLU(Function):
     @staticmethod
-    def forward(ctx, input, inplace):
-        ctx.save_for_backward(input)
+    def forward(ctx, x, inplace):
+        result = F.relu(x, inplace=inplace)
+        dx = 1/(1+exp(-x)) + x*exp(-x)/(1+exp(-x))**2
+        ctx.save_for_backward(dx)
         ctx.inplace = inplace
-        return F.relu(input, inplace=inplace)
+        return result
+
+    # @staticmethod
+    # def setup_context(ctx, inputs, output):
+    #     x, inplace = inputs
+    #     result, dx = output
+    #     ctx.save_for_backward(x, dx)
+    #     ctx.inplace = inplace
+
+
     @staticmethod
-    def backward(ctx, grad_outputs):
-        grad_inputs = None
-        input, = ctx.saved_tensors
-        if ctx.inplace:
-            grad_inputs = grad_outputs.clone()
-        else:
-            grad_inputs = grad_outputs
-        grad_inputs = grad_inputs/(1+exp(-input)) + grad_inputs*input*exp(-input)/(1+exp(-input))**2
-        return grad_inputs
+    def backward(ctx, grad_output):
+        dx, = ctx.saved_tensors
+        # if ctx.inplace:
+        #     result = grad_output.clone()
+        # else:
+        #     result = grad_output
+        result = grad_output*dx
+        inplace = ctx.inplace
+        return result, None
 
 class ReLU_SiLU(Module):
 
@@ -31,7 +42,8 @@ class ReLU_SiLU(Module):
         self.inplace = inplace
 
     def forward(self, input: Tensor) -> Tensor:
-        return Activaion_forward_ReLU_backward_SiLU.apply(input, self.inplace)
+        result = Activaion_forward_ReLU_backward_SiLU.apply(input, self.inplace)
+        return result
 
     def extra_repr(self) -> str:
         inplace_str = 'inplace=True' if self.inplace else ''

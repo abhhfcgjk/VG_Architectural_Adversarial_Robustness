@@ -20,7 +20,6 @@ from argparse import ArgumentParser
 
 from torch.cuda import amp
 
-
 from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
@@ -30,7 +29,7 @@ def writer_add_scalar(writer, status, dataset, scalars, iter):
         writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
 
 
-
+scaler: amp.grad_scaler.GradScaler
 def run(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = IQAModel(arch=args.architecture, pool=args.pool, use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7).to(device)  #
@@ -80,8 +79,11 @@ def run(args):
     scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
     loss_func = IQALoss(loss_type=args.loss_type, alpha=args.alpha, beta=args.beta, p=args.p, q=args.q, 
                         monotonicity_regularization=args.monotonicity_regularization, gamma=args.gamma, detach=args.detach)
+    global scaler
     scaler = amp.grad_scaler.GradScaler()
-    trainer = create_supervised_trainer(model, optimizer, loss_func, scaler, device=device, accumulation_steps=args.accumulation_steps)
+    trainer = create_supervised_trainer(model, optimizer, loss_func, scaler, 
+                                        device=device, accumulation_steps=args.accumulation_steps,
+                                        output_transform=lambda x, y, y_pred, loss: (y_pred, y, loss))
 
     if args.pbar:
         from ignite.contrib.handlers import ProgressBar
@@ -99,11 +101,18 @@ def run(args):
     @trainer.on(Events.ITERATION_COMPLETED)
     def iter_event_function(engine):
         global max_pred, min_pred
-        writer.add_scalar("train/loss", engine.state.output, engine.state.iteration)
-        max_pred, min_pred = max(max_pred,engine.state.output[0]), min(min_pred,engine.state.output[0])
+        # print(engine.state.output)
+        # print(engine.state.output[0])
+        # print(engine.state.output[1])
+        # print(engine.state.output[2])
+        writer.add_scalar("train/loss", engine.state.output[-1].item(), engine.state.iteration)
+        
+        max_pred = max(max_pred,max(engine.state.output[1][0]).item())
+        min_pred = min(max_pred,min(engine.state.output[1][0]).item())
 
     @trainer.on(Events.EPOCH_COMPLETED)
     def epoch_event_function(engine):
+        global scaler
         if args.test_during_training:
             evaluator_for_train.run(train_loader) # It is better to re-make a train_loader_for_evaluation so as not to disturb the random number generator.
             performance = evaluator_for_train.state.metrics
@@ -133,7 +142,7 @@ def run(args):
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'amp': amp.state_dict(),
+                'amp': scaler.state_dict(),
                 'k': k,
                 'b': b,
                 'max': max_pred,
@@ -151,6 +160,7 @@ def run(args):
     @trainer.on(Events.COMPLETED)
     def final_testing_results(engine):
         writer.close ()  # close the Tensorboard writer
+        global scaler
         print('best epoch: {}'.format(best_epoch))
         checkpoint = torch.load(args.trained_model_file)
         model.load_state_dict(checkpoint['model'])
@@ -171,7 +181,7 @@ def run(args):
             checkpoint = {
                 'model': model.state_dict(),
                 'optimizer': optimizer.state_dict(),
-                'amp': amp.state_dict(),
+                'amp': scaler.state_dict(),
                 'k': k,
                 'b': b,
                 'max': max_pred,
@@ -193,6 +203,10 @@ def run(args):
 
 
 if __name__ == "__main__":
+    # t = [torch.tensor([66.4211, 15.2294, 61.0280, 72.7750, 50.5682, 73.8152, 31.2712, 71.9091],device='cuda:0'),
+    #      torch.tensor([0.5375, 0.6159, 0.5664, 0.6331, 0.5235, 0.5143, 0.5963, 0.5326],device='cuda:0')]
+    # print(max(t[0]).item())
+    # quit()
     parser = ArgumentParser(description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
     parser.add_argument("--activation", default='relu',
                         help='activation function')

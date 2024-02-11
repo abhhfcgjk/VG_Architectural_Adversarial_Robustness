@@ -5,7 +5,7 @@ from torch.cuda.amp.grad_scaler import GradScaler
 from torch.cuda.amp.autocast_mode import autocast
 
 def _prepare_batch(batch, device=None, non_blocking=False):
-    """Prepare batch for training: pass to a device with options.
+    """ Prepare batch for training: pass to a device with options.
 
     """
     x, y = batch 
@@ -47,7 +47,7 @@ def create_supervised_trainer(model, optimizer, loss_fn, scaler: GradScaler,
         x, y = prepare_batch(batch, device=device, non_blocking=non_blocking)
         y_pred = model(x)
         loss = loss_fn(y_pred, y) / accumulation_steps
-        with autocast(enable=True):
+        with autocast(enabled=True):
             scaler.scale(loss).backward()
             
             if engine.state.iteration % accumulation_steps == 0:
