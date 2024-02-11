@@ -64,4 +64,7 @@ tensorboard --logdir=runs --port=6006
 ## Links
 [KonIQ-10k](https://drive.google.com/file/d/13KlUl_Uo68MDjL_ef7INQHf_waDZf4R9/view?usp=drive_link)<br>
 [Checkpoints-SiLU](https://drive.google.com/file/d/19sbNdE7EJDQScCWgPuQpxgptYt1YckM0/view?usp=drive_link)<br>
-[Checkpoints-ReLU](https://drive.google.com/file/d/1pte9VqUfsD3Eu0DSNQYKQpbtJep2zxEB/view?usp=drive_link)
+[Checkpoints-ReLU](https://drive.google.com/file/d/1pte9VqUfsD3Eu0DSNQYKQpbtJep2zxEB/view?usp=drive_link)<br>
+[Checkpoints-SiLU_res34](https://drive.google.com/file/d/1OrU0zi8-TWI_MkE_1OetBKG-EvQ8hGpX/view?usp=drive_link)<br>
+[Checkpoints-ReLU_res34](https://drive.google.com/file/d/1kDGQ96qYbZuXXpqiT-BD-pk8TY_WNtkS/view?usp=drive_link)<br>
+[Checkpoints-ReLU-SiLU_res34](https://drive.google.com/file/d/1F-9J2R9j6ID5ln-ZPPcDPzUlXZX0PuFr/view?usp=drive_link)<br>
