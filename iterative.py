@@ -4,6 +4,11 @@ import torch
 def normalize_output(output, mmin, mmax, metric_range):
     return (output*metric_range - mmin*metric_range)/(mmax - mmin)
 
+def loss_fn(output, metric_range, k, b):
+    loss = 1 - (output[-1]*k[0] + b[0])/metric_range
+    return loss
+
+
 # iterative attack baseline (IFGSM attack)
 def attack(
     image,
@@ -35,18 +40,19 @@ def attack(
     # additive = torch.rand_like(image).to(device)
     additive = Variable(additive, requires_grad=True)
 
-    loss_fn = lambda score, m_range: 1 - score / m_range
+    # loss_fn = lambda score, m_range: 1 - score / m_range
 
     for _ in range(iters):
         img = Variable(image + additive, requires_grad=True)
         # img = image + additive
         img.data.clamp_(0.0, 1.0)
         y = model(img)
-        output = normalize_output(y[-1].item() * k[0] + b[0], mmin=mmin, mmax=mmax, metric_range=metric_range)
+        # print(y)
+        # output = normalize_output(y[-1].item() * k[0] + b[0], mmin=mmin, mmax=mmax, metric_range=metric_range)
         
 
         # avr_output = torch.stack(output).mean()
-        loss = loss_fn(output, metric_range)
+        loss = loss_fn(y, metric_range, k, b)
 
         # print(loss)
         model.zero_grad()
@@ -54,7 +60,9 @@ def attack(
         input_grad = img.grad.data
 
         gradient_sign = input_grad.sign()
+        # print(gradient_sign*alpha)
         additive.data -= alpha * gradient_sign
+        # print(additive)
         additive.data.clamp_(-eps, eps)
 
     res_image = image + additive

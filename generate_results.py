@@ -9,7 +9,7 @@ fontsize = 28
 linewidth = 3.0
 
 epsilons = np.array([2, 4, 6, 8, 10])
-activations = ['relu', 'silu']
+activations = ['relu', 'silu', ]
 
 colors = ['blue', 'orange', 'green', 'red']
 
@@ -38,7 +38,7 @@ for color_num,activation in enumerate(activations):
 		axs[i].tick_params(axis="x", labelsize=fontsize)
 		axs[i].tick_params(axis="y", labelsize=fontsize)
 		axs[i].set_xlim((0, 40))
-		axs[i].set_ylim((-3,2))
+		axs[i].set_ylim((0,100))
 		axs[i].grid(True)
 
 
