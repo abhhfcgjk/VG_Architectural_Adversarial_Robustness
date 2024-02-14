@@ -39,6 +39,9 @@ def run(args):
     elif args.activation.lower() == 'relu_silu':
         ReLU_to_ReLUSiLU(model)
 
+    global wd_ratio
+    wd_ratio = model.wd_ratio
+
     print(model)
     print(device)
     if args.ft_lr_ratio == .0:
@@ -134,7 +137,7 @@ def run(args):
             performance = evaluator.state.metrics
             writer_add_scalar(writer, 'test', args.dataset, performance, engine.state.epoch)
 
-        global best_val_criterion, best_epoch, max_pred, min_pred
+        global best_val_criterion, best_epoch, max_pred, min_pred, wd_ratio
         if val_criterion > best_val_criterion: # If RMSE is used, then change ">" to "<".
             if args.debug:
                 print('max:', max_pred, 'min:', min_pred)
@@ -146,7 +149,8 @@ def run(args):
                 'k': k,
                 'b': b,
                 'max': max_pred,
-                'min': min_pred
+                'min': min_pred,
+                'wd_ratio': wd_ratio
             }
             torch.save(checkpoint, args.trained_model_file)
             best_val_criterion = val_criterion
@@ -160,7 +164,7 @@ def run(args):
     @trainer.on(Events.COMPLETED)
     def final_testing_results(engine):
         writer.close ()  # close the Tensorboard writer
-        global scaler
+        global scaler, wd_ratio
         print('best epoch: {}'.format(best_epoch))
         checkpoint = torch.load(args.trained_model_file)
         model.load_state_dict(checkpoint['model'])
@@ -185,9 +189,11 @@ def run(args):
                 'k': k,
                 'b': b,
                 'max': max_pred,
-                'min': min_pred
+                'min': min_pred,
+                'wd_ratio': wd_ratio
             }
             torch.save(checkpoint, args.trained_model_file)
+            print('WD ratio:', wd_ratio)
 
         evaluator = create_supervised_evaluator(model, metrics={'IQA_performance': 
             IQAPerformance(status='test', k=k, b=b, mapping=mapping)}, device=device)
@@ -337,10 +343,10 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-    args.format_str = '{}-{}-bn_end={}-loss={}-p={}-q={}-detach-{}-ft_lr_ratio={}-alpha={}-beta={}-{}-res={}-{}x{}-aug={}-monotonicity={}-lr={}-bs={}-e={}-opt_level={}-EXP{}'\
-                      .format(args.architecture, args.pool, args.use_bn_end, args.loss_type, args.p, args.q, args.detach, args.ft_lr_ratio, args.alpha, args.beta, 
+    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-aug={}-lr={}-bs={}-e={}-opt_level={}'\
+                      .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
                               args.dataset, args.resize, args.resize_size_h, args.resize_size_w, args.augmentation, 
-                              args.monotonicity_regularization, args.learning_rate, args.batch_size, args.epochs, args.opt_level, args.exp_id)
+                              args.learning_rate, args.batch_size, args.epochs, args.opt_level)
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     args.trained_model_file = 'checkpoints/' + args.format_str

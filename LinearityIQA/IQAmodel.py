@@ -3,14 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 import numpy as np
-
+import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
     map_size = x.size()[-2:]
     pool_features = []
     for p in range(1, P+1):
-        pool_size = [np.int(d / p) for d in map_size]
+        pool_size = [np.int32(d / p) for d in map_size]
         if method == 'maxmin':
             M = F.max_pool2d(x, pool_size)
             m = -F.max_pool2d(-x, pool_size)
@@ -35,6 +35,7 @@ def SPSP(x, P=1, method='avg'):
 
 
 class IQAModel(nn.Module):
+    wd_ratio = 0
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1):
         super(IQAModel, self).__init__()
         self.pool = pool
@@ -45,7 +46,16 @@ class IQAModel(nn.Module):
             c = 2
         self.P6 = P6  #
         self.P7 = P7  #
-        features = list(models.__dict__[arch](pretrained=True).children())[:-2]
+        if arch=='wideresnet34':
+            self.width_factor = 1.5
+            m = wide_resnet34.ResNet()
+            features = list(m.children())[:-2]
+            self.wd_ratio = m.wd_ratio
+        else:
+            features = list(models.__dict__[arch](pretrained=True).children())[:-2]
+            self.wd_ratio = -1
+        # print(type(features))
+        # print(features)
         if arch == 'alexnet':
             in_features = [256, 256]
             self.id1 = 9
@@ -61,6 +71,8 @@ class IQAModel(nn.Module):
             self.id2 = 7
             if arch == 'resnet18' or arch == 'resnet34':
                 in_features = [256, 512]
+            elif arch == 'wideresnet34':
+                in_features = [int(round(256*self.width_factor)), int(round(512*self.width_factor))]
             else:
                 in_features = [1024, 2048]
         else: 
