@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 import numpy as np
-
+import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
@@ -45,7 +45,12 @@ class IQAModel(nn.Module):
             c = 2
         self.P6 = P6  #
         self.P7 = P7  #
-        features = list(models.__dict__[arch](pretrained=True).children())[:-2]
+        if arch=='wideresnet34':
+            features = list(wide_resnet34.ResNet().children())[:-2]
+        else:
+            features = list(models.__dict__[arch](pretrained=True).children())[:-2]
+        print(type(features))
+        print(features)
         if arch == 'alexnet':
             in_features = [256, 256]
             self.id1 = 9
@@ -59,7 +64,7 @@ class IQAModel(nn.Module):
         elif 'res' in arch:
             self.id1 = 6
             self.id2 = 7
-            if arch == 'resnet18' or arch == 'resnet34':
+            if arch == 'resnet18' or arch == 'resnet34' or arch == 'wideresnet34':
                 in_features = [256, 512]
             else:
                 in_features = [1024, 2048]
