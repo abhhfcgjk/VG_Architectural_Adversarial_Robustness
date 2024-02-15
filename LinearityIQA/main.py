@@ -337,8 +337,8 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-    args.format_str = '{}-{}-bn_end={}-loss={}-p={}-q={}-detach-{}-ft_lr_ratio={}-alpha={}-beta={}-{}-res={}-{}x{}-aug={}-monotonicity={}-lr={}-bs={}-e={}-opt_level={}-EXP{}'\
-                      .format(args.architecture, args.pool, args.use_bn_end, args.loss_type, args.p, args.q, args.detach, args.ft_lr_ratio, args.alpha, args.beta, 
+    args.format_str = 'activation={}-{}-{}-bn_end={}-loss={}-p={}-q={}-detach-{}-ft_lr_ratio={}-alpha={}-beta={}-{}-res={}-{}x{}-aug={}-monotonicity={}-lr={}-bs={}-e={}-opt_level={}-EXP{}'\
+                      .format(args.activation, args.architecture, args.pool, args.use_bn_end, args.loss_type, args.p, args.q, args.detach, args.ft_lr_ratio, args.alpha, args.beta, 
                               args.dataset, args.resize, args.resize_size_h, args.resize_size_w, args.augmentation, 
                               args.monotonicity_regularization, args.learning_rate, args.batch_size, args.epochs, args.opt_level, args.exp_id)
     if not os.path.exists('checkpoints'):

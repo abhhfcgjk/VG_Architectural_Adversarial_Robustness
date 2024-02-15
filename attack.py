@@ -45,6 +45,7 @@ def test_attack(
         checkpoints_path = PATH_relu_silu
 
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
+    clear_vals = []
     # iterations = np.array([1, 2, 3, 4, 5])
     device = torch.device(device_)
     results = pd.DataFrame(columns=["image_name", "clear_val", "attacked_val"])
@@ -56,12 +57,12 @@ def test_attack(
 
     k = checkpoint['k']
     b = checkpoint['b']
-    max_pred = checkpoint['max']
-    min_pred = checkpoint['min']
-    print(min_pred, max_pred)
+    # max_pred = checkpoint['max']
+    # min_pred = checkpoint['min']
+    # print(min_pred, max_pred)
 
     count = 5
-    image_num = 0
+    
     for image_path in tqdm(
         Path(dataset_path).iterdir(),
         total=len([x for x in Path(dataset_path).iterdir()]),
@@ -80,10 +81,33 @@ def test_attack(
         with torch.no_grad():
             clear_val = model(im)
             clear_val = clear_val[-1].item()*k[0] + b[0]
-            print(clear_val, k[0], b[0])
+            clear_vals.append(clear_val)
+            # print(clear_val, k[0], b[0])
             # mean_clear_val = np.mean([elem.cpu().numpy() for elem in clear_val])
             # print(clear_val, mean_clear_val)
 
+    min_pred, max_pred = min(clear_vals), max(clear_vals)
+    image_num = 0
+    for image_path in tqdm(
+        Path(dataset_path).iterdir(),
+        total=len([x for x in Path(dataset_path).iterdir()]),
+    ):
+        if Path(image_path).suffix not in [".png", ".jpg", ".jpeg"]:
+            continue
+        diffs = {int(x * 255): [] for x in epsilons}
+        im = Image.open(image_path).convert("RGB")
+        if args.resize:  # resize or not?
+            im = resize(im, (args.resize_size_h, args.resize_size_w))  #
+        im = to_tensor(im).to(device)
+
+        im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        im = im.unsqueeze(0)
+
+        # with torch.no_grad():
+        #     clear_val = model(im)
+        #     clear_val = clear_val[-1].item()*k[0] + b[0]
+        #     clear_vals.append(clear_val)
+        #     print(clear_val, k[0], b[0])
 
         for eps_i, eps in enumerate(epsilons):
             im_attacked = attack_callback(
@@ -97,9 +121,11 @@ def test_attack(
                 # print("DIFF:", torch.sum(diff))
                 im_attacked = im + diff
 
-                attacked_val = model(im_attacked) # поменять значение
+                attacked_val = model(im_attacked)
                 attacked_val = attacked_val[-1].item()*k[0] + b[0]
-                # mean_attacked_val = np.mean([elem.cpu().numpy() for elem in attacked_val])
+                attacked_val = iterative.norm(attacked_val, min_pred, max_pred)
+
+                clear_val = iterative.norm(clear_vals[image_num], mmin=min_pred, mmax=max_pred)
 
                 results.loc[len(results.index)] = [
                     Path(image_path).stem,

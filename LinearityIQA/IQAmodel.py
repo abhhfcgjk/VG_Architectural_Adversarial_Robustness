@@ -3,14 +3,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 import numpy as np
-import wide_resnet34
+from . import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
     map_size = x.size()[-2:]
     pool_features = []
     for p in range(1, P+1):
-        pool_size = [np.int(d / p) for d in map_size]
+        pool_size = [np.int32(d / p) for d in map_size]
         if method == 'maxmin':
             M = F.max_pool2d(x, pool_size)
             m = -F.max_pool2d(-x, pool_size)
@@ -49,8 +49,8 @@ class IQAModel(nn.Module):
             features = list(wide_resnet34.ResNet().children())[:-2]
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
-        print(type(features))
-        print(features)
+        # print(type(features))
+        # print(features)
         if arch == 'alexnet':
             in_features = [256, 256]
             self.id1 = 9
