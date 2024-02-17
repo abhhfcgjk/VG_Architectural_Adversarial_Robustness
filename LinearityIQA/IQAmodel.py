@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 import numpy as np
-import wide_resnet34
+from . import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
@@ -50,7 +50,6 @@ class IQAModel(nn.Module):
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())[:-2]
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
-            self.wd_ratio = -1
         # print(type(features))
         # print(features)
         if arch == 'alexnet':

@@ -9,9 +9,9 @@ fontsize = 28
 linewidth = 3.0
 
 epsilons = np.array([2, 4, 6, 8, 10])
-activations = ['relu', 'silu', ]
+activations = ['relu', 'silu', 'relu_silu']
 
-colors = ['blue', 'orange', 'green', 'red']
+colors = ['blue', 'orange', 'green', 'red', 'purple', 'pink']
 
 legends = ()
 # for i, epsilon in enumerate(epsilons):
@@ -38,13 +38,11 @@ for color_num,activation in enumerate(activations):
 		axs[i].tick_params(axis="x", labelsize=fontsize)
 		axs[i].tick_params(axis="y", labelsize=fontsize)
 		axs[i].set_xlim((0, 40))
-		axs[i].set_ylim((0,100))
+		axs[i].set_ylim((-0.5,1))
 		axs[i].grid(True)
 
 
-	fig.legend(legends, ["clear_{}".format(activation), "attacked_{}".format(activation), ], 
-			'lower center', ncol=3, 
-			bbox_to_anchor=(0, 1.01, 1, 0.1), fontsize=2+fontsize)
+	fig.legend(legends, ["clear_{}".format(activation), "attacked_{}".format(activation), ])
 	plt.tight_layout()
 	plt.savefig("eps_comp_{}.pdf".format(activation), bbox_inches="tight")
 

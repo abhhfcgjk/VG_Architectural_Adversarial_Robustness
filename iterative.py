@@ -1,8 +1,11 @@
 from torch.autograd import Variable
 import torch
 
-def normalize_output(output, mmin, mmax, metric_range):
-    return (output*metric_range - mmin*metric_range)/(mmax - mmin)
+def norm(score: int, mmin: int, mmax: int, metric_range=1):
+    return (score - mmin)*metric_range/(mmax-mmin)
+
+def get_score(y: list, k: list[int], b: list[int]):
+    return y[-1]*k[0] + b[0]
 
 def loss_fn(output, metric_range, k, b):
     loss = 1 - (output[-1]*k[0] + b[0])/metric_range
@@ -50,7 +53,7 @@ def attack(
         # print(y)
         # output = normalize_output(y[-1].item() * k[0] + b[0], mmin=mmin, mmax=mmax, metric_range=metric_range)
         
-
+        y[-1] = norm(get_score(y, k, b),mmin, mmax)
         # avr_output = torch.stack(output).mean()
         loss = loss_fn(y, metric_range, k, b)
 
