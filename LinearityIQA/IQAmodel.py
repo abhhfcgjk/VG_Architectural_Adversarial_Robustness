@@ -46,11 +46,8 @@ class IQAModel(nn.Module):
             c = 2
         self.P6 = P6  #
         self.P7 = P7  #
-        if arch=='wideresnet34':
-            self.width_factor = 1.5
-            m = wide_resnet34.ResNet()
-            features = list(m.children())[:-2]
-            self.wd_ratio = m.wd_ratio
+        if arch=='wideresnet50':
+            features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())[:-2]
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
             self.wd_ratio = -1
@@ -71,8 +68,8 @@ class IQAModel(nn.Module):
             self.id2 = 7
             if arch == 'resnet18' or arch == 'resnet34':
                 in_features = [256, 512]
-            elif arch == 'wideresnet34':
-                in_features = [int(round(256*self.width_factor)), int(round(512*self.width_factor))]
+            # elif arch == 'wideresnet34':
+            #     in_features = [int(round(256*self.width_factor)), int(round(512*self.width_factor))]
             else:
                 in_features = [1024, 2048]
         else: 
