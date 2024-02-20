@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 import numpy as np
-from . import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
