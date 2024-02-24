@@ -68,11 +68,11 @@ class IQAPerformance(Metric):
         return {'SROCC': SROCC,
                 'PLCC': PLCC,
                 'RMSE': RMSE,
-                'sq': sq,
-                'sq_std': sq_std,
-                'pq_before': pq_before,
-                'k': self.k,
-                'b': self.b
+                # 'sq': sq,
+                # 'sq_std': sq_std,
+                # 'pq_before': pq_before,
+                # 'k': self.k,
+                # 'b': self.b
                 }
 
     def linear_mapping(self, pq, sq, i=0):

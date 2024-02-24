@@ -5,6 +5,7 @@ import h5py
 import os
 import numpy as np
 import random
+from tqdm import tqdm
 
 
 def default_loader(path):
@@ -41,7 +42,8 @@ class IQADataset(Dataset):
         self.label_std = Info['subjective_scoresSTD'][0, self.index].astype(np.float32)
         self.im_names = [Info[Info['im_names'][0, :][i]][()].tobytes()[::2].decode() for i in self.index]
         self.ims = []
-        for im_name in self.im_names:
+        count = 5*args.batch_size
+        for im_name in tqdm(self.im_names, total=len(self.im_names)):
             im = loader(os.path.join(args.im_dirs[args.dataset], im_name))
             if args.dataset == 'CLIVE':  #
                 w, h = im.size
@@ -50,6 +52,10 @@ class IQADataset(Dataset):
             if args.resize:  # resize or not?
                 im = resize(im, (args.resize_size_h, args.resize_size_w))  # h, w
             self.ims.append(im)
+            if args.debug:
+                count -= 1
+                if count == 0:
+                    break
 
     def __len__(self):
         return len(self.index)

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
-from .activ import ReLU_SiLU
+from activ import ReLU_SiLU
 # from . import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):

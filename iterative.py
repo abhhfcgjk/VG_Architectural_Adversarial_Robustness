@@ -1,10 +1,11 @@
 from torch.autograd import Variable
+from typing import Any, List
 import torch
 
 def norm(score: int, mmin: int, mmax: int, metric_range=1):
     return (score - mmin)*metric_range/(mmax-mmin)
 
-def get_score(y: list, k: list[int], b: list[int]):
+def get_score(y: List[Any], k: List[int], b: List[int]):
     return y[-1]*k[0] + b[0]
 
 def loss_fn(output, metric_range, k, b):
@@ -39,33 +40,25 @@ def attack(
         torch.Tensor of shape [1,3,H,W]: adversarial image with same shape as image argument.
     """
     image = Variable(image.clone().to(device), requires_grad=True)
-    additive = torch.zeros_like(image).to(device)
-    # additive = torch.rand_like(image).to(device)
-    additive = Variable(additive, requires_grad=True)
+    # additive = torch.zeros_like(image).to(device)
+    additive = torch.rand_like(image).to(device)
 
-    # loss_fn = lambda score, m_range: 1 - score / m_range
+    additive = Variable(additive, requires_grad=True)
 
     for _ in range(iters):
         img = Variable(image + additive, requires_grad=True)
-        # img = image + additive
         img.data.clamp_(0.0, 1.0)
         y = model(img)
-        # print(y)
-        # output = normalize_output(y[-1].item() * k[0] + b[0], mmin=mmin, mmax=mmax, metric_range=metric_range)
-        
+                
         y[-1] = norm(get_score(y, k, b),mmin, mmax)
-        # avr_output = torch.stack(output).mean()
         loss = loss_fn(y, metric_range, k, b)
 
-        # print(loss)
         model.zero_grad()
         loss.backward()
         input_grad = img.grad.data
 
         gradient_sign = input_grad.sign()
-        # print(gradient_sign*alpha)
         additive.data -= alpha * gradient_sign
-        # print(additive)
         additive.data.clamp_(-eps, eps)
 
     res_image = image + additive

@@ -34,7 +34,6 @@ def writer_add_scalar(writer, status, dataset, scalars, iter):
 scaler: amp.grad_scaler.GradScaler
 def run(args):
     Trainer.run(args)
-
     # trainer.run(train_loader, max_epochs=args.epochs)
 
 

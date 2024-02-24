@@ -15,6 +15,7 @@ import datetime
 import numpy as np
 from typing import Dict
 from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
+from tqdm import tqdm
 
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
@@ -29,6 +30,7 @@ class Trainer:
         self.device = device
         self.epochs = self.args.epochs
         self.current_epoch = 0
+        self.gpu = 0
         self.model = IQAModel(arch=self.args.architecture, 
                          pool=self.args.pool,
                          use_bn_end=self.args.use_bn_end, 
@@ -46,7 +48,7 @@ class Trainer:
 
         current_time = datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
         self.writer = SummaryWriter(log_dir='{}/{}-{}'.format(self.args.log_dir, self.args.format_str, current_time))
-        
+        self._optimizer()
         
     def train(self):
         self._prepair_train()
@@ -67,7 +69,7 @@ class Trainer:
 
         
         self.metric_computer = IQAPerformance('val', k=[1,1,1], b=[0,0,0], mapping=True)
-        self.best_val_critarion, self.best_epocn = -100, -1
+        self.best_val_criterion, self.best_epoch = -100, -1
         # global best_val_criterion, best_epoch, max_pred, min_pred
         # best_val_criterion, best_epoch = -100, -1  # larger, better, e.g., SROCC or PLCC. If RMSE is used, best_val_criterion <- 10000
         # max_pred, min_pred = -200, 200
@@ -88,7 +90,7 @@ class Trainer:
         while self.current_epoch < self.epochs:
             self.model.train()
             done_steps = self.current_epoch * train_data_len
-            for step, (inputs, label) in enumerate(self.train_loader):
+            for step, (inputs, label) in tqdm(enumerate(self.train_loader),total=train_data_len):
                 
                 metrics = self._train_step(inputs, label, step)
                 # if self.gpu == 0:
@@ -180,7 +182,7 @@ class Trainer:
         label = [k.cuda(self.gpu, non_blocking=True) for k in label]
         self.optimizer.zero_grad(set_to_none=True)
         output = self.model(inputs)
-        loss = self.loss_fn(output, label) / self.args.accumulation_steps
+        loss = self.loss_func(output, label) / self.args.accumulation_steps
         with autocast(enabled=True):
             self.scaler.scale(loss).backward()
             

@@ -6,6 +6,7 @@ import numpy as np
 from PIL import Image
 from pathlib import Path
 from tqdm import tqdm
+from scipy import stats
 import argparse
 from LinearityIQA.IQAmodel import IQAModel
 from torchvision.transforms.functional import resize, to_tensor, normalize
@@ -14,13 +15,13 @@ import iterative
 from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 
-PATH = "LinearityIQA/checkpoints/p1q2.pth"
+# PATH = "LinearityIQA/checkpoints/p1q2.pth"
 # PATH_silu = "LinearityIQA/checkpoints/activation=silu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
 # PATH_relu = "LinearityIQA/checkpoints/activation=relu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
 # PATH_relu = "LinearityIQA/checkpoints/activation=relu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
-PATH_silu       = "LinearityIQA/checkpoints/activation=silu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=0.0001-bs=8-e=30-opt_level=O1-EXP0"
-PATH_relu       = "LinearityIQA/checkpoints/activation=relu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=0.0001-bs=8-e=30-opt_level=O1-EXP0"
-PATH_relu_silu  = "LinearityIQA/checkpoints/activation=relu_silu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=.0001-bs=8-e=30-opt_level=O1-EXP0"
+# PATH_silu       = "LinearityIQA/checkpoints/activation=silu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=0.0001-bs=8-e=30-opt_level=O1-EXP0"
+# PATH_relu       = "LinearityIQA/checkpoints/activation=relu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=0.0001-bs=8-e=30-opt_level=O1-EXP0"
+# PATH_relu_silu  = "LinearityIQA/checkpoints/activation=relu_silu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=.0001-bs=8-e=30-opt_level=O1-EXP0"
 
 EPS = 1e-6
 # device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -31,21 +32,16 @@ def test_attack(
     attack_callback,
     model,
     dataset_path="./NIPS_test/",
+    checkpoints_path="LinearityIQA/checkpoints/p1q2.pth",
     activation="relu",
+    arch='resnet34',
     device_="cpu",
     csv_results_dir=".",
     debug=False
 ):
-    checkpoints_path = PATH
-    if activation=='silu':
-        checkpoints_path = PATH_silu
-    elif activation=='relu':
-        checkpoints_path = PATH_relu
-    elif activation=='relu_silu':
-        checkpoints_path = PATH_relu_silu
 
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
-    clear_vals = []
+    clear_vals, attacked_vals = [], []
     # iterations = np.array([1, 2, 3, 4, 5])
     device = torch.device(device_)
     results = pd.DataFrame(columns=["image_name", "clear_val", "attacked_val"])
@@ -53,13 +49,12 @@ def test_attack(
     checkpoint = torch.load(checkpoints_path, map_location=device_)
     # print(checkpoint)
     model.load_state_dict(checkpoint["model"])
+    # print('max:',checkpoint['max'],'min', checkpoint['min'])
+    print(checkpoint.keys())
     model.eval()
 
     k = checkpoint['k']
     b = checkpoint['b']
-    # max_pred = checkpoint['max']
-    # min_pred = checkpoint['min']
-    # print(min_pred, max_pred)
 
     count = 5
     
@@ -85,6 +80,12 @@ def test_attack(
             # print(clear_val, k[0], b[0])
             # mean_clear_val = np.mean([elem.cpu().numpy() for elem in clear_val])
             # print(clear_val, mean_clear_val)
+        if debug:
+            count-=1
+            if not count:
+                break
+    
+    count = 5
 
     min_pred, max_pred = min(clear_vals), max(clear_vals)
     image_num = 0
@@ -103,16 +104,11 @@ def test_attack(
         im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         im = im.unsqueeze(0)
 
-        # with torch.no_grad():
-        #     clear_val = model(im)
-        #     clear_val = clear_val[-1].item()*k[0] + b[0]
-        #     clear_vals.append(clear_val)
-        #     print(clear_val, k[0], b[0])
-
+        # eps_attacked = []
         for eps_i, eps in enumerate(epsilons):
             im_attacked = attack_callback(
                 im, model=model, metric_range=100, device=device_, 
-                eps=10/255, iters=1, alpha=eps, k=k, b=b, mmin=min_pred, mmax=max_pred
+                eps=10/255, iters=10, alpha=eps, k=k, b=b, mmin=min_pred, mmax=max_pred
             )
 
             with torch.no_grad():
@@ -126,6 +122,7 @@ def test_attack(
                 attacked_val = iterative.norm(attacked_val, min_pred, max_pred)
 
                 clear_val = iterative.norm(clear_vals[image_num], mmin=min_pred, mmax=max_pred)
+                clear_vals[image_num] = clear_val
 
                 results.loc[len(results.index)] = [
                     Path(image_path).stem,
@@ -140,23 +137,55 @@ def test_attack(
                     clear_val,
                     attacked_val,
                 ]
+        attacked_vals.append(attacked_val) # with eps 10/255
+        image_num += 1
+        ###########debug
         if debug:
             count-=1
             if not count:
                 break
-        image_num += 1
+        ##########
     res = []
+
+    mdif = {'arch': arch, 'activation': activation, 'degree': '10^5'}
     for int_eps in diffs.keys():
         res.append(np.array(diffs[int_eps]).mean())
         print(
             f"eps={int_eps}/255 :",
             "mean diff = {:.5f}".format(np.array(diffs[int_eps]).mean()),
         )
-
+        mdif.update({f'eps {int_eps}': res[-1]*100000})
+    # print(clear_vals)
+    # print(attacked_vals)
+    corellation = stats.spearmanr(clear_vals, attacked_vals)
+    # print('SROCC: ', corellation)
+    mdif.update({'SROCC': corellation[0]})
+    # mdif.loc[len(mdif.index)] = tmp
+    # mdif = pd.DataFrame(mdif)
+    print('MDIFF: \n', mdif)
     if csv_results_dir is not None:
-        csv_path = os.path.join(csv_results_dir, "results_{}.csv".format(activation))
+        csv_path = os.path.join(csv_results_dir, "results_{}_{}.csv".format(activation, arch))
         results.to_csv(csv_path)
         print(f"Results saved to {csv_path}")
+
+    cols = [f'eps {e}' for e in diffs.keys()]
+    cols = ['arch', 'activation'] + ['degree'] + cols + ['SROCC']
+    if csv_results_dir is not None:
+        csv_path = os.path.join(csv_results_dir, "results.csv".format(activation))
+        if "results.csv" not in os.listdir(csv_results_dir):
+            
+            tmp = pd.DataFrame(columns=cols)
+            tmp.style.hide(axis='index')
+            print(len(tmp.index))
+            tmp.loc[len(tmp.index)] = mdif
+            tmp.to_csv(csv_path)
+        else:
+            df = pd.read_csv(csv_path, usecols=[_ for _ in range(1, len(cols)+1)])
+            df.loc[len(df)] = mdif
+            # df.drop(labels='Unnamed: 0',axis='columns')
+
+            df.to_csv(csv_path)
+
 
     if not os.path.exists('graph_data'):
         os.makedirs('graph_data')
@@ -198,7 +227,7 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--trained_model_file",
-        default=PATH,
+        default="LinearityIQA/checkpoints/p1q2.pth",
         type=str,
         help="trained_model_file",
     )
@@ -210,6 +239,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--resize_size_w", default=664, type=int, help="resize_w (default: 664)"
     )
+
 
     parser.add_argument("--activation", type=str, default="relu")
     parser.add_argument("--attack_type", type=str, default="FGSM")
@@ -242,11 +272,20 @@ if __name__ == "__main__":
 
     metric_range = 100
 
-
-
+    path = 'LinearityIQA/checkpoints/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}'.format(args.activation, 
+                                                                                                                                args.architecture, 
+                                                                                                                                args.resize, 
+                                                                                                                                args.resize_size_h,
+                                                                                                                                args.resize_size_w)
+    print(path)
+    # print(model)
+    model.get_wd_ratio()
+    print(model.layers)
     print("Device: ", args.device)
-    total_score = test_attack(iterative.attack if args.attack_type=="FGSM" else None, model=model, 
-                              activation=args.activation, device_=args.device,
+    total_score = test_attack(iterative.attack if args.attack_type=="FGSM" else None, model=model,
+                              dataset_path="./NIPS_test/", checkpoints_path=path,
+                              activation=args.activation, arch=args.architecture,
+                              device_=args.device,
                               csv_results_dir=args.csv_results_dir, debug=args.debug)
     print(
         "Result for {} type attack: {:.4f}".format(
