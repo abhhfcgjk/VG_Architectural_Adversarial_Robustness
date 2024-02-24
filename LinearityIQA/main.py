@@ -20,7 +20,9 @@ from argparse import ArgumentParser
 
 from torch.cuda import amp
 
-from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
+# from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
+from train import Trainer
+
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 # scaler = amp.grad_scaler.GradScaler()
@@ -31,181 +33,9 @@ def writer_add_scalar(writer, status, dataset, scalars, iter):
 
 scaler: amp.grad_scaler.GradScaler
 def run(args):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = IQAModel(arch=args.architecture, pool=args.pool, use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7).to(device)  #
-    
-    if args.activation.lower() == 'silu':
-        ReLU_to_SILU(model)
-    elif args.activation.lower() == 'relu_silu':
-        ReLU_to_ReLUSiLU(model)
+    Trainer.run(args)
 
-    global wd_ratio
-    wd_ratio = model.wd_ratio
-
-    print(model)
-    print(device)
-    if args.ft_lr_ratio == .0:
-        for param in model.features.parameters():
-            param.requires_grad = False
-    train_loader, val_loader, test_loader = get_data_loaders(args)
-
-    optimizer = Adam([{'params': model.regression.parameters()}, # The most important parameters. Maybe we need three levels of lrs
-                      {'params': model.dr6.parameters()},
-                      {'params': model.dr7.parameters()},
-                      {'params': model.regr6.parameters()},
-                      {'params': model.regr7.parameters()},
-                      {'params': model.features.parameters(), 'lr': args.learning_rate * args.ft_lr_ratio}],
-                     lr=args.learning_rate, weight_decay=args.weight_decay) # Adam can be changed to other optimizers, such as SGD, Adadelta.
-
-    # Initialization
-    # model, optimizer = amp.initialize(model, optimizer, opt_level=args.opt_level)
-
-    mapping = True #  args.loss_type != 'mae' and args.loss_type != 'mse'
-
-    if args.evaluate:
-        checkpoint = torch.load(args.trained_model_file)
-        model.load_state_dict(checkpoint['model'])
-        k = checkpoint['k']
-        b = checkpoint['b']
-
-        evaluator = create_supervised_evaluator(model, metrics={'IQA_performance': 
-            IQAPerformance(status='test', k=k, b=b, mapping=mapping)}, device=device)
-        evaluator.run(test_loader)
-        performance = evaluator.state.metrics
-        for metric_print in metrics_printed:
-            print('{}, {}: {:.3f}'.format(args.dataset, metric_print, performance[metric_print].item()))
-        for metric_print in metrics_printed:
-            print('{:.3f}'.format(performance[metric_print].item()))
-        np.save(args.save_result_file, performance)
-        return
-
-    scheduler = lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
-    loss_func = IQALoss(loss_type=args.loss_type, alpha=args.alpha, beta=args.beta, p=args.p, q=args.q, 
-                        monotonicity_regularization=args.monotonicity_regularization, gamma=args.gamma, detach=args.detach)
-    global scaler
-    scaler = amp.grad_scaler.GradScaler()
-    trainer = create_supervised_trainer(model, optimizer, loss_func, scaler, 
-                                        device=device, accumulation_steps=args.accumulation_steps,
-                                        output_transform=lambda x, y, y_pred, loss: (y_pred, y, loss))
-
-    if args.pbar:
-        from ignite.contrib.handlers import ProgressBar
-
-        ProgressBar().attach(trainer)
-
-    evaluator_for_train = create_supervised_evaluator(model, metrics={'IQA_performance': 
-        IQAPerformance(status='train', mapping=mapping)}, device=device)
-
-    current_time = datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
-    writer = SummaryWriter(log_dir='{}/{}-{}'.format(args.log_dir, args.format_str, current_time))
-    global best_val_criterion, best_epoch, max_pred, min_pred
-    best_val_criterion, best_epoch = -100, -1  # larger, better, e.g., SROCC or PLCC. If RMSE is used, best_val_criterion <- 10000
-    max_pred, min_pred = -200, 200 # max and min predictions; necessary for normalization
-    @trainer.on(Events.ITERATION_COMPLETED)
-    def iter_event_function(engine):
-        global max_pred, min_pred
-        # print(engine.state.output)
-        # print(engine.state.output[0])
-        # print(engine.state.output[1])
-        # print(engine.state.output[2])
-        writer.add_scalar("train/loss", engine.state.output[-1].item(), engine.state.iteration)
-        
-        max_pred = max(max_pred,max(engine.state.output[1][0]).item())
-        min_pred = min(max_pred,min(engine.state.output[1][0]).item())
-
-    @trainer.on(Events.EPOCH_COMPLETED)
-    def epoch_event_function(engine):
-        global scaler
-        if args.test_during_training:
-            evaluator_for_train.run(train_loader) # It is better to re-make a train_loader_for_evaluation so as not to disturb the random number generator.
-            performance = evaluator_for_train.state.metrics
-            writer_add_scalar(writer, 'train', args.dataset, performance, engine.state.epoch)
-            k = performance['k']
-            b = performance['b']
-        else:
-            k = [1, 1, 1]
-            b = [0, 0, 0]
-
-        evaluator = create_supervised_evaluator(model, metrics={'IQA_performance': 
-            IQAPerformance(status='test', k=k, b=b, mapping=mapping)}, device=device)
-        evaluator.run(val_loader)
-        performance = evaluator.state.metrics
-        writer_add_scalar(writer, 'val', args.dataset, performance, engine.state.epoch)
-        val_criterion = abs(performance[args.val_criterion])  # when alpha=[0,1],loss_type='linearity', test_during_training=False, SROCC/PLCC can be negative during training.
-        if args.test_during_training:
-            evaluator.run(test_loader)
-            performance = evaluator.state.metrics
-            writer_add_scalar(writer, 'test', args.dataset, performance, engine.state.epoch)
-
-        global best_val_criterion, best_epoch, max_pred, min_pred, wd_ratio
-        if val_criterion > best_val_criterion: # If RMSE is used, then change ">" to "<".
-            if args.debug:
-                print('max:', max_pred, 'min:', min_pred)
-
-            checkpoint = {
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'amp': scaler.state_dict(),
-                'k': k,
-                'b': b,
-                'max': max_pred,
-                'min': min_pred,
-                'wd_ratio': wd_ratio
-            }
-            torch.save(checkpoint, args.trained_model_file)
-            best_val_criterion = val_criterion
-            best_epoch = engine.state.epoch
-            print('Save current best model @best_val_criterion ({}): {:.3f} @epoch: {}'.format(args.val_criterion, best_val_criterion, best_epoch))
-        else:
-            print('Model is not updated @val_criterion ({}): {:.3f} @epoch: {}'.format(args.val_criterion, val_criterion, engine.state.epoch))
-
-        scheduler.step(engine.state.epoch)
-
-    @trainer.on(Events.COMPLETED)
-    def final_testing_results(engine):
-        writer.close ()  # close the Tensorboard writer
-        global scaler, wd_ratio
-        print('best epoch: {}'.format(best_epoch))
-        checkpoint = torch.load(args.trained_model_file)
-        model.load_state_dict(checkpoint['model'])
-        if args.test_during_training:
-            k = checkpoint['k']
-            b = checkpoint['b']
-            max_pred = checkpoint['max']
-            min_pred = checkpoint['min']
-        else:
-            evaluator_for_train.run(train_loader)
-            performance = evaluator_for_train.state.metrics
-            k = performance['k']
-            b = performance['b']
-            max_pred = checkpoint['max']
-            min_pred = checkpoint['min']
-            if args.debug:
-                print('max:', max_pred, 'min:', min_pred)
-            checkpoint = {
-                'model': model.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'amp': scaler.state_dict(),
-                'k': k,
-                'b': b,
-                'max': max_pred,
-                'min': min_pred,
-                'wd_ratio': wd_ratio
-            }
-            torch.save(checkpoint, args.trained_model_file)
-            print('WD ratio:', wd_ratio)
-
-        evaluator = create_supervised_evaluator(model, metrics={'IQA_performance': 
-            IQAPerformance(status='test', k=k, b=b, mapping=mapping)}, device=device)
-        evaluator.run(test_loader)
-        performance = evaluator.state.metrics
-        for metric_print in metrics_printed:
-            print('{}, {}: {:.3f}'.format(args.dataset, metric_print, performance[metric_print].item()))
-        for metric_print in metrics_printed:
-            print('{:.3f}'.format(performance[metric_print].item()))
-        np.save(args.save_result_file, performance)
-
-    trainer.run(train_loader, max_epochs=args.epochs)
+    # trainer.run(train_loader, max_epochs=args.epochs)
 
 
 if __name__ == "__main__":

@@ -38,47 +38,39 @@ class IQAPerformance(Metric):
         sq_std = np.reshape(np.asarray(self._y_std), (-1,))
 
         pq_before = np.reshape(np.asarray(self._y_pred), (-1, 1))
-        pq = self.linear_mapping(pq_before, sq, i=0)
-        SROCC = stats.spearmanr(sq, pq)[0]
-        PLCC = stats.pearsonr(sq, pq)[0]
-        RMSE = np.sqrt(((sq - pq) ** 2).mean())
+        self.preds = self.linear_mapping(pq_before, sq, i=0)
+        if self.status=='train':
+            return {'k': self.k, 'b': self.b}
+
+        SROCC = stats.spearmanr(sq, self.preds)[0]
+        PLCC = stats.pearsonr(sq, self.preds)[0]
+        RMSE = np.sqrt(((sq - self.preds) ** 2).mean())
         # KROCC = stats.stats.kendalltau(sq, pq)[0]
         # outlier_ratio = (np.abs(sq - pq) > 2 * sq_std).mean()
 
-        pq1_before = np.reshape(np.asarray(self._y_pred1), (-1, 1))
-        pq2_before = np.reshape(np.asarray(self._y_pred2), (-1, 1))
-        pq1 = self.linear_mapping(pq1_before, sq, i=1)
-        pq2 = self.linear_mapping(pq2_before, sq, i=2)
+        # pq1_before = np.reshape(np.asarray(self._y_pred1), (-1, 1))
+        # pq2_before = np.reshape(np.asarray(self._y_pred2), (-1, 1))
+        # pq1 = self.linear_mapping(pq1_before, sq, i=1)
+        # pq2 = self.linear_mapping(pq2_before, sq, i=2)
 
-        SROCC1 = stats.spearmanr(sq, pq1)[0]
-        PLCC1 = stats.pearsonr(sq, pq1)[0]
-        RMSE1 = np.sqrt(((sq - pq1) ** 2).mean())
+        # SROCC1 = stats.spearmanr(sq, pq1)[0]
+        # PLCC1 = stats.pearsonr(sq, pq1)[0]
+        # RMSE1 = np.sqrt(((sq - pq1) ** 2).mean())
         # KROCC1 = stats.stats.kendalltau(sq, pq1)[0]
         # outlier_ratio1 = (np.abs(sq - pq1) > 2 * sq_std).mean()
 
-        SROCC2 = stats.spearmanr(sq, pq2)[0]
-        PLCC2 = stats.pearsonr(sq, pq2)[0]
-        RMSE2 = np.sqrt(((sq - pq2) ** 2).mean())
+        # SROCC2 = stats.spearmanr(sq, pq2)[0]
+        # PLCC2 = stats.pearsonr(sq, pq2)[0]
+        # RMSE2 = np.sqrt(((sq - pq2) ** 2).mean())
         # KROCC2 = stats.stats.kendalltau(sq, pq2)[0]
         # outlier_ratio2 = (np.abs(sq - pq2) > 2 * sq_std).mean()
 
         return {'SROCC': SROCC,
-                'SROCC1': SROCC1,
-                'SROCC2': SROCC2,
                 'PLCC': PLCC,
-                'PLCC1': PLCC1,
-                'PLCC2': PLCC2,
                 'RMSE': RMSE,
-                'RMSE1': RMSE1,
-                'RMSE2': RMSE2,
                 'sq': sq,
                 'sq_std': sq_std,
-                'pq': pq,
-                'pq1': pq1,
-                'pq2': pq2,
                 'pq_before': pq_before,
-                'pq1_before': pq1_before,
-                'pq2_before': pq2_before,
                 'k': self.k,
                 'b': self.b
                 }

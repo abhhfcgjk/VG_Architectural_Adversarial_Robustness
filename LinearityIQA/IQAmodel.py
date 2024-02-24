@@ -2,7 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
+from torchvision.models.resnet import BasicBlock
 import numpy as np
+from .activ import ReLU_SiLU
+# from . import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
@@ -34,9 +37,10 @@ def SPSP(x, P=1, method='avg'):
 
 
 class IQAModel(nn.Module):
-    wd_ratio = 0
-    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1):
+    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu'):
         super(IQAModel, self).__init__()
+        # self.wd_ratio = 0
+        self.layers = []
         self.pool = pool
         self.use_bn_end = use_bn_end
         if pool in ['max', 'min', 'avg', 'std']:
@@ -47,6 +51,7 @@ class IQAModel(nn.Module):
         self.P7 = P7  #
         if arch=='wideresnet50':
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())[:-2]
+
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
         # print(type(features))
@@ -73,18 +78,26 @@ class IQAModel(nn.Module):
         else: 
             print('The arch is not implemented!')
         self.features = nn.Sequential(*features)
+
+        if activation=='relu':
+            Activ = nn.ReLU
+        elif activation=='silu':
+            Activ = nn.SiLU
+        elif activation=='relu_silu':
+            Activ = ReLU_SiLU
+        
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]), 1024),
                                  nn.BatchNorm1d(1024),
                                  nn.Linear(1024, 256),
                                  nn.BatchNorm1d(256),
                                  nn.Linear(256, 64),
-                                 nn.BatchNorm1d(64), nn.ReLU())
+                                 nn.BatchNorm1d(64), Activ())
         self.dr7 = nn.Sequential(nn.Linear(in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]), 1024),
                                  nn.BatchNorm1d(1024),
                                  nn.Linear(1024, 256),
                                  nn.BatchNorm1d(256),
                                  nn.Linear(256, 64),
-                                 nn.BatchNorm1d(64), nn.ReLU())
+                                 nn.BatchNorm1d(64), Activ())
 
         if self.use_bn_end:
             self.regr6 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
@@ -120,3 +133,22 @@ class IQAModel(nn.Module):
         pq.append(s)
 
         return pq
+
+    def get_wd_ratio(self, block=False):
+        print(self.named_children())
+        # for name, layer in self.named_children()[1:]:
+        #     if block and isinstance(layer, BasicBlock):
+        #         print(name, layer)
+        #         self.layers[-1] += 1
+        #     elif not block and isinstance(layer, nn.Sequential):
+        #         # print(name, layer)
+        #         self.layers.append(0)
+        #         self.get_wd_ratio(block=True)
+        #     elif block:
+        #         print('NO',name, layer)
+    
+    # @staticmethod
+    # def _seq_wrapper(func):
+
+    #     def _run():
+
