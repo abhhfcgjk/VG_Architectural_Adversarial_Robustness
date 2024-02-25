@@ -11,3 +11,4 @@ LinearityIQA/checkpoints/*
 LinearityIQA/results_in_the_paper/*.pdf
 *.pdf
 graph_data
+runs/
