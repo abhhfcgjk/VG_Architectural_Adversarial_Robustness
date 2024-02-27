@@ -34,6 +34,7 @@ def test_attack(
     dataset_path="./NIPS_test/",
     checkpoints_path="LinearityIQA/checkpoints/p1q2.pth",
     activation="relu",
+    iterations=1,
     arch='resnet34',
     device_="cpu",
     csv_results_dir=".",
@@ -76,6 +77,7 @@ def test_attack(
         with torch.no_grad():
             clear_val = model(im)
             clear_val = clear_val[-1].item()*k[0] + b[0]
+            # print(clear_val)
             clear_vals.append(clear_val)
             # print(clear_val, k[0], b[0])
             # mean_clear_val = np.mean([elem.cpu().numpy() for elem in clear_val])
@@ -88,6 +90,7 @@ def test_attack(
     count = 5
 
     min_pred, max_pred = min(clear_vals), max(clear_vals)
+    # clear_vals = [iterative.norm(val) for val in clear_vals]
     image_num = 0
     for image_path in tqdm(
         Path(dataset_path).iterdir(),
@@ -104,11 +107,15 @@ def test_attack(
         im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         im = im.unsqueeze(0)
 
+        clear_val = iterative.norm(clear_vals[image_num], mmin=min_pred, mmax=max_pred)
+                
+        clear_vals[image_num] = clear_val
+
         # eps_attacked = []
         for eps_i, eps in enumerate(epsilons):
             im_attacked = attack_callback(
                 im, model=model, metric_range=100, device=device_, 
-                eps=10/255, iters=10, alpha=eps, k=k, b=b, mmin=min_pred, mmax=max_pred
+                eps=10/255, iters=iterations, alpha=eps, k=k, b=b, mmin=min_pred, mmax=max_pred
             )
 
             with torch.no_grad():
@@ -121,9 +128,8 @@ def test_attack(
                 attacked_val = attacked_val[-1].item()*k[0] + b[0]
                 attacked_val = iterative.norm(attacked_val, min_pred, max_pred)
 
-                clear_val = iterative.norm(clear_vals[image_num], mmin=min_pred, mmax=max_pred)
-                clear_vals[image_num] = clear_val
-
+                # print(clear_vals[image_num], min_pred, max_pred)
+                
                 results.loc[len(results.index)] = [
                     Path(image_path).stem,
                     clear_val,
@@ -138,6 +144,7 @@ def test_attack(
                     attacked_val,
                 ]
         attacked_vals.append(attacked_val) # with eps 10/255
+        # print(attacked_vals[image_num], clear_vals[image_num])
         image_num += 1
         ###########debug
         if debug:
@@ -147,7 +154,7 @@ def test_attack(
         ##########
     res = []
 
-    mdif = {'arch': arch, 'activation': activation, 'degree': '10^5'}
+    mdif = {'arch': arch, 'activation': activation, 'iterations': iterations, 'degree': '10^5'}
     for int_eps in diffs.keys():
         res.append(np.array(diffs[int_eps]).mean())
         print(
@@ -158,18 +165,17 @@ def test_attack(
     # print(clear_vals)
     # print(attacked_vals)
     corellation = stats.spearmanr(clear_vals, attacked_vals)
-    # print('SROCC: ', corellation)
+
     mdif.update({'SROCC': corellation[0]})
-    # mdif.loc[len(mdif.index)] = tmp
-    # mdif = pd.DataFrame(mdif)
+
     print('MDIFF: \n', mdif)
     if csv_results_dir is not None:
-        csv_path = os.path.join(csv_results_dir, "results_{}_{}.csv".format(activation, arch))
+        csv_path = os.path.join(csv_results_dir, "results_{}_{}_{}.csv".format(activation, arch, iterations))
         results.to_csv(csv_path)
         print(f"Results saved to {csv_path}")
 
     cols = [f'eps {e}' for e in diffs.keys()]
-    cols = ['arch', 'activation'] + ['degree'] + cols + ['SROCC']
+    cols = ['arch', 'activation'] + ['iterations'] + ['degree'] + cols + ['SROCC']
     if csv_results_dir is not None:
         csv_path = os.path.join(csv_results_dir, "results.csv".format(activation))
         if "results.csv" not in os.listdir(csv_results_dir):
@@ -240,7 +246,7 @@ if __name__ == "__main__":
         "--resize_size_w", default=664, type=int, help="resize_w (default: 664)"
     )
 
-
+    parser.add_argument("--iterations", "-iter", type=int, default=1)
     parser.add_argument("--activation", type=str, default="relu")
     parser.add_argument("--attack_type", type=str, default="FGSM")
     parser.add_argument("--dataset_path", type=str, default="./NIPS_test/")
@@ -284,8 +290,8 @@ if __name__ == "__main__":
     print("Device: ", args.device)
     total_score = test_attack(iterative.attack if args.attack_type=="FGSM" else None, model=model,
                               dataset_path="./NIPS_test/", checkpoints_path=path,
-                              activation=args.activation, arch=args.architecture,
-                              device_=args.device,
+                              activation=args.activation, iterations=args.iterations,
+                              arch=args.architecture, device_=args.device,
                               csv_results_dir=args.csv_results_dir, debug=args.debug)
     print(
         "Result for {} type attack: {:.4f}".format(
