@@ -14,9 +14,10 @@ def loss_fn(output, metric_range, k, b):
 
 
 # iterative attack baseline (IFGSM attack)
-def attack(
+def attack_callback(
     image,
     model=None,
+    attack_type="IFGSM",
     metric_range=100,
     device="cpu",
     eps=10 / 255,
@@ -40,8 +41,10 @@ def attack(
         torch.Tensor of shape [1,3,H,W]: adversarial image with same shape as image argument.
     """
     image = Variable(image.clone().to(device), requires_grad=True)
-    # additive = torch.zeros_like(image).to(device)
-    additive = torch.rand_like(image).to(device)
+    if attack_type=="IFGSM":
+        additive = torch.zeros_like(image).to(device)
+    elif attack_type=="PGD":
+        additive = torch.rand_like(image).to(device)
 
     additive = Variable(additive, requires_grad=True)
 
