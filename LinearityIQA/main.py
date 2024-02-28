@@ -5,8 +5,6 @@
 import torch
 from torch.optim import Adam, SGD, Adadelta, lr_scheduler
 # from apex import amp
-from ignite.engine import create_supervised_evaluator, Events
-from modified_ignite_engine import create_supervised_trainer
 from IQAdataset import get_data_loaders
 from IQAmodel import IQAModel
 from IQAloss import IQALoss
@@ -31,7 +29,6 @@ def writer_add_scalar(writer, status, dataset, scalars, iter):
         writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
 
 
-scaler: amp.grad_scaler.GradScaler
 def run(args):
     Trainer.run(args)
     # trainer.run(train_loader, max_epochs=args.epochs)
@@ -132,6 +129,7 @@ if __name__ == "__main__":
                         help='test_during_training?')  # It is better to re-make a train_loader_for_evaluation so as not to disturb the random number generator.
     parser.add_argument('-eval', '--evaluate', action='store_true',
                         help='Evaluate only?')
+    parser.add_argument('-se', '--squeeze_excitation', action='store_true')
 
     parser.add_argument('-debug', '--debug', action='store_true',
                         help='Debug the training by reducing dataflow to 5 batches')
@@ -172,9 +170,9 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-aug={}-lr={}-bs={}-e={}-opt_level={}'\
+    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-se={}-aug={}-lr={}-bs={}-e={}-opt_level={}'\
                       .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
-                              args.dataset, args.resize, args.resize_size_h, args.resize_size_w, args.augmentation, 
+                              args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation, args.augmentation, 
                               args.learning_rate, args.batch_size, args.epochs, args.opt_level)
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')

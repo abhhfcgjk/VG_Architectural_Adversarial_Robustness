@@ -1,9 +1,5 @@
 import torch
 from torch.optim import Adam, SGD, Adadelta, lr_scheduler
-# from apex import amp
-# from ignite.engine.engine import Engine
-# from ignite.engine import create_supervised_evaluator, Events
-# from modified_ignite_engine import create_supervised_trainer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.cuda.amp.autocast_mode import autocast
 from IQAdataset import get_data_loaders
@@ -31,11 +27,12 @@ class Trainer:
         self.epochs = self.args.epochs
         self.current_epoch = 0
         self.gpu = 0
+        self.is_se = args.squeeze_excitation
         self.model = IQAModel(arch=self.args.architecture, 
                          pool=self.args.pool,
                          use_bn_end=self.args.use_bn_end, 
                          P6=self.args.P6, P7=self.args.P7,
-                         activation=args.activation).to(self.device)
+                         activation=args.activation, se=self.is_se).to(self.device)
         
         # if args.activation=='silu':
         #     ReLU_to_SILU(self.model)

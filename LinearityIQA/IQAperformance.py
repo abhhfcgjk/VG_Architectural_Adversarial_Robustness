@@ -1,10 +1,10 @@
-from ignite.metrics.metric import Metric
+
 import numpy as np
 from scipy import stats
 
 
 
-class IQAPerformance(Metric):
+class IQAPerformance:
     """
     Evaluation of VQA methods using SROCC, PLCC, RMSE.
 

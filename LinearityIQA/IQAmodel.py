@@ -4,8 +4,8 @@ import torch.nn.functional as F
 from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
-from .activ import ReLU_SiLU
-from .SE import SqueezeExcitation
+from activ import ReLU_SiLU
+from SE import SqueezeExcitation
 # from torchvision.ops import SqueezeExcitation
 # from . import wide_resnet34
 
@@ -92,24 +92,24 @@ class IQAModel(nn.Module):
         
         if self.is_se:
             self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
-                                        squeeze_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
+                                        squeeze_channels=4,
                                         activation=nn.SiLU)
             self.se7 = SqueezeExcitation(input_channels=in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]),
-                                        squeeze_channels=in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]),
+                                        squeeze_channels=4,
                                         activation=nn.SiLU)
 
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]), 1024),
-                                 nn.BatchNorm1d(1024),
-                                 nn.Linear(1024, 256),
-                                 nn.BatchNorm1d(256),
-                                 nn.Linear(256, 64),
-                                 nn.BatchNorm1d(64), Activ())
+                                nn.BatchNorm1d(1024),
+                                nn.Linear(1024, 256),
+                                nn.BatchNorm1d(256),
+                                nn.Linear(256, 64),
+                                nn.BatchNorm1d(64), Activ())
         self.dr7 = nn.Sequential(nn.Linear(in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]), 1024),
-                                 nn.BatchNorm1d(1024),
-                                 nn.Linear(1024, 256),
-                                 nn.BatchNorm1d(256),
-                                 nn.Linear(256, 64),
-                                 nn.BatchNorm1d(64), Activ())
+                                nn.BatchNorm1d(1024),
+                                nn.Linear(1024, 256),
+                                nn.BatchNorm1d(256),
+                                nn.Linear(256, 64),
+                                nn.BatchNorm1d(64), Activ())
 
         if self.use_bn_end:
             self.regr6 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
@@ -125,23 +125,19 @@ class IQAModel(nn.Module):
         for ii, model in enumerate(self.features):
             x = model(x)
             if ii == self.id1:
-                x6 = SPSP(x, P=self.P6, method=self.pool)
+                # print(x.size())
+                x6 = self.se6(x)
+                x6 = SPSP(x6, P=self.P6, method=self.pool)
                 x6 = self.dr6(x6)
-                
                 f.append(x6)
-                x6 = self.regr6(x6)
-                if self.is_se:
-                    x6 = self.se6(x6)
-                pq.append(x6)
+                pq.append(self.regr6(x6))
             if ii == self.id2:
-                x7 = SPSP(x, P=self.P7, method=self.pool)
+                # print(x.size())
+                x7 = self.se7(x)
+                x7 = SPSP(x7, P=self.P7, method=self.pool)
                 x7 = self.dr7(x7)
-
                 f.append(x7)
-                x7 = self.regr7(x7)
-                if self.is_se:
-                    x7 = self.se7(x7)
-                pq.append(x7)
+                pq.append(self.regr7(x7))
 
         f = torch.cat(f, dim=1)
 
