@@ -5,6 +5,8 @@ from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
 from .activ import ReLU_SiLU
+from .SE import SqueezeExcitation
+# from torchvision.ops import SqueezeExcitation
 # from . import wide_resnet34
 
 def SPSP(x, P=1, method='avg'):
@@ -37,9 +39,10 @@ def SPSP(x, P=1, method='avg'):
 
 
 class IQAModel(nn.Module):
-    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu'):
+    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False):
         super(IQAModel, self).__init__()
         # self.wd_ratio = 0
+        self.is_se = se
         self.layers = []
         self.pool = pool
         self.use_bn_end = use_bn_end
@@ -86,6 +89,14 @@ class IQAModel(nn.Module):
         elif activation=='relu_silu':
             Activ = ReLU_SiLU
         
+        if self.is_se:
+            self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
+                                        squeeze_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
+                                        activation=nn.SiLU)
+            self.se7 = SqueezeExcitation(input_channels=in_features[1] * c * sum([p * p for p in range(1, self.P6+1)]),
+                                        squeeze_channels=in_features[1] * c * sum([p * p for p in range(1, self.P6+1)]),
+                                        activation=nn.SiLU)
+
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]), 1024),
                                  nn.BatchNorm1d(1024),
                                  nn.Linear(1024, 256),
@@ -114,11 +125,15 @@ class IQAModel(nn.Module):
             x = model(x)
             if ii == self.id1:
                 x6 = SPSP(x, P=self.P6, method=self.pool)
+                if self.is_se:
+                    x6 = self.se6(x6)
                 x6 = self.dr6(x6)
                 f.append(x6)
                 pq.append(self.regr6(x6))
             if ii == self.id2:
                 x7 = SPSP(x, P=self.P7, method=self.pool)
+                if self.is_se:
+                    x7 = self.se7(x7)
                 x7 = self.dr7(x7)
                 f.append(x7)
                 pq.append(self.regr7(x7))
@@ -133,22 +148,4 @@ class IQAModel(nn.Module):
         pq.append(s)
 
         return pq
-
-    def get_wd_ratio(self, block=False):
-        print(self.named_children())
-        # for name, layer in self.named_children()[1:]:
-        #     if block and isinstance(layer, BasicBlock):
-        #         print(name, layer)
-        #         self.layers[-1] += 1
-        #     elif not block and isinstance(layer, nn.Sequential):
-        #         # print(name, layer)
-        #         self.layers.append(0)
-        #         self.get_wd_ratio(block=True)
-        #     elif block:
-        #         print('NO',name, layer)
-    
-    # @staticmethod
-    # def _seq_wrapper(func):
-
-    #     def _run():
 

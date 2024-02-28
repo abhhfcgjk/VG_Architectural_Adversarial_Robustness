@@ -15,14 +15,6 @@ import iterative
 from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 
-# PATH = "LinearityIQA/checkpoints/p1q2.pth"
-# PATH_silu = "LinearityIQA/checkpoints/activation=silu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
-# PATH_relu = "LinearityIQA/checkpoints/activation=relu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
-# PATH_relu = "LinearityIQA/checkpoints/activation=relu-resnext101_32x8d-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-256x256-aug=False-monotonicity=False-lr=0.0001-bs=4-e=30-opt_level=O1-EXP0"
-# PATH_silu       = "LinearityIQA/checkpoints/activation=silu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=0.0001-bs=8-e=30-opt_level=O1-EXP0"
-# PATH_relu       = "LinearityIQA/checkpoints/activation=relu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=0.0001-bs=8-e=30-opt_level=O1-EXP0"
-# PATH_relu_silu  = "LinearityIQA/checkpoints/activation=relu_silu-resnet34-avg-bn_end=False-loss=norm-in-norm-p=1.0-q=2.0-detach-False-ft_lr_ratio=0.1-alpha=[1, 0]-beta=[0.1, 0.1, 1]-KonIQ-10k-res=True-498x664-aug=False-monotonicity=False-lr=.0001-bs=8-e=30-opt_level=O1-EXP0"
-
 EPS = 1e-6
 # device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -51,7 +43,7 @@ def test_attack(
     # print(checkpoint)
     model.load_state_dict(checkpoint["model"])
     # print('max:',checkpoint['max'],'min', checkpoint['min'])
-    print(checkpoint.keys())
+    # print(checkpoint.keys())
     model.eval()
 
     k = checkpoint['k']
@@ -77,11 +69,8 @@ def test_attack(
         with torch.no_grad():
             clear_val = model(im)
             clear_val = clear_val[-1].item()*k[0] + b[0]
-            # print(clear_val)
             clear_vals.append(clear_val)
-            # print(clear_val, k[0], b[0])
-            # mean_clear_val = np.mean([elem.cpu().numpy() for elem in clear_val])
-            # print(clear_val, mean_clear_val)
+
         if debug:
             count-=1
             if not count:
@@ -106,12 +95,13 @@ def test_attack(
 
         im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         im = im.unsqueeze(0)
-
+        print(clear_vals[image_num], min_pred, max_pred)
         clear_val = iterative.norm(clear_vals[image_num], mmin=min_pred, mmax=max_pred)
                 
         clear_vals[image_num] = clear_val
 
         # eps_attacked = []
+        gains = []
         for eps_i, eps in enumerate(epsilons):
             im_attacked = attack_callback(
                 im, model=model, metric_range=100, device=device_, 
@@ -127,17 +117,20 @@ def test_attack(
                 attacked_val = model(im_attacked)
                 attacked_val = attacked_val[-1].item()*k[0] + b[0]
                 attacked_val = iterative.norm(attacked_val, min_pred, max_pred)
-
+                gain = attacked_val - clear_val
                 # print(clear_vals[image_num], min_pred, max_pred)
+                # print(gain, min_pred, max_pred)
                 
                 results.loc[len(results.index)] = [
                     Path(image_path).stem,
                     clear_val,
                     attacked_val,
                 ]
-                diffs[int(eps * 255)].append(
-                    float(torch.abs(diff).mean().detach().cpu().item())
-                )
+                # diffs[int(eps * 255)].append(
+                #     float(torch.abs(diff).mean().detach().cpu().item())
+                # )
+                # print(diffs)
+                diffs[int(eps*255)].append(gain)
                 data[eps_i].loc[len(data[eps_i].index)] = [
                     image_num,
                     clear_val,
@@ -283,10 +276,6 @@ if __name__ == "__main__":
                                                                                                                                 args.resize, 
                                                                                                                                 args.resize_size_h,
                                                                                                                                 args.resize_size_w)
-    print(path)
-    # print(model)
-    model.get_wd_ratio()
-    print(model.layers)
     print("Device: ", args.device)
     total_score = test_attack(iterative.attack if args.attack_type=="FGSM" else None, model=model,
                               dataset_path="./NIPS_test/", checkpoints_path=path,
