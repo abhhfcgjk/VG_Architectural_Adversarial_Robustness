@@ -27,6 +27,8 @@ def run(args):
                   use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
                   activation=args.activation, device=args.device
                   )
+    # print(exec.model.state_dict().keys())
+    quit()
 
     exec.load_checkpoints(checkpoints_path=args.trained_model_file)
     exec.set_load_conf(dataset_path=args.dataset_path,

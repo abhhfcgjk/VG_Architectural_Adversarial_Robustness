@@ -59,7 +59,7 @@ CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -l
 ```
 ## Testing
 ```
-python attack.py --dataset_path ./NIPS_test/ --resize -arch resnet34 --activation silu --device cpu --csv_results_dir rs -iter 10
+python main.py --dataset_path ./NIPS_test/ --resize -arch resnet34 --activation silu --device cpu --csv_results_dir rs -iter 10
 ```
 
 ## Visualization

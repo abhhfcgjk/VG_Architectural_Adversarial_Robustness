@@ -59,6 +59,7 @@ class IQAModel(nn.Module):
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
         # print(type(features))
         # print(features)
+
         if arch == 'alexnet':
             in_features = [256, 256]
             self.id1 = 9
@@ -93,8 +94,8 @@ class IQAModel(nn.Module):
             self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
                                         squeeze_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
                                         activation=nn.SiLU)
-            self.se7 = SqueezeExcitation(input_channels=in_features[1] * c * sum([p * p for p in range(1, self.P6+1)]),
-                                        squeeze_channels=in_features[1] * c * sum([p * p for p in range(1, self.P6+1)]),
+            self.se7 = SqueezeExcitation(input_channels=in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]),
+                                        squeeze_channels=in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]),
                                         activation=nn.SiLU)
 
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]), 1024),
@@ -125,18 +126,22 @@ class IQAModel(nn.Module):
             x = model(x)
             if ii == self.id1:
                 x6 = SPSP(x, P=self.P6, method=self.pool)
+                x6 = self.dr6(x6)
+                
+                f.append(x6)
+                x6 = self.regr6(x6)
                 if self.is_se:
                     x6 = self.se6(x6)
-                x6 = self.dr6(x6)
-                f.append(x6)
-                pq.append(self.regr6(x6))
+                pq.append(x6)
             if ii == self.id2:
                 x7 = SPSP(x, P=self.P7, method=self.pool)
+                x7 = self.dr7(x7)
+
+                f.append(x7)
+                x7 = self.regr7(x7)
                 if self.is_se:
                     x7 = self.se7(x7)
-                x7 = self.dr7(x7)
-                f.append(x7)
-                pq.append(self.regr7(x7))
+                pq.append(x7)
 
         f = torch.cat(f, dim=1)
 
