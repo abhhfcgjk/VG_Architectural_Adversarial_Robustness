@@ -3,20 +3,20 @@
 # Date: 2020/1/14
 
 import torch
-from torch.optim import Adam, SGD, Adadelta, lr_scheduler
+# from torch.optim import Adam, SGD, Adadelta, lr_scheduler
 # from apex import amp
 from IQAdataset import get_data_loaders
-from IQAmodel import IQAModel
-from IQAloss import IQALoss
-from IQAperformance import IQAPerformance
-from tensorboardX import SummaryWriter
-import datetime
+# from IQAmodel import IQAModel
+# from IQAloss import IQALoss
+# from IQAperformance import IQAPerformance
+# from tensorboardX import SummaryWriter
+# import datetime
 import os
 import numpy as np
 import random
 from argparse import ArgumentParser
 
-from torch.cuda import amp
+# from torch.cuda import amp
 
 # from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from train import Trainer

@@ -1,19 +1,20 @@
-from torch.autograd import Variable
-import torch
-import os
-import pandas as pd
+# from torch.autograd import Variable
+# import torch
+# import os
+# import pandas as pd
 import numpy as np
-from PIL import Image
-from pathlib import Path
-from tqdm import tqdm
-from scipy import stats
+# from PIL import Image
+# from pathlib import Path
+# from tqdm import tqdm
+# from scipy import stats
 import argparse
-from LinearityIQA.IQAmodel import IQAModel
+# from LinearityIQA.IQAmodel import IQAModel
+import LinearityIQA
 from torchvision.transforms.functional import resize, to_tensor, normalize
-import iterative
+# print(__package__)
+# import iterative
 from attack_cls import Attack
-
-from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
+# from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 
 EPS = 1e-6
@@ -22,13 +23,14 @@ EPS = 1e-6
 
 
 def run(args):
-    exec = Attack(IQAModel, 
+    exec = Attack(LinearityIQA.IQAModel, 
                   arch=args.architecture, pool=args.pool,
                   use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
-                  activation=args.activation, device=args.device
+                  activation=args.activation, se=args.squeeze_excitation,
+                  device=args.device
                   )
     # print(exec.model.state_dict().keys())
-    quit()
+    # quit()
 
     exec.load_checkpoints(checkpoints_path=args.trained_model_file)
     exec.set_load_conf(dataset_path=args.dataset_path,
@@ -86,6 +88,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--csv_results_dir", type=str, default=".")
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("-se", "--squeeze_excitation", action="store_true")
 
 
     args = parser.parse_args()
@@ -98,6 +101,8 @@ if __name__ == "__main__":
                                                                                                                                 args.resize, 
                                                                                                                                 args.resize_size_h,
                                                                                                                                 args.resize_size_w)
+    if args.squeeze_excitation:
+        path += "-se=True"
     print("Device: ", args.device)
     args.trained_model_file = path
     total_score = run(args)

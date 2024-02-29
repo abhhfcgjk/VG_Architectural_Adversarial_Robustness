@@ -1,4 +1,3 @@
-from torch.autograd import Variable
 import torch
 import os
 import pandas as pd
@@ -6,26 +5,24 @@ import numpy as np
 from PIL import Image
 from pathlib import Path
 from tqdm import tqdm
-from scipy import stats
-import argparse
-from LinearityIQA.IQAmodel import IQAModel
 from torchvision.transforms.functional import resize, to_tensor, normalize
 import iterative
 
-from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
+# from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 
 class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
-    def __init__(self, model, arch, pool, use_bn_end, P6, P7, activation, device='cpu') -> None:
+    def __init__(self, model, arch, pool, use_bn_end, P6, P7, se, activation, device='cpu') -> None:
         if device=="cuda":
             assert torch.cuda.is_available()
         self.device = device
         self.arch = arch
+        self.se = se
         self.activation = activation
         self.model = model(arch=arch, pool=pool, 
                            use_bn_end=use_bn_end, 
-                           P6=P6, P7=P7, activation=activation).to(self.device)
+                           P6=P6, P7=P7, activation=activation, se=se).to(self.device)
         self.model.eval()
 
     def load_checkpoints(self, checkpoints_path="LinearityIQA/checkpoints/p1q2.pth"):
@@ -37,6 +34,7 @@ class Attack:
         self.max_train = self.checkpoint['max']
         self.dataset_path = '.'
         self.resize = False
+        print(self.checkpoint.keys())
     
     def set_load_conf(self, dataset_path, resize_size_h, resize_size_w):
         self.dataset_path = dataset_path
@@ -78,17 +76,19 @@ class Attack:
 
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
         self._get_info_max_min_from_testset(debug)
+        self.attack_type = attack_type
         self.iterations = iterations
         self.attacked_vals = []
         image_num = 0
         count = 5
+        self.gains = {int(x * 255): [] for x in self.epsilons}
         for image_path in tqdm(
             Path(self.dataset_path).iterdir(),
             total=len([x for x in Path(self.dataset_path).iterdir()]),
         ):
             if Path(image_path).suffix not in [".png", ".jpg", ".jpeg"]:
                 continue
-            # diffs = {int(x * 255): [] for x in self.epsilons}
+            
             im = Image.open(image_path).convert("RGB")
             if self.resize:  # resize or not?
                 im = resize(im, (self.resize_size_h, self.resize_size_w))  #
@@ -102,9 +102,7 @@ class Attack:
                     
             self.clear_vals[image_num] = clear_val
 
-            # eps_attacked = []
-
-            self.gains = {int(x * 255): [] for x in self.epsilons}
+            
             for _, eps in enumerate(self.epsilons):
                 im_attacked = iterative.attack_callback(
                     im, model=self.model,attack_type=attack_type, metric_range=100, device=self.device, 
@@ -114,7 +112,7 @@ class Attack:
 
                 with torch.no_grad():
                     diff = im_attacked - im
-                    diff = torch.clamp(diff, min=-eps, max=eps)
+                    diff = torch.clamp(diff, min=-10/255, max=10/255)
                     # print("DIFF:", torch.sum(diff))
                     im_attacked = im + diff
 
@@ -135,12 +133,28 @@ class Attack:
                 if not count:
                     break
             ##########
-                
+
+    def save_vals_to_file(self, csv_results_dir='.'):
+        se_status = "+se" if self.se else ""
+        data = pd.DataFrame(columns=['clear', 'attack'])
+        if csv_results_dir is not None:
+            for i in range(len(self.clear_vals)):
+                data.loc[len(data.index)] = [self.clear_vals[i], self.attacked_vals[i]]
+
+            result_path = "results_{}_{}_{}.csv".format(self.activation, 
+                                                        self.arch + se_status, 
+                                                        self.iterations)
+            csv_path = os.path.join(csv_results_dir, result_path)
+            data.to_csv(csv_path)
+            print(f"Results saved to {csv_path}")
+
     def save_results(self, csv_results_dir='.'):
         self.results = []
         degree = 5
-        mdif = {'arch': self.arch, 
+        se_status = "+se" if self.se else ""
+        mdif = {'arch': self.arch + se_status, 
                 'activation': self.activation,
+                'attack': self.attack_type,
                 'iterations': self.iterations,
                 'degree': f'10^{degree}'}
         for int_eps in self.gains.keys():
@@ -151,22 +165,13 @@ class Attack:
             )
             mdif.update({f'eps {int_eps}': self.results[-1]*(10**degree)})
         
-        correlation = stats.spearmanr(self.clear_vals, self.attacked_vals)
-        mdif.update({'SROCC': correlation[0]})
+        # correlation = stats.spearmanr(self.clear_vals, self.attacked_vals)
+        mdif.update({'SROCC': self.checkpoint['SROCC']})
 
-        data = pd.DataFrame(columns=['clear', 'attack'])
-        if csv_results_dir is not None:
-            for i in range(len(self.clear_vals)):
-                data.loc[len(data.index)] = [self.clear_vals[i], self.attacked_vals[i]]
-
-            csv_path = os.path.join(csv_results_dir, "results_{}_{}_{}.csv".format(self.activation, 
-                                                                                   self.arch, 
-                                                                                   self.iterations))
-            data.to_csv(csv_path)
-            print(f"Results saved to {csv_path}")
+        
 
         cols = [f'eps {e}' for e in self.gains.keys()]
-        cols = ['arch', 'activation'] + ['iterations'] + ['degree'] + cols + ['SROCC']
+        cols = ['arch', 'activation','attack', 'iterations', 'degree'] + cols + ['SROCC']
         if csv_results_dir is not None:
             csv_path = os.path.join(csv_results_dir, "results.csv".format(self.activation))
             if "results.csv" not in os.listdir(csv_results_dir):

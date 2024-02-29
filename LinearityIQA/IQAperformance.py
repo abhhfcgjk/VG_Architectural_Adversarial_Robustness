@@ -42,9 +42,9 @@ class IQAPerformance:
         if self.status=='train':
             return {'k': self.k, 'b': self.b}
 
-        SROCC = stats.spearmanr(sq, self.preds)[0]
-        PLCC = stats.pearsonr(sq, self.preds)[0]
-        RMSE = np.sqrt(((sq - self.preds) ** 2).mean())
+        self.SROCC = stats.spearmanr(sq, self.preds)[0]
+        self.PLCC = stats.pearsonr(sq, self.preds)[0]
+        self.RMSE = np.sqrt(((sq - self.preds) ** 2).mean())
         # KROCC = stats.stats.kendalltau(sq, pq)[0]
         # outlier_ratio = (np.abs(sq - pq) > 2 * sq_std).mean()
 
@@ -65,9 +65,9 @@ class IQAPerformance:
         # KROCC2 = stats.stats.kendalltau(sq, pq2)[0]
         # outlier_ratio2 = (np.abs(sq - pq2) > 2 * sq_std).mean()
 
-        return {'SROCC': SROCC,
-                'PLCC': PLCC,
-                'RMSE': RMSE,
+        return {'SROCC': self.SROCC,
+                'PLCC': self.PLCC,
+                'RMSE': self.RMSE,
                 # 'sq': sq,
                 # 'sq_std': sq_std,
                 # 'pq_before': pq_before,

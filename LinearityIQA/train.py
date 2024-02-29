@@ -151,6 +151,7 @@ class Trainer:
             'min': preds.min(),
             'max': preds.max(),
             'epoch': self.current_epoch,
+            'SROCC': self.metric_computer.SROCC
         }
         torch.save(checkpoint, self.args.trained_model_file)
         print('checkpoints saved')
@@ -170,6 +171,7 @@ class Trainer:
         preds = self.metric_computer.preds
         checkpoint['max'] = preds.max()
         checkpoint['min'] = preds.min()
+        checkpoint['SROCC'] = self.metric_computer.SROCC
         torch.save(checkpoint, self.args.trained_model_file)
 
             
@@ -218,6 +220,10 @@ class Trainer:
         for step, (inputs, label) in enumerate(self.test_loader):
             self._val_step(inputs, label)
         metrics = self.metric_computer.compute()
+
+        checkpoint['SROCC'] = self.metric_computer.SROCC
+        torch.save(checkpoint, self.args.trained_model_file)
+        
         print('{}, {}: {:.3f}'.format(self.args.dataset, self.metrics_printed[0], metrics[self.metrics_printed[0]]))
         np.save(self.args.save_result_file, metrics)
 

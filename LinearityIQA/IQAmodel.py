@@ -4,8 +4,10 @@ import torch.nn.functional as F
 from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
-from activ import ReLU_SiLU
-from SE import SqueezeExcitation
+
+
+from LinearityIQA.activ import ReLU_SiLU
+from LinearityIQA.SE import SqueezeExcitation
 # from torchvision.ops import SqueezeExcitation
 # from . import wide_resnet34
 
@@ -93,10 +95,10 @@ class IQAModel(nn.Module):
         if self.is_se:
             self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
                                         squeeze_channels=4,
-                                        activation=nn.SiLU)
+                                        activation=Activ)
             self.se7 = SqueezeExcitation(input_channels=in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]),
                                         squeeze_channels=4,
-                                        activation=nn.SiLU)
+                                        activation=Activ)
 
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]), 1024),
                                 nn.BatchNorm1d(1024),
@@ -126,14 +128,21 @@ class IQAModel(nn.Module):
             x = model(x)
             if ii == self.id1:
                 # print(x.size())
-                x6 = self.se6(x)
+                # x6 = self.se6(x)
+                if self.is_se:
+                    x6 = self.se6(x)
+                else:
+                    x6 = x
                 x6 = SPSP(x6, P=self.P6, method=self.pool)
                 x6 = self.dr6(x6)
                 f.append(x6)
                 pq.append(self.regr6(x6))
             if ii == self.id2:
                 # print(x.size())
-                x7 = self.se7(x)
+                if self.is_se:
+                    x7 = self.se7(x)
+                else:
+                    x7 = x
                 x7 = SPSP(x7, P=self.P7, method=self.pool)
                 x7 = self.dr7(x7)
                 f.append(x7)
