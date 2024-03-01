@@ -25,7 +25,7 @@ test_all(){
                 -iter ${iters} $se_str"
                 echo "CONFIG: architecture=$arch activation=$activ \
 results_dir=$results_dir se=${se_block}${se_str} device=$device $debug"
-                python main.py ${command_args} ${debug}
+                python main.py ${command_args} -${debug} 2>>test_error.log
             done
         done
     done
@@ -53,7 +53,7 @@ train_all(){
                 --loss_type norm-in-norm --p 1 --q 2 
                 --activation $activ $se_str --pbar"
                 echo "CONFIG: $arch $activ se=${se_block}${se_str} device=$device $debug"
-                CUDA_VISIBLE_DEVICES=0 python main.py ${command_args} ${debug}
+                CUDA_VISIBLE_DEVICES=0 python main.py ${command_args} ${debug} 2>>train_error.log
             done
         done
     done
@@ -80,7 +80,7 @@ test=false
 # iters=1
 
 
-while getopts ":Ttd:i:" keys
+while getopts ":Ttdi:" keys
 do
     case $keys in
         t) test=true;;
@@ -102,3 +102,4 @@ then
     train_all
 fi
 
+echo "SCRIPT FINISHED"
