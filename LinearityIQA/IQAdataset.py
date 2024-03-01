@@ -83,31 +83,35 @@ class IQADataset(Dataset):
         return im
 
 
-def get_data_loaders(args):
+def get_data_loaders(args, train=True, val=True, test=True):
     """ Prepare the train-val-test data
     :param args: related arguments
     :return: train_loader, val_loader, test_loader
     """
-    train_dataset = IQADataset(args, 'train')
-    batch_size = args.batch_size
-    if args.debug:
-        num_samples = 5 * batch_size
-        print("Debug mode: reduced training dataset to the first {} samples".format(num_samples))
-        train_dataset = Subset(train_dataset, list(range(num_samples)))
+    train_loader, val_loader, test_loader = None, None, None
+    if train:
+        train_dataset = IQADataset(args, 'train')
+        batch_size = args.batch_size
+        if args.debug:
+            num_samples = 5 * batch_size
+            print("Debug mode: reduced training dataset to the first {} samples".format(num_samples))
+            train_dataset = Subset(train_dataset, list(range(num_samples)))
 
-    train_loader = DataLoader(train_dataset,
-                              batch_size=args.batch_size,
-                              shuffle=True,
-                              num_workers=4,
-                              pin_memory=True)  # If the last batch only contains 1 sample, you need drop_last=True.
-    val_dataset = IQADataset(args, 'val')
-    test_dataset = IQADataset(args, 'test')
-    if args.debug:
-        num_samples = 5
-        print("Debug mode: reduced validation/test datasets to the first {} samples".format(num_samples))
-        val_dataset = Subset(val_dataset, list(range(num_samples)))
-        test_dataset = Subset(test_dataset, list(range(num_samples)))
+        train_loader = DataLoader(train_dataset,
+                                batch_size=args.batch_size,
+                                shuffle=True,
+                                num_workers=4,
+                                pin_memory=True)  # If the last batch only contains 1 sample, you need drop_last=True.
+    
+    if val and test:
+        val_dataset = IQADataset(args, 'val')
+        test_dataset = IQADataset(args, 'test')
+        if args.debug:
+            num_samples = 5
+            print("Debug mode: reduced validation/test datasets to the first {} samples".format(num_samples))
+            val_dataset = Subset(val_dataset, list(range(num_samples)))
+            test_dataset = Subset(test_dataset, list(range(num_samples)))
 
-    val_loader = DataLoader(val_dataset)    
-    test_loader = DataLoader(test_dataset)
+        val_loader = DataLoader(val_dataset)    
+        test_loader = DataLoader(test_dataset)
     return train_loader, val_loader, test_loader

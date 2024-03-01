@@ -153,10 +153,13 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-se={}-aug={}-lr={}-bs={}-e={}-opt_level={}'\
+    # args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-se={}-aug={}-lr={}-bs={}-e={}-opt_level={}'\
+    #                   .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
+    #                           args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation, args.augmentation, 
+    #                           args.learning_rate, args.batch_size, args.epochs, args.opt_level)
+    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-se={}'\
                       .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
-                              args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation, args.augmentation, 
-                              args.learning_rate, args.batch_size, args.epochs, args.opt_level)
+                              args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation)
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     args.trained_model_file = 'checkpoints/' + args.format_str

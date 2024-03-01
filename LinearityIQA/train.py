@@ -51,17 +51,24 @@ class Trainer:
         self._prepair_train()
         self._train_loop()
 
-    def _prepair_train(self):
-        if self.args.ft_lr_ratio == .0:
-            for param in self.model.features.parameters():
-                param.requires_grad = False
-        self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args)
-
-        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step, gamma=self.args.lr_decay)
+    def _prepair(self, train=True, val=True, test=True):
+        self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val, test=test)
         self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta, 
                             p=self.args.p, q=self.args.q, 
                             monotonicity_regularization=self.args.monotonicity_regularization, 
                             gamma=self.args.gamma, detach=self.args.detach)
+    def _prepair_train(self):
+        self._prepair()
+        if self.args.ft_lr_ratio == .0:
+            for param in self.model.features.parameters():
+                param.requires_grad = False
+        # self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args)
+
+        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step, gamma=self.args.lr_decay)
+        # self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta, 
+        #                     p=self.args.p, q=self.args.q, 
+        #                     monotonicity_regularization=self.args.monotonicity_regularization, 
+        #                     gamma=self.args.gamma, detach=self.args.detach)
         self.scaler = GradScaler()
 
         
@@ -200,6 +207,9 @@ class Trainer:
         self.metric_computer.update((output, label))
         
     def eval(self):
+        if self.args.evaluate:
+            self._prepair(False, True, True)
+
         checkpoint = torch.load(self.args.trained_model_file)
         # results = {}
         self.model.load_state_dict(checkpoint['model'])

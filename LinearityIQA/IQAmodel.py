@@ -5,12 +5,12 @@ from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
 
-if __name__=="LinearityIQA.IQAmodel":
-    from LinearityIQA.activ import ReLU_SiLU
-    from LinearityIQA.SE import SqueezeExcitation
-else:
+if __name__=='IQAmodel':
     from activ import ReLU_SiLU
     from SE import SqueezeExcitation
+else:
+    from LinearityIQA.activ import ReLU_SiLU
+    from LinearityIQA.SE import SqueezeExcitation
 # from torchvision.ops import SqueezeExcitation
 # from . import wide_resnet34
 
