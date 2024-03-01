@@ -1,29 +1,15 @@
-# Author: Dingquan Li
-# Email: dingquanli AT pku DOT edu DOT cn
-# Date: 2020/1/14
-
 import torch
-# from torch.optim import Adam, SGD, Adadelta, lr_scheduler
-# from apex import amp
 from IQAdataset import get_data_loaders
-# from IQAmodel import IQAModel
-# from IQAloss import IQALoss
-# from IQAperformance import IQAPerformance
-# from tensorboardX import SummaryWriter
-# import datetime
 import os
 import numpy as np
 import random
 from argparse import ArgumentParser
 
-# from torch.cuda import amp
-
-# from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from train import Trainer
 
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
-# scaler = amp.grad_scaler.GradScaler()
+
 def writer_add_scalar(writer, status, dataset, scalars, iter):
     for metric_print in metrics_printed:
         writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
@@ -35,10 +21,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-    # t = [torch.tensor([66.4211, 15.2294, 61.0280, 72.7750, 50.5682, 73.8152, 31.2712, 71.9091],device='cuda:0'),
-    #      torch.tensor([0.5375, 0.6159, 0.5664, 0.6331, 0.5235, 0.5143, 0.5963, 0.5326],device='cuda:0')]
-    # print(max(t[0]).item())
-    # quit()
+
     parser = ArgumentParser(description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
     parser.add_argument("--activation", default='relu',
                         help='activation function')
