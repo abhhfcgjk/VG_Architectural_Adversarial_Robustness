@@ -81,7 +81,7 @@ if __name__ == "__main__":
         "--resize_size_w", default=664, type=int, help="resize_w (default: 664)"
     )
 
-    parser.add_argument("--iterations", "-iter", type=int, default=1)
+    parser.add_argument("-iter", "--iterations", type=int, default=1)
     parser.add_argument("--activation", type=str, default="relu")
     parser.add_argument("--attack_type", type=str, default="IFGSM")
     parser.add_argument("--dataset_path", type=str, default="./NIPS_test/")
@@ -96,11 +96,12 @@ if __name__ == "__main__":
 
     print(args.architecture)
 
-    path = 'LinearityIQA/checkpoints/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}'.format(args.activation, 
+    path = 'LinearityIQA/checkpoints/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}-se={}'.format(args.activation, 
                                                                                                                                 args.architecture, 
                                                                                                                                 args.resize, 
                                                                                                                                 args.resize_size_h,
-                                                                                                                                args.resize_size_w)
+                                                                                                                                args.resize_size_w,
+                                                                                                                                args.squeeze_excitation)
     if args.squeeze_excitation:
         path += "-se=True"
     print("Device: ", args.device)

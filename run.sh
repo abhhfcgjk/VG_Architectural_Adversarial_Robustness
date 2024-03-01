@@ -25,7 +25,7 @@ test_all(){
                 -iter ${iters} $se_str"
                 echo "CONFIG: architecture=$arch activation=$activ \
 results_dir=$results_dir se=${se_block}${se_str} device=$device $debug"
-                python main.py ${command_args} -${debug} 2>>test_error.log
+                python main.py ${command_args} ${debug} 2>>test_error.log
             done
         done
     done
@@ -77,7 +77,7 @@ results_dir="rs"
 debug=""
 train=false
 test=false
-# iters=1
+iters=1
 
 
 while getopts ":Ttdi:" keys

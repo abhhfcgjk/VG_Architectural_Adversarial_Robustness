@@ -167,7 +167,7 @@ class Attack:
         
         # correlation = stats.spearmanr(self.clear_vals, self.attacked_vals)
         mdif.update({'SROCC': self.checkpoint['SROCC']})
-
+        print('SROCC:', self.checkpoint['SROCC'])
         
 
         cols = [f'eps {e}' for e in self.gains.keys()]

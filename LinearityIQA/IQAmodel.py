@@ -88,13 +88,14 @@ class IQAModel(nn.Module):
             print('The arch is not implemented!')
         self.features = nn.Sequential(*features)
 
-        if activation=='relu':
-            Activ = nn.ReLU
-        elif activation=='silu':
+        
+        if activation=='silu':
             Activ = nn.SiLU
         elif activation=='relu_silu':
             Activ = ReLU_SiLU
-        
+        else:
+            Activ = nn.ReLU
+
         if self.is_se:
             self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
                                         squeeze_channels=4,
