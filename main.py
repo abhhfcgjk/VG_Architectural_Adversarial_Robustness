@@ -102,8 +102,7 @@ if __name__ == "__main__":
                                                                                                                                 args.resize_size_h,
                                                                                                                                 args.resize_size_w,
                                                                                                                                 args.squeeze_excitation)
-    if args.squeeze_excitation:
-        path += "-se=True"
+
     print("Device: ", args.device)
     args.trained_model_file = path
     total_score = run(args)
