@@ -18,13 +18,11 @@ test_all(){
 
                 if [ $debug ]
                 then
-                    ind_iter=0
-                else
-                    ind_iter=1
+                    iters=1
                 fi
                 command_args="--dataset_path $default_dataset_path --resize -arch $arch
                 --activation $activ --device $device --csv_results_dir $results_dir 
-                -iter ${iterations[$ind_iter]} $se_str"
+                -iter ${iters} $se_str"
                 echo "CONFIG: architecture=$arch activation=$activ \
 results_dir=$results_dir se=${se_block}${se_str} device=$device $debug"
                 python main.py ${command_args} ${debug}
@@ -49,12 +47,6 @@ train_all(){
                     se_str="-se"
                 fi
 
-                if [ $debug ]
-                then
-                    ind_iter=0
-                else
-                    ind_iter=1
-                fi
                 command_args="--dataset KonIQ-10k 
                 --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 
                 --ft_lr_ratio 0.1 -arch $arch 
@@ -85,14 +77,16 @@ results_dir="rs"
 debug=""
 train=false
 test=false
+# iters=1
 
 
-while getopts ":Ttd" keys
+while getopts ":Ttd:i:" keys
 do
     case $keys in
         t) test=true;;
         d) debug="--debug";;
         T) train=true;;
+        i) iters="$OPTARG";;
         *) echo "INVALID ARGUMENTS"
     esac
 done
