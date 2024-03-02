@@ -20,11 +20,12 @@ test_all(){
                 then
                     iters=1
                 fi
-                command_args="--dataset_path $default_dataset_path --resize -arch $arch
-                --activation $activ --device $device --csv_results_dir $results_dir 
-                -iter ${iters} $se_str"
+                command_args="--dataset_path $default_dataset_path --resize -arch $arch \
+--activation $activ --device $device --csv_results_dir $results_dir \
+-iter ${iters} $se_str"
                 echo "CONFIG: architecture=$arch activation=$activ \
 results_dir=$results_dir se=${se_block}${se_str} device=$device $debug"
+                echo "python main.py ${command_args} ${debug} 2>>test_error.log"
                 python main.py ${command_args} ${debug} 2>>test_error.log
             done
         done
