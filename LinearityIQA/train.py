@@ -118,9 +118,10 @@ class Trainer:
                 dataset=self.args.dataset
             )
             val_criterion = abs(metrics[self.args.val_criterion])
+            # print(val_criterion, self.best_val_criterion)
             if val_criterion > self.best_val_criterion:
-                if self.args.debug:
-                    print('max:', 'max_pred', 'min:', 'min_pred')
+                # if self.args.debug:
+                    # print('max:', 'max_pred', 'min:', 'min_pred')
                 checkpoint = {
                     'model': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
@@ -158,7 +159,7 @@ class Trainer:
             'min': preds.min(),
             'max': preds.max(),
             'epoch': self.current_epoch,
-            'SROCC': self.metric_computer.SROCC
+            'SROCC': self.best_val_criterion
         }
         torch.save(checkpoint, self.args.trained_model_file)
         print('checkpoints saved')
@@ -178,7 +179,7 @@ class Trainer:
         preds = self.metric_computer.preds
         checkpoint['max'] = preds.max()
         checkpoint['min'] = preds.min()
-        checkpoint['SROCC'] = self.metric_computer.SROCC
+        checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
         torch.save(checkpoint, self.args.trained_model_file)
 
             

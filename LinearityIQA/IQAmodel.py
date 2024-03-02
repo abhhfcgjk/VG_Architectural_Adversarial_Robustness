@@ -5,14 +5,65 @@ from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
 
+
 if __name__=='IQAmodel':
     from activ import ReLU_SiLU
     from SE import SqueezeExcitation
+    from VOneNet import get_model
 else:
     from LinearityIQA.activ import ReLU_SiLU
     from LinearityIQA.SE import SqueezeExcitation
-# from torchvision.ops import SqueezeExcitation
-# from . import wide_resnet34
+
+    from LinearityIQA.VOneNet import get_model
+
+
+class Nothing(nn.Module):
+    def __init__(self):
+        super(Nothing, self).__init__()
+        
+    def forward(self, x):
+        return x
+
+class wrap(nn.Module):
+    def __init__(self, features):
+        super().__init__()
+        self.model = features[0]
+        self.index = 0
+        self.__resnet50layers_count = 4
+        self.layers = [self.model[-1].layer1, self.model[-1].layer2, self.model[-1].layer3, self.model[-1].layer4]
+        self.it = [self.model[0], self.model[1]] + self.layers
+        self.len = 6
+
+    def __getitem__(self, item):
+        if item > 5:
+            raise IndexError('index error in wrap')
+        elif item < 2:
+            return self.model[item]
+        else:
+            return self.layers[item-2]
+
+    def __len__(self):
+        return self.len
+    
+    def __str__(self):
+        return self.model.__str__()
+
+    def __iter__(self):
+        return iter(self.it)
+    def __next__(self):
+        if self.index < 2:
+            self.index += 1
+            return self.model[self.index-1]
+        else:
+            self.index += 1
+            return self.layers[self.index-3]
+
+
+# model = models.resnet18(pretrained=False)
+# model.fc = Identity()
+# x = torch.randn(1, 3, 224, 224)
+# output = model(x)
+# print(output.shape)
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
@@ -59,11 +110,14 @@ class IQAModel(nn.Module):
         self.P7 = P7  #
         if arch=='wideresnet50':
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())[:-2]
-
+        elif arch=='vonenet50':
+            features = list(get_model(model_arch='resnet50', pretrained=True, map_location='cuda').children())
+            features[0][-1].avgpool = Nothing()
+            features[0][-1].fc = Nothing()
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
-        # print(type(features))
-        # print(features)
+
+        
 
         if arch == 'alexnet':
             in_features = [256, 256]
@@ -75,6 +129,10 @@ class IQAModel(nn.Module):
             self.id1 = 23
             self.id2 = 30
             features = features[0]
+        elif arch=='vonenet50':
+            self.id1 = 4
+            self.id2 = 5
+            in_features = [1024, 2048]
         elif 'res' in arch:
             self.id1 = 6
             self.id2 = 7
@@ -86,8 +144,14 @@ class IQAModel(nn.Module):
                 in_features = [1024, 2048]
         else: 
             print('The arch is not implemented!')
-        self.features = nn.Sequential(*features)
 
+        if arch=='vonenet50':
+            self.features = wrap(features)
+        else:
+            self.features = nn.Sequential(*features)
+        # print(self.features)
+        print(len(self.features))
+        # print(len(self.features[0]))
         
         if activation=='silu':
             Activ = nn.SiLU
@@ -116,7 +180,8 @@ class IQAModel(nn.Module):
                                 nn.BatchNorm1d(256),
                                 nn.Linear(256, 64),
                                 nn.BatchNorm1d(64), Activ())
-
+        # print(self.dr7.parameters())
+        # quit()
         if self.use_bn_end:
             self.regr6 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
             self.regr7 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
@@ -128,9 +193,14 @@ class IQAModel(nn.Module):
 
     def extract_features(self, x):
         f, pq = [], []
+        
         for ii, model in enumerate(self.features):
+            # print('here',len(self.features))
+            
             x = model(x)
+            # print('here',x)
             if ii == self.id1:
+                # print('x6',model)
                 # print(x.size())
                 # x6 = self.se6(x)
                 if self.is_se:
@@ -142,6 +212,7 @@ class IQAModel(nn.Module):
                 f.append(x6)
                 pq.append(self.regr6(x6))
             if ii == self.id2:
+                # print('x7',model)
                 # print(x.size())
                 if self.is_se:
                     x7 = self.se7(x)
@@ -152,6 +223,7 @@ class IQAModel(nn.Module):
                 f.append(x7)
                 pq.append(self.regr7(x7))
 
+        # print(f)
         f = torch.cat(f, dim=1)
 
         return f, pq
