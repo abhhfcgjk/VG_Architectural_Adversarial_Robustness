@@ -27,6 +27,7 @@ class Nothing(nn.Module):
 class wrap(nn.Module):
     def __init__(self, features):
         super().__init__()
+        self.module = features
         self.model = features[0]
         self.index = 0
         self.__resnet50layers_count = 4
@@ -57,6 +58,10 @@ class wrap(nn.Module):
         else:
             self.index += 1
             return self.layers[self.index-3]
+    def forward(self, input):
+        # for module in self.model:
+        input = self.module(input)
+        return input
 
 
 # model = models.resnet18(pretrained=False)
@@ -117,7 +122,7 @@ class IQAModel(nn.Module):
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
 
-        
+
 
         if arch == 'alexnet':
             in_features = [256, 256]

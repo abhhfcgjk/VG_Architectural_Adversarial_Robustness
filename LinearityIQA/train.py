@@ -232,7 +232,7 @@ class Trainer:
             self._val_step(inputs, label)
         metrics = self.metric_computer.compute()
 
-        checkpoint['SROCC'] = self.metric_computer.SROCC
+        checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
         torch.save(checkpoint, self.args.trained_model_file)
         
         print('{}, {}: {:.3f}'.format(self.args.dataset, self.metrics_printed[0], metrics[self.metrics_printed[0]]))
