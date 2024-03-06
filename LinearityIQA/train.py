@@ -23,6 +23,7 @@ class Trainer:
     def __init__(self, device, args) -> None:
         # self.config = data
         self.args = args
+        self.arch = self.args.architecture
         self.device = device
         self.epochs = self.args.epochs
         self.current_epoch = 0
@@ -81,13 +82,28 @@ class Trainer:
         self._optimizer()
     
     def _optimizer(self):
-        self.optimizer = Adam([{'params': self.model.regression.parameters()}, # The most important parameters. Maybe we need three levels of lrs
-                      {'params': self.model.dr6.parameters()},
-                      {'params': self.model.dr7.parameters()},
-                      {'params': self.model.regr6.parameters()},
-                      {'params': self.model.regr7.parameters()},
-                      {'params': self.model.features.parameters(), 'lr': self.args.learning_rate * self.args.ft_lr_ratio}],
-                     lr=self.args.learning_rate, weight_decay=self.args.weight_decay) # Adam can be changed to other optimizers, such as SGD, Adadelta.
+        if 'rartfa' in self.arch:
+            self.optimizer = Adam([
+                {'params': self.model.dense.parameters()},
+                {'params': self.model.proj1.parameters()},
+                {'params': self.model.proj2.parameters()},
+                {'params': self.model.proj3.parameters()},
+                {'params': self.model.attn1.parameters()},
+                {'params': self.model.attn2.parameters()},
+                {'params': self.model.attn3.parameters()},
+                {'params': self.model.corr1.parameters()},
+                {'params': self.model.corr2.parameters()},
+                {'params': self.model.corr3.parameters()},
+                {'params': self.model.classify.parameters()},
+            ])
+        else:
+            self.optimizer = Adam([{'params': self.model.regression.parameters()}, # The most important parameters. Maybe we need three levels of lrs
+                        {'params': self.model.dr6.parameters()},
+                        {'params': self.model.dr7.parameters()},
+                        {'params': self.model.regr6.parameters()},
+                        {'params': self.model.regr7.parameters()},
+                        {'params': self.model.features.parameters(), 'lr': self.args.learning_rate * self.args.ft_lr_ratio}],
+                        lr=self.args.learning_rate, weight_decay=self.args.weight_decay) # Adam can be changed to other optimizers, such as SGD, Adadelta.
 
     def _train_loop(self):
         train_data_len = len(self.train_loader)

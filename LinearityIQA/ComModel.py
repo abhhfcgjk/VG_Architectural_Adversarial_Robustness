@@ -170,35 +170,13 @@ class self_correlation(nn.Module):
         
         # Select topk points
         embedding[:,:,:topk] = weights.unsqueeze(1) * img
-        
-        # select K points
-        # _,Cv,_,_ = v3.shape
-        # v3 = F.softmax(v3,dim=1).view(B,Cv,one_dim_size)
-        # v3t = v3.transpose(1,2)
-        # out = torch.matmul(v3t, v3)
-        # mask = torch.zeros((B, topk, topk)).cuda()
-        # temp = batched_index_select(out, 1, indexes)
-        # mask[:,:,:topk] = batched_index_select(temp, 2, indexes)
 
-        # embedding = torch.bmm(embedding, mask)
-        
         embedding = self.fc1(embedding)
         #print(embedding.shape)
         v3t = embedding.transpose(1,2)
         #print(v3t.shape)
         out = torch.matmul(v3t, embedding)#有点类似a'a？
-        
-        # embedding = self.fc2(embedding)
-        
-        # embedding = torch.zeros((B,C,topk)).cuda()
 
-        # out = torch.zeros((B,C,one_dim_size)).cuda()
-        
-        # for batch in range(B):
-        #     out[batch,:,indexes[batch]] = embedding[batch]
-        
-        # out[:,:,:topk] = embedding
-        
         return out
 
     def forward(self, im, weight):
@@ -257,7 +235,7 @@ def batched_index_select(input, dim, index):
     return torch.gather(input, dim, index)
 
 
-class RTRTFA(nn.Module):
+class RARTFA(nn.Module):
     __arches = {"resnet18": resnet18,
                 "resnet34": resnet34,
                 "resnet50": resnet50}
@@ -281,7 +259,6 @@ class RTRTFA(nn.Module):
 
         self.dense = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=4, padding=0, bias=True)
 
-        # self.A = nn.Linear(448*20, 512*3)
 
         self.classify = nn.Linear(250, 1) #20-1200,10
 
@@ -302,9 +279,7 @@ class RTRTFA(nn.Module):
         out3 = self.corr3(l3, c3)
 
         g = torch.cat((out1, out2, out3), dim=1)
-        # g = out1 + out2 + out3
 
-        # out = F.avg_pool2d(l4, 4)
         g = g.view(g.size(0), -1)
 
         out = self.classify(g)
