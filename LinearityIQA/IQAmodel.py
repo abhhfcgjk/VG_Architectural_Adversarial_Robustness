@@ -140,10 +140,13 @@ class IQAModel(nn.Module):
             features[0][-1].fc = Identity()
         elif 'rartfa' in arch:
             # self.features = RARTFA(arch=arch.replace("rartfa", ''), pretrained=True)
-            self.md = self.__arches[arch.replace('rartfa', '')](pretrained=True)
+            self.features = list(self.__arches[arch.replace('rartfa', '')](pretrained=True).children())[:-2]
             # print("HERERERE")
             # quit()
-            self.features = self.md
+            self.md = self.__arches[arch.replace('rartfa', '')](pretrained=True)
+            self.md.fc = Identity()
+            self.md.avgpool = Identity()
+            # quit()
             # self.features = list(self.md.children())
             # print(self.md.children())
             # quit()
@@ -202,7 +205,7 @@ class IQAModel(nn.Module):
             ReLU_to_SILU(self.features)
         elif activation=='Frelu_silu':
             ReLU_to_ReLUSiLU(self.features)
-        print(self.features)
+        # print(self.features)
 
         if 'rartfa' in self.arch:
             self.attn1 = LinearAttentionBlock(512)
@@ -212,6 +215,8 @@ class IQAModel(nn.Module):
             self.proj1 = ProjectorBlock(64, 512)
             self.proj2 = ProjectorBlock(128, 512)
             self.proj3 = ProjectorBlock(256, 512)
+
+            # self.proj11 = ProjectorBlock(64, 64)
 
             self.corr1 = self_correlation(10, 64)
             self.corr2 = self_correlation(10, 128)
@@ -282,11 +287,15 @@ class IQAModel(nn.Module):
         return f, pq
 
     def exec_rartfa(self, x, gg=None):
+        print(x.size())
         x = self.md(x)
-        l1, l2, l3, l4, _ = self.md.layer_results
+        l1, l2, l3, l4, _ = self.md.layer_results.values()
+        print(l1.size(), l2.size(), l3.size(), l4.size(), _.size())
+        # print(l4)
+        # quit()
         if gg == None:
             gg = self.dense(l4)
-
+        print(l1.size(), l2.size(), l3.size(), l4.size(), gg.size())
         c1, g1 = self.attn1(self.proj1(l1), gg)
         out1 = self.corr1(l1, c1)
 
@@ -308,7 +317,7 @@ class IQAModel(nn.Module):
         if 'rartfa' in self.arch:
             # pq = self.features(x)
             pq, _, _ = self.exec_rartfa(x)
-
+            print(pq.size())
         else:
             f, pq = self.extract_features(x)
             s = self.regression(f)

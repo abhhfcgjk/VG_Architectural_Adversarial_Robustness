@@ -9,14 +9,15 @@ Reference:
 import torch
 from torch import hub, Tensor, nn
 import torch.nn.functional as F
-from torchvision.models import ResNet18_Weights, ResNet34_Weights, ResNet50_Weights, WeightsEnum
+from torchvision.models.utils import load_state_dict_from_url
+from torchvision.models.resnet import model_urls
 from torchvision import models
 from typing import Any, Callable, List, Optional, Type, Union
 
 import numpy as np
 
-from torchvision.models._utils import handle_legacy_interface, _ovewrite_named_param
-from torchvision.models._api import register_model
+# from torchvision.models._utils import handle_legacy_interface, _ovewrite_named_param
+# from torchvision.models._api import register_model
 from torchvision.models.resnet import BasicBlock, Bottleneck
 
 class ResnetCon(models.ResNet):
@@ -66,46 +67,81 @@ class ResnetCon(models.ResNet):
 
         return x
 
+# def _resnet(
+#     block: Type[Union[BasicBlock, Bottleneck]],
+#     layers: List[int],
+#     weights: Optional[WeightsEnum],
+#     progress: bool,
+#     **kwargs: Any,
+# ) -> ResnetCon:
+#     if weights is not None:
+#         _ovewrite_named_param(kwargs, "num_classes", len(weights.meta["categories"]))
+
+#     model = ResnetCon(block, layers, **kwargs)
+
+#     if weights is not None:
+#         model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
+
+#     return model
+
+
+# # @register_model()
+# @handle_legacy_interface(weights=("pretrained", ResNet18_Weights.IMAGENET1K_V1))
+# def resnet18(*, weights: Optional[ResNet18_Weights] = None, progress: bool = True, **kwargs: Any) -> ResnetCon:
+#     weights = ResNet18_Weights.verify(weights)
+
+#     return _resnet(BasicBlock, [2, 2, 2, 2], weights, progress, **kwargs)
+
+
+# # @register_model()
+# @handle_legacy_interface(weights=("pretrained", ResNet34_Weights.IMAGENET1K_V1))
+# def resnet34(*, weights: Optional[ResNet34_Weights] = None, progress: bool = True, **kwargs: Any) -> ResnetCon:
+#     weights = ResNet34_Weights.verify(weights)
+
+#     return _resnet(BasicBlock, [3, 4, 6, 3], weights, progress, **kwargs)
+
+
+# # @register_model()
+# @handle_legacy_interface(weights=("pretrained", ResNet50_Weights.IMAGENET1K_V1))
+# def resnet50(*, weights: Optional[ResNet50_Weights] = None, progress: bool = True, **kwargs: Any) -> ResnetCon:
+#     weights = ResNet50_Weights.verify(weights)
+
+#     return _resnet(Bottleneck, [3, 4, 6, 3], weights, progress, **kwargs)
+
+
+
 def _resnet(
+    arch: str,
     block: Type[Union[BasicBlock, Bottleneck]],
     layers: List[int],
-    weights: Optional[WeightsEnum],
+    pretrained: bool,
     progress: bool,
-    **kwargs: Any,
+    **kwargs: Any
 ) -> ResnetCon:
-    if weights is not None:
-        _ovewrite_named_param(kwargs, "num_classes", len(weights.meta["categories"]))
-
     model = ResnetCon(block, layers, **kwargs)
-
-    if weights is not None:
-        model.load_state_dict(weights.get_state_dict(progress=progress, check_hash=True))
-
+    if pretrained:
+        state_dict = load_state_dict_from_url(model_urls[arch],
+                                              progress=progress)
+        model.load_state_dict(state_dict)
     return model
 
 
-# @register_model()
-@handle_legacy_interface(weights=("pretrained", ResNet18_Weights.IMAGENET1K_V1))
-def resnet18(*, weights: Optional[ResNet18_Weights] = None, progress: bool = True, **kwargs: Any) -> ResnetCon:
-    weights = ResNet18_Weights.verify(weights)
+def resnet18(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResnetCon:
 
-    return _resnet(BasicBlock, [2, 2, 2, 2], weights, progress, **kwargs)
+    return _resnet('resnet18', BasicBlock, [2, 2, 2, 2], pretrained, progress,
+                   **kwargs)
 
 
-# @register_model()
-@handle_legacy_interface(weights=("pretrained", ResNet34_Weights.IMAGENET1K_V1))
-def resnet34(*, weights: Optional[ResNet34_Weights] = None, progress: bool = True, **kwargs: Any) -> ResnetCon:
-    weights = ResNet34_Weights.verify(weights)
+def resnet34(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResnetCon:
 
-    return _resnet(BasicBlock, [3, 4, 6, 3], weights, progress, **kwargs)
+    return _resnet('resnet34', BasicBlock, [3, 4, 6, 3], pretrained, progress,
+                   **kwargs)
 
 
-# @register_model()
-@handle_legacy_interface(weights=("pretrained", ResNet50_Weights.IMAGENET1K_V1))
-def resnet50(*, weights: Optional[ResNet50_Weights] = None, progress: bool = True, **kwargs: Any) -> ResnetCon:
-    weights = ResNet50_Weights.verify(weights)
+def resnet50(pretrained: bool = False, progress: bool = True, **kwargs: Any) -> ResnetCon:
 
-    return _resnet(Bottleneck, [3, 4, 6, 3], weights, progress, **kwargs)
+    return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
+                   **kwargs)
 
 # if __name__=='__main__':
 #     l = resnet18(pretrained=True)
@@ -147,7 +183,9 @@ class self_correlation(nn.Module):
         self.hard = nn.ReLU6()
 
     def self_selected(self, c, x, topk):
-        
+        print("SHAPE", c.shape, x.shape)
+        x = F.conv2d(x, c, stride=(512//x.shape[1], 512//x.shape[1]))
+        print("SHAPE", c.shape, x.shape)
         B, C, H, W = x.shape
         one_dim_size = H * W
         
@@ -202,6 +240,8 @@ class LinearAttentionBlock(nn.Module):
 
     def forward(self, l, g):
         N, C, W, H = l.size()
+        # print(l.size(), g.size())
+        # quit()
         c = self.op(l+g) # batch_sizex1xWxH
         if self.normalize_attn:
             a = F.softmax(c.view(N,1,-1), dim=2).view(N,1,W,H)
@@ -219,10 +259,15 @@ class ProjectorBlock(nn.Module):
 
     def __init__(self, in_features, out_features):
         super(ProjectorBlock, self).__init__()
-        self.op = nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, padding=0, bias=False)
+        stride = out_features//in_features
+        self.op = nn.Sequential(
+            nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=stride,padding=0, bias=False),
+            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=4, padding=0, bias=True))
     
     def forward(self, inputs):
-        return self.op(inputs)
+        out = self.op(inputs)
+        print("PROJ: ", out.size())
+        return out
 
 def batched_index_select(input, dim, index):
     for ii in range(1, len(input.shape)):
@@ -235,56 +280,56 @@ def batched_index_select(input, dim, index):
     return torch.gather(input, dim, index)
 
 
-class RARTFA(nn.Module):
-    __arches = {"resnet18": resnet18,
-                "resnet34": resnet34,
-                "resnet50": resnet50}
-    def __init__(self, arch="resnet34", pretrained=True):
-        super().__init__()
-        self.arch = arch
-        # print(vars())
-        self.md = self.__arches[arch](pretrained=pretrained)
+# class RARTFA(nn.Module):
+#     __arches = {"resnet18": resnet18,
+#                 "resnet34": resnet34,
+#                 "resnet50": resnet50}
+#     def __init__(self, arch="resnet34", pretrained=True):
+#         super().__init__()
+#         self.arch = arch
+#         # print(vars())
+#         self.md = self.__arches[arch](pretrained=pretrained)
 
-        self.attn1 = LinearAttentionBlock(512)
-        self.attn2 = LinearAttentionBlock(512)
-        self.attn3 = LinearAttentionBlock(512)
+#         self.attn1 = LinearAttentionBlock(512)
+#         self.attn2 = LinearAttentionBlock(512)
+#         self.attn3 = LinearAttentionBlock(512)
 
-        self.proj1 = ProjectorBlock(64, 512)
-        self.proj2 = ProjectorBlock(128, 512)
-        self.proj3 = ProjectorBlock(256, 512)
+#         self.proj1 = ProjectorBlock(64, 512)
+#         self.proj2 = ProjectorBlock(128, 512)
+#         self.proj3 = ProjectorBlock(256, 512)
 
-        self.corr1 = self_correlation(10, 64)
-        self.corr2 = self_correlation(10, 128)
-        self.corr3 = self_correlation(10, 256)
+#         self.corr1 = self_correlation(10, 64)
+#         self.corr2 = self_correlation(10, 128)
+#         self.corr3 = self_correlation(10, 256)
 
-        self.dense = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=4, padding=0, bias=True)
+#         self.dense = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=4, padding=0, bias=True)
 
 
-        self.classify = nn.Linear(250, 1) #20-1200,10
+#         self.classify = nn.Linear(250, 1) #20-1200,10
 
-    def forward(self, x):
-        # return self.md(x)
-        x = self.md(x)
-        l1, l2, l3, l4, _ = self.md.layer_results
-        if gg == None:
-            gg = self.dense(l4)
+#     def forward(self, x):
+#         # return self.md(x)
+#         x = self.md(x)
+#         l1, l2, l3, l4, _ = self.md.layer_results
+#         if gg == None:
+#             gg = self.dense(l4)
 
-        c1, g1 = self.attn1(self.proj1(l1), gg)
-        out1 = self.corr1(l1, c1)
+#         c1, g1 = self.attn1(self.proj1(l1), gg)
+#         out1 = self.corr1(l1, c1)
 
-        c2, g2 = self.attn2(self.proj2(l2), gg)
-        out2 = self.corr2(l2, c2)
+#         c2, g2 = self.attn2(self.proj2(l2), gg)
+#         out2 = self.corr2(l2, c2)
 
-        c3, g3 = self.attn3(self.proj3(l3), gg)
-        out3 = self.corr3(l3, c3)
+#         c3, g3 = self.attn3(self.proj3(l3), gg)
+#         out3 = self.corr3(l3, c3)
 
-        g = torch.cat((out1, out2, out3), dim=1)
+#         g = torch.cat((out1, out2, out3), dim=1)
 
-        g = g.view(g.size(0), -1)
+#         g = g.view(g.size(0), -1)
 
-        out = self.classify(g)
+#         out = self.classify(g)
 
-        return out, c1, c2
+#         return out, c1, c2
 
 # if __name__ == '__main__':
 #     m = RTRTFA()
