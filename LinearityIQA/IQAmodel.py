@@ -17,10 +17,7 @@ else:
     from LinearityIQA.VOneNet import get_model
 
 
-class Nothing(nn.Module):
-    def __init__(self):
-        super(Nothing, self).__init__()
-        
+class Identity(nn.Module):
     def forward(self, x):
         return x
 
@@ -117,8 +114,8 @@ class IQAModel(nn.Module):
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())[:-2]
         elif arch=='vonenet50':
             features = list(get_model(model_arch='resnet50', pretrained=True, map_location='cuda').children())
-            features[0][-1].avgpool = Nothing()
-            features[0][-1].fc = Nothing()
+            features[0][-1].avgpool = Identity()
+            features[0][-1].fc = Identity()
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
 
