@@ -6,16 +6,15 @@ test_all(){
     local command_args=""
     for arch in "${architectures[@]}"
     do
-        for activ in "${activations[@]}"
+        se_str=""
+        for se_block in "${se[@]}"
         do
-            se_str=""
-            for se_block in "${se[@]}"
+            if $se_block
+            then
+                se_str="-se"
+            fi
+            for activ in "${activations[@]}"
             do
-                if $se_block
-                then
-                    se_str="-se"
-                fi
-
                 if [ $debug ]
                 then
                     iters=1
@@ -52,9 +51,10 @@ train_all(){
                 --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 
                 --ft_lr_ratio 0.1 -arch $arch 
                 --loss_type norm-in-norm --p 1 --q 2 
-                --activation $activ $se_str --pbar"
+                --activation $activ $se_str ${eval} --pbar"
                 echo "CONFIG: $arch $activ se=${se_block}${se_str} device=$device $debug"
-                CUDA_VISIBLE_DEVICES=0 python main.py ${command_args} ${debug} 2>>train_error.log
+                echo "CUDA_VISIBLE_DEVICES=0 python main.py ${command_args} ${debug}"
+                CUDA_VISIBLE_DEVICES=0 python main.py ${command_args} ${debug} 
             done
         done
     done
@@ -79,15 +79,16 @@ debug=""
 train=false
 test=false
 iters=1
+eval=""
 
-
-while getopts ":Ttdi:" keys
+while getopts ":Ttedi:" keys
 do
     case $keys in
         t) test=true;;
         d) debug="--debug";;
         T) train=true;;
         i) iters="$OPTARG";;
+        e) eval="--evaluate";;
         *) echo "INVALID ARGUMENTS"
     esac
 done

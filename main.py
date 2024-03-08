@@ -104,6 +104,7 @@ if __name__ == "__main__":
                                                                                                                                 args.squeeze_excitation)
 
     print("Device: ", args.device)
+    print(path)
     args.trained_model_file = path
     total_score = run(args)
     print(

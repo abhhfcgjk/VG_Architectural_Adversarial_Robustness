@@ -89,6 +89,7 @@ def get_data_loaders(args, train=True, val=True, test=True):
     :return: train_loader, val_loader, test_loader
     """
     train_loader, val_loader, test_loader = None, None, None
+    # print(train, val, test)
     if train:
         train_dataset = IQADataset(args, 'train')
         batch_size = args.batch_size

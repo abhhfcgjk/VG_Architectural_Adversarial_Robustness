@@ -24,15 +24,15 @@ class Attack:
                            use_bn_end=use_bn_end, 
                            P6=P6, P7=P7, activation=activation, se=se).to(self.device)
         self.model.eval()
-        print(self.model)
+        # print(self.model)
 
     def load_checkpoints(self, checkpoints_path="LinearityIQA/checkpoints/p1q2.pth"):
         self.checkpoint = torch.load(checkpoints_path, map_location=self.device)
         self.model.load_state_dict(self.checkpoint["model"])
         self.k = self.checkpoint['k']
         self.b = self.checkpoint['b']
-        self.min_train = self.checkpoint['min']
-        self.max_train = self.checkpoint['max']
+        # self.min_train = self.checkpoint['min']
+        # self.max_train = self.checkpoint['max']
         self.dataset_path = '.'
         self.resize = False
         print(self.checkpoint.keys())

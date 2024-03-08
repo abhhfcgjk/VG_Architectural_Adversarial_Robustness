@@ -53,6 +53,7 @@ class Trainer:
         self._train_loop()
 
     def _prepair(self, train=True, val=True, test=True):
+        # print(train,val,test)
         self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val, test=test)
         self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta, 
                             p=self.args.p, q=self.args.q, 
@@ -225,7 +226,7 @@ class Trainer:
         
     def eval(self):
         if self.args.evaluate:
-            self._prepair(False, True, True)
+            self._prepair(train=False, val=True, test=True)
 
         checkpoint = torch.load(self.args.trained_model_file)
         # results = {}
@@ -263,7 +264,9 @@ class Trainer:
         # with open(config_path, "r") as conf:
         #     data = yaml.load(conf, Loader=yaml.SafeLoader)
         trainer = cls(device, args)
+        # print(args.evaluate)
         if args.evaluate:
+            # print("EVAL")
             trainer.eval()
         else:
             trainer.train()
