@@ -203,8 +203,10 @@ class IQAModel(nn.Module):
 
         if activation=='Fsilu':
             ReLU_to_SILU(self.features)
+            Activ = nn.SiLU
         elif activation=='Frelu_silu':
             ReLU_to_ReLUSiLU(self.features)
+            Activ = ReLU_SiLU
         # print(self.features)
 
         if 'rartfa' in self.arch:
