@@ -210,9 +210,9 @@ class IQAModel(nn.Module):
         # print(self.features)
 
         if 'rartfa' in self.arch:
-            self.attn1 = LinearAttentionBlock(512)
-            self.attn2 = LinearAttentionBlock(512)
-            self.attn3 = LinearAttentionBlock(512)
+            self.attn1 = LinearAttentionBlock(512, normalize_attn=False)
+            self.attn2 = LinearAttentionBlock(512, normalize_attn=False)
+            self.attn3 = LinearAttentionBlock(512, normalize_attn=False)
 
             self.proj1 = ProjectorBlock(64, 512)
             self.proj2 = ProjectorBlock(128, 512)
@@ -225,9 +225,10 @@ class IQAModel(nn.Module):
             self.corr3 = self_correlation(10, 256)
 
             self.dense = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=4, padding=0, bias=True)
+            self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
 
 
-            self.classify = nn.Linear(250, 1) #20-1200,10
+            self.classify = nn.Linear(300, 1) #20-1200,10
         else:
             if self.is_se:
                 self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
@@ -289,15 +290,16 @@ class IQAModel(nn.Module):
         return f, pq
 
     def exec_rartfa(self, x, gg=None):
-        print(x.size())
+        # print(x.size())
         x = self.md(x)
         l1, l2, l3, l4, _ = self.md.layer_results.values()
-        print(l1.size(), l2.size(), l3.size(), l4.size(), _.size())
+        # print(l1.size(), l2.size(), l3.size(), l4.size(), _.size())
         # print(l4)
         # quit()
         if gg == None:
             gg = self.dense(l4)
-        print(l1.size(), l2.size(), l3.size(), l4.size(), gg.size())
+        gg = self.avgpool(gg)
+        # print(l1.size(), l2.size(), l3.size(), l4.size(), gg.size())
         c1, g1 = self.attn1(self.proj1(l1), gg)
         out1 = self.corr1(l1, c1)
 
@@ -308,9 +310,9 @@ class IQAModel(nn.Module):
         out3 = self.corr3(l3, c3)
 
         g = torch.cat((out1, out2, out3), dim=1)
-
+        print("OUT SHAPE:",out1.shape, out2.shape, out3.shape, g.shape)
         g = g.view(g.size(0), -1)
-
+        print("G|||||",g.shape)
         out = self.classify(g)
 
         return out, c1, c2

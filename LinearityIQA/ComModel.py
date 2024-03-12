@@ -168,7 +168,7 @@ class LinearWithChannel(nn.Module):
         torch.nn.init.uniform_(bias, -bound, bound)
     
     def forward(self, x):
-        
+        print("LWCh:", x.shape)
         output = torch.bmm(x.transpose(0,1), self.w).transpose(0,1) + self.b
         return output
 
@@ -184,13 +184,15 @@ class self_correlation(nn.Module):
 
     def self_selected(self, c, x, topk):
         print("SHAPE", c.shape, x.shape)
-        x = F.conv2d(x, c, stride=(512//x.shape[1], 512//x.shape[1]))
-        print("SHAPE", c.shape, x.shape)
         B, C, H, W = x.shape
         one_dim_size = H * W
+        # B, C, Hc, Wc = c.shape
+        # c_dim_size = Hc*Wc
         
         embedding = torch.zeros((B,C,topk)).cuda()
         x = x.reshape(B, C, one_dim_size)
+        print("reshaped:", x.shape)
+
         c = c.reshape(B, one_dim_size)
 
         top = torch.topk(c, k=topk)
@@ -240,8 +242,10 @@ class LinearAttentionBlock(nn.Module):
 
     def forward(self, l, g):
         N, C, W, H = l.size()
-        # print(l.size(), g.size())
+        print(l.size(), g.size())
         # quit()
+        t = l+g
+        print("TMP|||||||",t.shape)
         c = self.op(l+g) # batch_sizex1xWxH
         if self.normalize_attn:
             a = F.softmax(c.view(N,1,-1), dim=2).view(N,1,W,H)
@@ -261,8 +265,8 @@ class ProjectorBlock(nn.Module):
         super(ProjectorBlock, self).__init__()
         stride = out_features//in_features
         self.op = nn.Sequential(
-            nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1, stride=stride,padding=0, bias=False),
-            nn.Conv2d(in_channels=512, out_channels=512, kernel_size=4, padding=0, bias=True))
+            nn.Conv2d(in_channels=in_features, out_channels=out_features, kernel_size=1),
+            )
     
     def forward(self, inputs):
         out = self.op(inputs)
