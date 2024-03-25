@@ -99,8 +99,11 @@ def SPSP(x, P=1, method='avg'):
             m = -F.max_pool2d(-x, pool_size)
             pool_features.append(m.view(batch_size, -1))  # min pooling
         elif method == 'avg':
+            print("SP:",x.shape)
             a = F.avg_pool2d(x, pool_size)
+            print("SP:",a.shape)
             pool_features.append(a.view(batch_size, -1))  # average pooling
+            print("SP:",pool_features[-1].shape)
         else:
             m1  = F.avg_pool2d(x, pool_size)
             rm2 = torch.sqrt(F.relu(F.avg_pool2d(torch.pow(x, 2), pool_size) - torch.pow(m1, 2)))
@@ -229,36 +232,36 @@ class IQAModel(nn.Module):
 
 
             self.classify = nn.Linear(300, 1) #20-1200,10
+        # else:
+        if self.is_se:
+            self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
+                                        squeeze_channels=4,
+                                        activation=Activ)
+            self.se7 = SqueezeExcitation(input_channels=in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]),
+                                        squeeze_channels=4,
+                                        activation=Activ)
+
+        self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]), 1024),
+                                nn.BatchNorm1d(1024),
+                                nn.Linear(1024, 256),
+                                nn.BatchNorm1d(256),
+                                nn.Linear(256, 64),
+                                nn.BatchNorm1d(64), Activ())
+        self.dr7 = nn.Sequential(nn.Linear(in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]), 1024),
+                                nn.BatchNorm1d(1024),
+                                nn.Linear(1024, 256),
+                                nn.BatchNorm1d(256),
+                                nn.Linear(256, 64),
+                                nn.BatchNorm1d(64), Activ())
+
+        if self.use_bn_end:
+            self.regr6 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
+            self.regr7 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
+            self.regression = nn.Sequential(nn.Linear(64 * 2, 1), nn.BatchNorm1d(1))
         else:
-            if self.is_se:
-                self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
-                                            squeeze_channels=4,
-                                            activation=Activ)
-                self.se7 = SqueezeExcitation(input_channels=in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]),
-                                            squeeze_channels=4,
-                                            activation=Activ)
-
-            self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]), 1024),
-                                    nn.BatchNorm1d(1024),
-                                    nn.Linear(1024, 256),
-                                    nn.BatchNorm1d(256),
-                                    nn.Linear(256, 64),
-                                    nn.BatchNorm1d(64), Activ())
-            self.dr7 = nn.Sequential(nn.Linear(in_features[1] * c * sum([p * p for p in range(1, self.P7+1)]), 1024),
-                                    nn.BatchNorm1d(1024),
-                                    nn.Linear(1024, 256),
-                                    nn.BatchNorm1d(256),
-                                    nn.Linear(256, 64),
-                                    nn.BatchNorm1d(64), Activ())
-
-            if self.use_bn_end:
-                self.regr6 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
-                self.regr7 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
-                self.regression = nn.Sequential(nn.Linear(64 * 2, 1), nn.BatchNorm1d(1))
-            else:
-                self.regr6 = nn.Linear(64, 1)
-                self.regr7 = nn.Linear(64, 1)
-                self.regression = nn.Linear(64 * 2, 1)
+            self.regr6 = nn.Linear(64, 1)
+            self.regr7 = nn.Linear(64, 1)
+            self.regression = nn.Linear(64 * 2, 1)
 
     def extract_features(self, x):
         f, pq = [], []
@@ -271,8 +274,12 @@ class IQAModel(nn.Module):
                     x6 = self.se6(x)
                 else:
                     x6 = x
+                # print(x6.shape)
                 x6 = SPSP(x6, P=self.P6, method=self.pool)
+                # print(x6.shape)
                 x6 = self.dr6(x6)
+                # print(x6.shape)
+                # quit()
                 f.append(x6)
                 pq.append(self.regr6(x6))
             if ii == self.id2:
@@ -301,9 +308,11 @@ class IQAModel(nn.Module):
         gg = self.avgpool(gg)
         # print(l1.size(), l2.size(), l3.size(), l4.size(), gg.size())
         c1, g1 = self.attn1(self.proj1(l1), gg)
+        print("ATTN:", c1.shape)
         out1 = self.corr1(l1, c1)
 
         c2, g2 = self.attn2(self.proj2(l2), gg)
+        print("ATTN:", c2.shape)
         out2 = self.corr2(l2, c2)
 
         c3, g3 = self.attn3(self.proj3(l3), gg)
@@ -320,8 +329,9 @@ class IQAModel(nn.Module):
     def forward(self, x):
         if 'rartfa' in self.arch:
             # pq = self.features(x)
-            pq, _, _ = self.exec_rartfa(x)
-            print(pq.size())
+            s, _, _ = self.exec_rartfa(x)
+            # print(pq.size())
+            pq.append(s)
         else:
             f, pq = self.extract_features(x)
             s = self.regression(f)

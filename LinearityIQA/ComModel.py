@@ -189,7 +189,7 @@ class self_correlation(nn.Module):
         # B, C, Hc, Wc = c.shape
         # c_dim_size = Hc*Wc
         
-        embedding = torch.zeros((B,C,topk)).cuda()
+        embedding = torch.zeros((B,C,topk)).to("cuda" if torch.cuda.is_available() else "cpu")
         x = x.reshape(B, C, one_dim_size)
         print("reshaped:", x.shape)
 
@@ -200,7 +200,7 @@ class self_correlation(nn.Module):
         selected = c - top[0][:,-1].unsqueeze(1)
         selected = (torch.floor(selected))
         selected = F.relu(selected+0.5)*2
-        #print(selected.shape)
+        print("selected:",selected.shape)
         
         indexes = top[1]
         #print(indexes.shape)
@@ -242,10 +242,10 @@ class LinearAttentionBlock(nn.Module):
 
     def forward(self, l, g):
         N, C, W, H = l.size()
-        print(l.size(), g.size())
+        # print(l.size(), g.size())
         # quit()
         t = l+g
-        print("TMP|||||||",t.shape)
+        # print("TMP|||||||",t.shape)
         c = self.op(l+g) # batch_sizex1xWxH
         if self.normalize_attn:
             a = F.softmax(c.view(N,1,-1), dim=2).view(N,1,W,H)

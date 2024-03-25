@@ -96,7 +96,10 @@ class Trainer:
                 {'params': self.model.corr2.parameters()},
                 {'params': self.model.corr3.parameters()},
                 {'params': self.model.classify.parameters()},
-            ])
+                {'params': self.model.avgpool.parameters()},
+                {'params': self.model.md.parameters(), 'lr': self.args.learning_rate * self.args.ft_lr_ratio}],
+                lr=self.args.learning_rate, weight_decay=self.args.weight_decay
+            )
         else:
             self.optimizer = Adam([{'params': self.model.regression.parameters()}, # The most important parameters. Maybe we need three levels of lrs
                         {'params': self.model.dr6.parameters()},
@@ -202,8 +205,10 @@ class Trainer:
             
 
     def _train_step(self, inputs, label, step):
-        inputs = inputs.cuda(self.gpu, non_blocking=True)
-        label = [k.cuda(self.gpu, non_blocking=True) for k in label]
+        # inputs = inputs.cuda(self.gpu, non_blocking=True)
+        inputs = inputs.to(self.device)
+        # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
+        label = [k.to(self.device) for k in label]
         self.optimizer.zero_grad(set_to_none=True)
         output = self.model(inputs)
         loss = self.loss_func(output, label) / self.args.accumulation_steps
@@ -218,8 +223,10 @@ class Trainer:
         return metrics
 
     def _val_step(self, inputs, label):
-        inputs = inputs.cuda(self.gpu, non_blocking=True)
-        label = [k.cuda(self.gpu, non_blocking=True) for k in label]
+        # inputs = inputs.cuda(self.gpu, non_blocking=True)
+        inputs = inputs.to(self.device)
+        # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
+        label = [k.to(self.device) for k in label]
 
         output = self.model(inputs)
         self.metric_computer.update((output, label))
