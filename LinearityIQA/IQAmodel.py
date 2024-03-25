@@ -11,26 +11,26 @@ if __name__=='IQAmodel':
     from SE import SqueezeExcitation
     from VOneNet import get_model
     # from ComModel import ...
-    from ComModel import (LinearAttentionBlock,
-                                       self_correlation,
-                                       ProjectorBlock,
-                                       LinearWithChannel,
-                                       resnet18,
-                                       resnet34,
-                                       resnet50)
+    # from ComModel import (LinearAttentionBlock,
+    #                                    self_correlation,
+    #                                    ProjectorBlock,
+    #                                    LinearWithChannel,
+    #                                    resnet18,
+    #                                    resnet34,
+    #                                    resnet50)
 else:
     from LinearityIQA.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
     from LinearityIQA.SE import SqueezeExcitation
 
     from LinearityIQA.VOneNet import get_model
 
-    from LinearityIQA.ComModel import (LinearAttentionBlock,
-                                       self_correlation,
-                                       ProjectorBlock,
-                                       LinearWithChannel,
-                                       resnet18,
-                                       resnet34,
-                                       resnet50)
+    # from LinearityIQA.ComModel import (LinearAttentionBlock,
+    #                                    self_correlation,
+    #                                    ProjectorBlock,
+    #                                    LinearWithChannel,
+    #                                    resnet18,
+    #                                    resnet34,
+    #                                    resnet50)
 
 class Identity(nn.Module):
     def forward(self, x):
@@ -115,9 +115,9 @@ def SPSP(x, P=1, method='avg'):
 
 
 class IQAModel(nn.Module):
-    __arches = {"resnet18": resnet18,
-                "resnet34": resnet34,
-                "resnet50": resnet50}
+    # __arches = {"resnet18": resnet18,
+    #             "resnet34": resnet34,
+    #             "resnet50": resnet50}
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False):
         super(IQAModel, self).__init__()
         # self.wd_ratio = 0
@@ -141,19 +141,7 @@ class IQAModel(nn.Module):
             features = list(get_model(model_arch='resnet50', pretrained=True, map_location='cuda').children())
             features[0][-1].avgpool = Identity()
             features[0][-1].fc = Identity()
-        elif 'rartfa' in arch:
-            # self.features = RARTFA(arch=arch.replace("rartfa", ''), pretrained=True)
-            self.features = list(self.__arches[arch.replace('rartfa', '')](pretrained=True).children())[:-2]
-            # print("HERERERE")
-            # quit()
-            self.md = self.__arches[arch.replace('rartfa', '')](pretrained=True)
-            self.md.fc = Identity()
-            self.md.avgpool = Identity()
-            # quit()
-            # self.features = list(self.md.children())
-            # print(self.md.children())
-            # quit()
-            # return
+        
         else:
             features = list(models.__dict__[arch](pretrained=True).children())[:-2]
 
@@ -190,8 +178,7 @@ class IQAModel(nn.Module):
 
         if arch=='vonenet50':
             self.features = wrap(features)
-        elif 'rartfa' in arch:
-            pass
+        
         else:
             self.features = nn.Sequential(*features)
         # print(len(self.features))
@@ -212,26 +199,7 @@ class IQAModel(nn.Module):
             Activ = ReLU_SiLU
         # print(self.features)
 
-        if 'rartfa' in self.arch:
-            self.attn1 = LinearAttentionBlock(512, normalize_attn=False)
-            self.attn2 = LinearAttentionBlock(512, normalize_attn=False)
-            self.attn3 = LinearAttentionBlock(512, normalize_attn=False)
-
-            self.proj1 = ProjectorBlock(64, 512)
-            self.proj2 = ProjectorBlock(128, 512)
-            self.proj3 = ProjectorBlock(256, 512)
-
-            # self.proj11 = ProjectorBlock(64, 64)
-
-            self.corr1 = self_correlation(10, 64)
-            self.corr2 = self_correlation(10, 128)
-            self.corr3 = self_correlation(10, 256)
-
-            self.dense = nn.Conv2d(in_channels=512, out_channels=512, kernel_size=4, padding=0, bias=True)
-            self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-
-
-            self.classify = nn.Linear(300, 1) #20-1200,10
+        
         # else:
         if self.is_se:
             self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
@@ -296,46 +264,12 @@ class IQAModel(nn.Module):
 
         return f, pq
 
-    def exec_rartfa(self, x, gg=None):
-        # print(x.size())
-        x = self.md(x)
-        l1, l2, l3, l4, _ = self.md.layer_results.values()
-        # print(l1.size(), l2.size(), l3.size(), l4.size(), _.size())
-        # print(l4)
-        # quit()
-        if gg == None:
-            gg = self.dense(l4)
-        gg = self.avgpool(gg)
-        # print(l1.size(), l2.size(), l3.size(), l4.size(), gg.size())
-        c1, g1 = self.attn1(self.proj1(l1), gg)
-        print("ATTN:", c1.shape)
-        out1 = self.corr1(l1, c1)
-
-        c2, g2 = self.attn2(self.proj2(l2), gg)
-        print("ATTN:", c2.shape)
-        out2 = self.corr2(l2, c2)
-
-        c3, g3 = self.attn3(self.proj3(l3), gg)
-        out3 = self.corr3(l3, c3)
-
-        g = torch.cat((out1, out2, out3), dim=1)
-        print("OUT SHAPE:",out1.shape, out2.shape, out3.shape, g.shape)
-        g = g.view(g.size(0), -1)
-        print("G|||||",g.shape)
-        out = self.classify(g)
-
-        return out, c1, c2
+    
 
     def forward(self, x):
-        if 'rartfa' in self.arch:
-            # pq = self.features(x)
-            s, _, _ = self.exec_rartfa(x)
-            # print(pq.size())
-            pq.append(s)
-        else:
-            f, pq = self.extract_features(x)
-            s = self.regression(f)
-            pq.append(s)
+        f, pq = self.extract_features(x)
+        s = self.regression(f)
+        pq.append(s)
 
         return pq
 
