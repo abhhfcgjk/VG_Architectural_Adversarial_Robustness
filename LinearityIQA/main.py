@@ -118,6 +118,10 @@ if __name__ == "__main__":
                         help='Debug the training by reducing dataflow to 5 batches')
     parser.add_argument('-pbar', '--pbar', action='store_true',
                         help='Use progressbar for the training')
+    
+    parser.add_argument('-prune', "--pruning", action="store_true",
+                        help="Use adversarial pruning")
+
 
     args = parser.parse_args()
     if args.lr_decay == 1 or args.epochs < 3:  # no lr decay
@@ -138,7 +142,7 @@ if __name__ == "__main__":
     if args.beta[0] + args.beta[-1] == .0:
         args.val_criterion = 'SROCC2'
 
-    args.im_dirs = {'KonIQ-10k': 'KonIQ-10k',  
+    args.im_dirs = {'KonIQ-10k': 'KonIQ-10k',
                     'CLIVE': 'CLIVE' 
                     }  # ln -s database_path xxx
     args.data_info = {'KonIQ-10k': './data/KonIQ-10kinfo.mat',
@@ -157,9 +161,12 @@ if __name__ == "__main__":
     #                   .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
     #                           args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation, args.augmentation, 
     #                           args.learning_rate, args.batch_size, args.epochs, args.opt_level)
-    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-se={}'\
-                      .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
-                              args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation)
+    args.format_str = 'activation={}-{}{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}'\
+                      .format(args.activation, args.architecture,
+                              "_prune" if args.pruning else '',
+                              args.loss_type, args.p, args.q, args.detach, 
+                              args.dataset, args.resize, args.resize_size_h, args.resize_size_w,
+                              "-se=True" if args.squeeze_excitation else '',)
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     args.trained_model_file = 'checkpoints/' + args.format_str

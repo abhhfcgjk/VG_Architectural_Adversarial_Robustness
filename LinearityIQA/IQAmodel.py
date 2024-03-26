@@ -1,36 +1,23 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.utils import prune
 from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
 
+from typing import List
 
 if __name__=='IQAmodel':
     from activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
     from SE import SqueezeExcitation
     from VOneNet import get_model
-    # from ComModel import ...
-    # from ComModel import (LinearAttentionBlock,
-    #                                    self_correlation,
-    #                                    ProjectorBlock,
-    #                                    LinearWithChannel,
-    #                                    resnet18,
-    #                                    resnet34,
-    #                                    resnet50)
 else:
     from LinearityIQA.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
     from LinearityIQA.SE import SqueezeExcitation
 
     from LinearityIQA.VOneNet import get_model
 
-    # from LinearityIQA.ComModel import (LinearAttentionBlock,
-    #                                    self_correlation,
-    #                                    ProjectorBlock,
-    #                                    LinearWithChannel,
-    #                                    resnet18,
-    #                                    resnet34,
-    #                                    resnet50)
 
 class Identity(nn.Module):
     def forward(self, x):
@@ -118,6 +105,29 @@ class IQAModel(nn.Module):
     # __arches = {"resnet18": resnet18,
     #             "resnet34": resnet34,
     #             "resnet50": resnet50}
+    @staticmethod
+    def get_prune_features(model: nn.Module) -> List:
+        # prune_params_list = []
+        # layers = (model.layer1, model.layer1, model.layer3, model.layer4)
+        # for layer in layers:
+        #     for name, module in layer.named_children():
+        #         if hasattr(module, 'weight'):
+        #             prune_params_list.append((module, 'weight'))
+        # prune_params_list.append((model.conv1, 'weight'))
+        # prune_params_list.append((model.fc, 'weight'))
+        # # return tuple(prune_params_list)
+
+        prune_params_list = []
+
+        for name, module in model.named_children():
+            if hasattr(module, 'weight'):
+                prune_params_list.append((module, 'weight'))
+            else:
+                prune_params_list += IQAModel.get_prune_features(module)
+        return prune_params_list
+
+
+
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False):
         super(IQAModel, self).__init__()
         # self.wd_ratio = 0
@@ -143,7 +153,35 @@ class IQAModel(nn.Module):
             features[0][-1].fc = Identity()
         
         else:
-            features = list(models.__dict__[arch](pretrained=True).children())[:-2]
+            resnet_model = models.__dict__[arch](pretrained=True)
+
+            prune_parameters = tuple(self.get_prune_features(resnet_model))
+
+            prune.global_unstructured(
+                prune_parameters,
+                pruning_method=prune.L1Unstructured,
+                amount=0.2,
+            )
+
+            for module, param in prune_parameters:
+                prune.remove(module, param)
+
+            print(
+                "Sparsity in conv1.weight: {:.2f}%".format(
+                    100. * float(torch.sum(resnet_model.conv1.weight == 0))
+                    / float(resnet_model.conv1.weight.nelement())
+                )
+            )
+            print(
+                "Sparsity in fc.weight: {:.2f}%".format(
+                    100. * float(torch.sum(resnet_model.fc.weight == 0))
+                    / float(resnet_model.fc.weight.nelement())
+                )
+            )
+            # print(list(resnet_model.conv1.named_buffers()))
+
+            # quit()
+            features = list(resnet_model.children())[:-2]
 
         # print(features)
         # quit()
@@ -181,6 +219,7 @@ class IQAModel(nn.Module):
         
         else:
             self.features = nn.Sequential(*features)
+        # print(self.features.conv1)
         # print(len(self.features))
 
         
