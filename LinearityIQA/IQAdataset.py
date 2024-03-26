@@ -31,7 +31,7 @@ class IQADataset(Dataset):
         elif status == 'val':
             index = index[int(args.train_ratio * len(index)):int(args.train_and_val_ratio * len(index))]
         elif status == 'test':
-                index = index[int(args.train_and_val_ratio * len(index)):len(index)]
+            index = index[int(args.train_and_val_ratio * len(index)):len(index)]
         self.index = []
         for i in range(len(ref_ids)):
             if ref_ids[i] in index:

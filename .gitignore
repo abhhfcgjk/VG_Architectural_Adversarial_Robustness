@@ -13,3 +13,4 @@ LinearityIQA/results_in_the_paper/*.pdf
 graph_data
 runs/
 *.log
+/KonIQ-10k
