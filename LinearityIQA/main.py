@@ -142,10 +142,13 @@ if __name__ == "__main__":
     if args.beta[0] + args.beta[-1] == .0:
         args.val_criterion = 'SROCC2'
 
-    args.im_dirs = {'KonIQ-10k': 'KonIQ-10k',
+    COLAB_dir = "./drive/MyDrive/KonIQ-10k"
+    args.im_dirs = {'KonIQ-10k': COLAB_dir,
                     'CLIVE': 'CLIVE' 
                     }  # ln -s database_path xxx
-    args.data_info = {'KonIQ-10k': './data/KonIQ-10kinfo.mat',
+    
+    COLAB_path = "./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat"
+    args.data_info = {'KonIQ-10k': COLAB_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
 
     if not args.randomness:
