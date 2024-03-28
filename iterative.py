@@ -53,10 +53,8 @@ def attack_callback(
             img = Variable(image + additive, requires_grad=True)
             img.data.clamp_(0.0, 1.0)
             y = model(img)
-            y[-1] = norm(get_score(y, k, b),mmin, mmax)
+            # y[-1] = norm(get_score(y, k, b),mmin, mmax)
             loss = loss_fn(y, metric_range, k, b)
-
-
         
             model.zero_grad()
             loss.backward()
