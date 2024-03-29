@@ -128,9 +128,10 @@ class IQAModel(nn.Module):
 
 
 
-    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False):
+    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False, pruning=0.0):
         super(IQAModel, self).__init__()
         # self.wd_ratio = 0
+        self.pruning = pruning
         self.is_se = se
         self.layers = []
         self.pool = pool
@@ -154,30 +155,30 @@ class IQAModel(nn.Module):
         
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
+            if self.pruning > 0:
+                prune_parameters = tuple(self.get_prune_features(resnet_model))
 
-            prune_parameters = tuple(self.get_prune_features(resnet_model))
-
-            prune.global_unstructured(
-                prune_parameters,
-                pruning_method=prune.L1Unstructured,
-                amount=0.2,
-            )
-
-            for module, param in prune_parameters:
-                prune.remove(module, param)
-
-            print(
-                "Sparsity in conv1.weight: {:.2f}%".format(
-                    100. * float(torch.sum(resnet_model.conv1.weight == 0))
-                    / float(resnet_model.conv1.weight.nelement())
+                prune.global_unstructured(
+                    prune_parameters,
+                    pruning_method=prune.L1Unstructured,
+                    amount=self.pruning,
                 )
-            )
-            print(
-                "Sparsity in fc.weight: {:.2f}%".format(
-                    100. * float(torch.sum(resnet_model.fc.weight == 0))
-                    / float(resnet_model.fc.weight.nelement())
+
+                for module, param in prune_parameters:
+                    prune.remove(module, param)
+
+                print(
+                    "Sparsity in conv1.weight: {:.2f}%".format(
+                        100. * float(torch.sum(resnet_model.conv1.weight == 0))
+                        / float(resnet_model.conv1.weight.nelement())
+                    )
                 )
-            )
+                print(
+                    "Sparsity in fc.weight: {:.2f}%".format(
+                        100. * float(torch.sum(resnet_model.fc.weight == 0))
+                        / float(resnet_model.fc.weight.nelement())
+                    )
+                )
             # print(list(resnet_model.conv1.named_buffers()))
 
             # quit()

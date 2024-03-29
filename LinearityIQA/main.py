@@ -119,8 +119,8 @@ if __name__ == "__main__":
     parser.add_argument('-pbar', '--pbar', action='store_true',
                         help='Use progressbar for the training')
     
-    parser.add_argument('-prune', "--pruning", action="store_true",
-                        help="Use adversarial pruning")
+    parser.add_argument('-prune', "--pruning", type=int, default=0.0,
+                        help="adversarial pruning percent")
 
 
     args = parser.parse_args()
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     #                           args.learning_rate, args.batch_size, args.epochs, args.opt_level)
     args.format_str = 'activation={}-{}{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}'\
                       .format(args.activation, args.architecture,
-                              "_prune" if args.pruning else '',
+                              f"_prune{args.pruning}" if args.pruning>0 else '',
                               args.loss_type, args.p, args.q, args.detach, 
                               args.dataset, args.resize, args.resize_size_h, args.resize_size_w,
                               "-se=True" if args.squeeze_excitation else '',)

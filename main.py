@@ -89,19 +89,20 @@ if __name__ == "__main__":
     parser.add_argument("--csv_results_dir", type=str, default=".")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
-
+    parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
 
     args = parser.parse_args()
 
 
     print(args.architecture)
 
-    path = 'LinearityIQA/checkpoints/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}-se={}'.format(args.activation, 
-                                                                                                                                args.architecture, 
-                                                                                                                                args.resize, 
-                                                                                                                                args.resize_size_h,
-                                                                                                                                args.resize_size_w,
-                                                                                                                                args.squeeze_excitation)
+    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}-se={}'.format(args.checkpoints_dir,
+                                                                                                                args.activation, 
+                                                                                                                args.architecture, 
+                                                                                                                args.resize, 
+                                                                                                                args.resize_size_h,
+                                                                                                                args.resize_size_w,
+                                                                                                                args.squeeze_excitation)
 
     print("Device: ", args.device)
     print(path)
