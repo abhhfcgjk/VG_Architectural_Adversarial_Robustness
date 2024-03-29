@@ -90,15 +90,17 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
+    parser.add_argument('-prune', "--pruning", type=int, default=0.0, help="adversarial pruning percent")
 
     args = parser.parse_args()
 
 
     print(args.architecture)
 
-    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}-se={}'.format(args.checkpoints_dir,
+    path = '{}/activation={}-{}{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}-se={}'.format(args.checkpoints_dir,
                                                                                                                 args.activation, 
-                                                                                                                args.architecture, 
+                                                                                                                args.architecture,
+                                                                                                                f"_prune{args.pruning}" if args.pruning>0 else '', 
                                                                                                                 args.resize, 
                                                                                                                 args.resize_size_h,
                                                                                                                 args.resize_size_w,

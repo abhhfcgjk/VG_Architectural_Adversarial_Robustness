@@ -151,7 +151,7 @@ class Attack:
 
     def save_results(self, csv_results_dir='.'):
         self.results = []
-        degree = 5
+        degree = 0
         se_status = "+se" if self.se else ""
         mdif = {'arch': self.arch + se_status, 
                 'activation': self.activation,

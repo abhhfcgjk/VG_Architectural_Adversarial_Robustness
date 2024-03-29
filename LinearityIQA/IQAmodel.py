@@ -86,11 +86,11 @@ def SPSP(x, P=1, method='avg'):
             m = -F.max_pool2d(-x, pool_size)
             pool_features.append(m.view(batch_size, -1))  # min pooling
         elif method == 'avg':
-            print("SP:",x.shape)
+            # print("SP:",x.shape)
             a = F.avg_pool2d(x, pool_size)
-            print("SP:",a.shape)
+            # print("SP:",a.shape)
             pool_features.append(a.view(batch_size, -1))  # average pooling
-            print("SP:",pool_features[-1].shape)
+            # print("SP:",pool_features[-1].shape)
         else:
             m1  = F.avg_pool2d(x, pool_size)
             rm2 = torch.sqrt(F.relu(F.avg_pool2d(torch.pow(x, 2), pool_size) - torch.pow(m1, 2)))
@@ -149,7 +149,7 @@ class IQAModel(nn.Module):
         if arch=='wideresnet50':
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())[:-2]
         elif arch=='vonenet50':
-            features = list(get_model(model_arch='resnet50', pretrained=True, map_location='cuda').children())
+            features = list(get_model(model_arch='resnet50', pretrained=True, map_location='cuda' if torch.cuda.is_available() else 'cpu').children())
             features[0][-1].avgpool = Identity()
             features[0][-1].fc = Identity()
         
