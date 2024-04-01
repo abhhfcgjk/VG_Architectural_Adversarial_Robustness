@@ -119,8 +119,10 @@ if __name__ == "__main__":
     parser.add_argument('-pbar', '--pbar', action='store_true',
                         help='Use progressbar for the training')
     
-    parser.add_argument('-prune', "--pruning", type=int, default=0.0,
+    parser.add_argument('-prune', "--pruning", type=float,
                         help="adversarial pruning percent")
+    
+    parser.add_argument('--colab', action='store_true', help="Train in colab")
 
 
     args = parser.parse_args()
@@ -143,12 +145,15 @@ if __name__ == "__main__":
         args.val_criterion = 'SROCC2'
 
     COLAB_dir = "./drive/MyDrive/KonIQ-10k"
-    args.im_dirs = {'KonIQ-10k': COLAB_dir,
+    default_dir = "KonIQ-10k"
+
+    args.im_dirs = {'KonIQ-10k': COLAB_dir if args.colab else default_dir,
                     'CLIVE': 'CLIVE' 
                     }  # ln -s database_path xxx
     
     COLAB_path = "./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat"
-    args.data_info = {'KonIQ-10k': COLAB_path,
+    default_path = "./data/KonIQ-10kinfo.mat"
+    args.data_info = {'KonIQ-10k': COLAB_path if args.colab else default_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
 
     if not args.randomness:
@@ -164,9 +169,9 @@ if __name__ == "__main__":
     #                   .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
     #                           args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation, args.augmentation, 
     #                           args.learning_rate, args.batch_size, args.epochs, args.opt_level)
-    args.format_str = 'activation={}-{}{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}'\
+    args.format_str = 'activation={}-{}-prune={}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}'\
                       .format(args.activation, args.architecture,
-                              f"_prune{args.pruning}" if args.pruning>0 else '',
+                              args.pruning,
                               args.loss_type, args.p, args.q, args.detach, 
                               args.dataset, args.resize, args.resize_size_h, args.resize_size_w,
                               "-se=True" if args.squeeze_excitation else '',)

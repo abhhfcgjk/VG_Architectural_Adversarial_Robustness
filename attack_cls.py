@@ -13,13 +13,15 @@ import iterative
 
 class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
-    def __init__(self, model, arch, pool, use_bn_end, P6, P7, se, activation, device='cpu') -> None:
+    def __init__(self, model, arch, pool, use_bn_end, P6, P7, se, pruning, activation, device='cpu') -> None:
         if device=="cuda":
             assert torch.cuda.is_available()
         self.device = device
         self.arch = arch
         self.se = se
+        self.prune = pruning
         self.activation = activation
+        # self.prune 
         self.model = model(arch=arch, pool=pool, 
                            use_bn_end=use_bn_end, 
                            P6=P6, P7=P7, activation=activation, se=se).to(self.device)
@@ -153,7 +155,8 @@ class Attack:
         self.results = []
         degree = 0
         se_status = "+se" if self.se else ""
-        mdif = {'arch': self.arch + se_status, 
+        prune_status = f"+prune={self.prune}" if self.prune>0 else ""
+        mdif = {'arch': self.arch + se_status + prune_status, 
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations,

@@ -155,6 +155,7 @@ class IQAModel(nn.Module):
         
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
+            
             if self.pruning > 0:
                 prune_parameters = tuple(self.get_prune_features(resnet_model))
 
