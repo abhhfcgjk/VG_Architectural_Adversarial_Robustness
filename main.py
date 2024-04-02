@@ -1,25 +1,11 @@
-# from torch.autograd import Variable
-# import torch
-# import os
-# import pandas as pd
 import numpy as np
-# from PIL import Image
-# from pathlib import Path
-# from tqdm import tqdm
-# from scipy import stats
 import argparse
-# from LinearityIQA.IQAmodel import IQAModel
 import LinearityIQA
 from torchvision.transforms.functional import resize, to_tensor, normalize
-# print(__package__)
-# import iterative
 from attack_cls import Attack
-# from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 
 EPS = 1e-6
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-
 
 
 def run(args):

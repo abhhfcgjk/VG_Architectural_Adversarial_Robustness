@@ -102,20 +102,8 @@ def SPSP(x, P=1, method='avg'):
 
 
 class IQAModel(nn.Module):
-    # __arches = {"resnet18": resnet18,
-    #             "resnet34": resnet34,
-    #             "resnet50": resnet50}
     @staticmethod
     def get_prune_features(model: nn.Module) -> List:
-        # prune_params_list = []
-        # layers = (model.layer1, model.layer1, model.layer3, model.layer4)
-        # for layer in layers:
-        #     for name, module in layer.named_children():
-        #         if hasattr(module, 'weight'):
-        #             prune_params_list.append((module, 'weight'))
-        # prune_params_list.append((model.conv1, 'weight'))
-        # prune_params_list.append((model.fc, 'weight'))
-        # # return tuple(prune_params_list)
 
         prune_params_list = []
 
@@ -179,13 +167,8 @@ class IQAModel(nn.Module):
                         / float(resnet_model.fc.weight.nelement())
                     )
                 )
-            # print(list(resnet_model.conv1.named_buffers()))
-
-            # quit()
             features = list(resnet_model.children())[:-2]
 
-        # print(features)
-        # quit()
 
         if arch == 'alexnet':
             in_features = [256, 256]
@@ -206,8 +189,6 @@ class IQAModel(nn.Module):
             self.id2 = 7
             if 'resnet18' in arch or 'resnet34' in arch:
                 in_features = [256, 512]
-            # elif arch == 'wideresnet34':
-            #     in_features = [int(round(256*self.width_factor)), int(round(512*self.width_factor))]
             else:
                 in_features = [1024, 2048]
         
@@ -220,27 +201,27 @@ class IQAModel(nn.Module):
         
         else:
             self.features = nn.Sequential(*features)
-        # print(self.features.conv1)
-        # print(len(self.features))
 
         
         if activation=='silu':
+            '''Change activations only in Linearity blocks to SiLU'''
             Activ = nn.SiLU
         elif activation=='relu_silu':
+            '''Change activations only in Linearity blocks to ReLU_SiLU'''
             Activ = ReLU_SiLU
-        else:
-            Activ = nn.ReLU
-
-        if activation=='Fsilu':
+        elif activation=='Fsilu':
+            '''All activations changed to SiLU'''
             ReLU_to_SILU(self.features)
             Activ = nn.SiLU
         elif activation=='Frelu_silu':
+            '''All activations changed to ReLU_SiLU class'''
             ReLU_to_ReLUSiLU(self.features)
             Activ = ReLU_SiLU
-        # print(self.features)
+        else:
+            '''Default activation function'''
+            Activ = nn.ReLU
 
         
-        # else:
         if self.is_se:
             self.se6 = SqueezeExcitation(input_channels=in_features[0] * c * sum([p * p for p in range(1, self.P6+1)]),
                                         squeeze_channels=4,
@@ -282,12 +263,8 @@ class IQAModel(nn.Module):
                     x6 = self.se6(x)
                 else:
                     x6 = x
-                # print(x6.shape)
                 x6 = SPSP(x6, P=self.P6, method=self.pool)
-                # print(x6.shape)
                 x6 = self.dr6(x6)
-                # print(x6.shape)
-                # quit()
                 f.append(x6)
                 pq.append(self.regr6(x6))
             if ii == self.id2:

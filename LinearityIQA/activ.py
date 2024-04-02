@@ -12,28 +12,18 @@ class Activaion_forward_ReLU_backward_SiLU(Function):
         ctx.save_for_backward(dx)
         ctx.inplace = inplace
         return result
-
-    # @staticmethod
-    # def setup_context(ctx, inputs, output):
-    #     x, inplace = inputs
-    #     result, dx = output
-    #     ctx.save_for_backward(x, dx)
-    #     ctx.inplace = inplace
-
-
     @staticmethod
     def backward(ctx, grad_output):
         dx, = ctx.saved_tensors
-        # if ctx.inplace:
-        #     result = grad_output.clone()
-        # else:
-        #     result = grad_output
         result = grad_output*dx
         inplace = ctx.inplace
         return result, None
 
 class ReLU_SiLU(Module):
-
+    """
+    Activation function is ReLU in forward.
+    Activation function is SiLU in backward.
+    """
     __constants__ = ['inplace']
     inplace: bool
 
@@ -51,6 +41,7 @@ class ReLU_SiLU(Module):
 
 
 def ReLU_to_SILU(model):
+    """Swap ReLU activation to SiLU."""
     for name,layer in model.named_children():
         if isinstance(layer, ReLU):
             setattr(model, name, SiLU())
@@ -58,6 +49,7 @@ def ReLU_to_SILU(model):
             ReLU_to_SILU(layer)
 
 def ReLU_to_ReLUSiLU(model):
+    """Swap ReLU activation to ReLU_SiLU"""
     for name,layer in model.named_children():
         if isinstance(layer, ReLU):
             setattr(model, name, ReLU_SiLU())
