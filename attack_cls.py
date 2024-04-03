@@ -24,7 +24,7 @@ class Attack:
         # self.prune 
         self.model = model(arch=arch, pool=pool, 
                            use_bn_end=use_bn_end, 
-                           P6=P6, P7=P7, activation=activation, se=se).to(self.device)
+                           P6=P6, P7=P7, activation=activation, se=se, pruning=self.prune).to(self.device)
         self.model.eval()
         # print(self.model)
 

@@ -115,6 +115,31 @@ class IQAModel(nn.Module):
         return prune_params_list
 
 
+    @staticmethod
+    def print_sparcity(model: nn.Module, prune_list: List = None):
+        """only for resnet"""
+        # print(
+        #     "Sparsity in conv1.weight: {:.2f}%".format(
+        #         100. * float(torch.sum(model.conv1.weight == 0))
+        #         / float(model.conv1.weight.nelement())
+        #     )
+        # )
+        # print(
+        #     "Sparsity in fc.weight: {:.2f}%".format(
+        #         100. * float(torch.sum(model.fc.weight == 0))
+        #         / float(model.fc.weight.nelement())
+        #     )
+        # )
+        p_list = []
+        if prune_list:
+            p_list = prune_list
+        else:
+            p_list = IQAModel.get_prune_list(model)
+        
+        for (module, attr) in p_list:
+            percentage = 100. * float(torch.sum(getattr(module, attr) == 0))/float(getattr(module, attr).nelement())
+            if percentage > 0.5:
+                print("Sparsity in {}.{}: {:.2f}%".format(module.__class__.__name__, attr, percentage))
 
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False, pruning=0.0):
         super(IQAModel, self).__init__()
@@ -143,6 +168,7 @@ class IQAModel(nn.Module):
         
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
+            print(self.pruning)
             if self.pruning > 0:
                 prune_parameters = tuple(self.get_prune_features(resnet_model))
 
@@ -155,18 +181,7 @@ class IQAModel(nn.Module):
                 for module, param in prune_parameters:
                     prune.remove(module, param)
 
-                print(
-                    "Sparsity in conv1.weight: {:.2f}%".format(
-                        100. * float(torch.sum(resnet_model.conv1.weight == 0))
-                        / float(resnet_model.conv1.weight.nelement())
-                    )
-                )
-                print(
-                    "Sparsity in fc.weight: {:.2f}%".format(
-                        100. * float(torch.sum(resnet_model.fc.weight == 0))
-                        / float(resnet_model.fc.weight.nelement())
-                    )
-                )
+                IQAModel.print_sparcity(resnet_model, prune_parameters)
             features = list(resnet_model.children())[:-2]
 
 

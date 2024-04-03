@@ -81,7 +81,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
 
-    print(args.architecture)
+    print(args.architecture, args.pruning)
 
     path = '{}/activation={}-{}-prune={}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}'.format(args.checkpoints_dir,
                                                                                                                 args.activation, 
