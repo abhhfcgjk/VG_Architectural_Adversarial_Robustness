@@ -37,6 +37,7 @@ class Attack:
         # self.max_train = self.checkpoint['max']
         self.dataset_path = '.'
         self.resize = False
+        self.metric_range_train = self.checkpoint['max'] - self.checkpoint['min']
         print(self.checkpoint.keys())
     
     def set_load_conf(self, dataset_path, resize_size_h, resize_size_w):
@@ -108,7 +109,7 @@ class Attack:
             
             for _, eps in enumerate(self.epsilons):
                 im_attacked = iterative.attack_callback(
-                    im, model=self.model,attack_type=attack_type, metric_range=100, device=self.device, 
+                    im, model=self.model,attack_type=attack_type, metric_range=self.max_test-self.min_test, device=self.device, 
                     eps=10/255, iters=iterations, alpha=eps, k=self.k, b=self.b, 
                     mmin=self.min_test, mmax=self.max_test
                 )
