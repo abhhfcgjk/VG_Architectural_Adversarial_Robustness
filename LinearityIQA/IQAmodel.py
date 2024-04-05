@@ -118,18 +118,6 @@ class IQAModel(nn.Module):
     @staticmethod
     def print_sparcity(model: nn.Module, prune_list: List = None):
         """only for resnet"""
-        # print(
-        #     "Sparsity in conv1.weight: {:.2f}%".format(
-        #         100. * float(torch.sum(model.conv1.weight == 0))
-        #         / float(model.conv1.weight.nelement())
-        #     )
-        # )
-        # print(
-        #     "Sparsity in fc.weight: {:.2f}%".format(
-        #         100. * float(torch.sum(model.fc.weight == 0))
-        #         / float(model.fc.weight.nelement())
-        #     )
-        # )
         p_list = []
         if prune_list:
             p_list = prune_list
