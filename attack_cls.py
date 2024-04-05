@@ -158,7 +158,7 @@ class Attack:
         self.results = []
         degree = 0
         se_status = "+se" if self.se else ""
-        prune_status = f"+prune={self.prune}" if self.prune>0 else ""
+        prune_status = f"+prune={self.prune}" if self.prune is not None and self.prune>0 else ""
         mdif = {'arch': self.arch + se_status + prune_status, 
                 'activation': self.activation,
                 'attack': self.attack_type,
