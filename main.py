@@ -76,7 +76,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
-    parser.add_argument('-prune', "--pruning", type=float, default=0.0, help="adversarial pruning percent")
+    parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
 
     args = parser.parse_args()
 

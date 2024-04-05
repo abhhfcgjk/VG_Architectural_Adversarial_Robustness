@@ -169,7 +169,7 @@ class IQAModel(nn.Module):
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
             print(self.pruning)
-            if self.pruning > 0:
+            if self.pruning is not None and self.pruning > 0:
                 prune_parameters = tuple(self.get_prune_features(resnet_model))
 
                 prune.global_unstructured(
