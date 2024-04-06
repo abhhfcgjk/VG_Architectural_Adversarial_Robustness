@@ -3,6 +3,7 @@ from torch.nn import Module, ReLU, SiLU
 import torch.nn.functional as F
 from torch import Tensor, exp
 from torch.autograd import Function
+from torch.nn.utils import prune
 
 class Activaion_forward_ReLU_backward_SiLU(Function):
     @staticmethod
@@ -55,3 +56,12 @@ def ReLU_to_ReLUSiLU(model):
             setattr(model, name, ReLU_SiLU())
         else:
             ReLU_to_ReLUSiLU(layer)
+
+
+class PartialLeastSquares(prune.BasePruningMethod):
+    # PRUNING_TYPE = 'unstructured'
+
+    # def __init__(self, amount):
+    #     prune._validate_pruning_amount(amount)
+    #     self.amount = amount
+    pass

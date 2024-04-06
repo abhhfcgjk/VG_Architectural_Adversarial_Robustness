@@ -110,7 +110,7 @@ class Attack:
             for _, eps in enumerate(self.epsilons):
                 im_attacked = iterative.attack_callback(
                     ###############
-                    im, model=self.model,attack_type=attack_type, metric_range=self.max_test-self.min_test, device=self.device, 
+                    im, model=self.model,attack_type=attack_type, metric_range=self.metric_range_train, device=self.device, 
                     #################
                     eps=10/255, iters=iterations, alpha=eps, k=self.k, b=self.b, 
                     mmin=self.min_test, mmax=self.max_test
