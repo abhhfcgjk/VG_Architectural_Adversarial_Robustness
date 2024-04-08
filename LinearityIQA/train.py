@@ -6,7 +6,7 @@ from IQAdataset import get_data_loaders
 from IQAmodel import IQAModel
 from IQAloss import IQALoss
 from IQAperformance import IQAPerformance
-# from tensorboardX import SummaryWriter
+from tensorboardX import SummaryWriter
 import datetime
 import numpy as np
 from typing import Dict
@@ -47,7 +47,7 @@ class Trainer:
         self.b = [0,0,0]
 
         current_time = datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
-        # self.writer = SummaryWriter(log_dir='{}/{}-{}'.format(self.args.log_dir, self.args.format_str, current_time))
+        self.writer = SummaryWriter(log_dir='{}/{}-{}'.format(self.args.log_dir, self.args.format_str, current_time))
         self._optimizer()
         
     def train(self):
@@ -102,9 +102,9 @@ class Trainer:
                 
                 metrics = self._train_step(inputs, label, step)
                 # if self.gpu == 0:
-                # dump_scalar_metrics(
-                #     metrics, self.writer, 'train', global_step=done_steps + step
-                # )
+                dump_scalar_metrics(
+                    metrics, self.writer, 'train', global_step=done_steps + step
+                )
 
             self.scheduler.step(self.current_epoch)
             self.current_epoch += 1
@@ -114,13 +114,13 @@ class Trainer:
             for step, (inputs, label) in enumerate(self.val_loader):
                 self._val_step(inputs=inputs, label=label)
             metrics = self.metric_computer.compute()
-            # dump_scalar_metrics(
-            #     metrics,
-            #     self.writer,
-            #     'val',
-            #     global_step=self.current_epoch,
-            #     dataset=self.args.dataset
-            # )
+            dump_scalar_metrics(
+                metrics,
+                self.writer,
+                'val',
+                global_step=self.current_epoch,
+                dataset=self.args.dataset
+            )
             val_criterion = abs(metrics[self.args.val_criterion])
             # print(val_criterion, self.best_val_criterion)
             if val_criterion > self.best_val_criterion:
@@ -265,11 +265,11 @@ class Trainer:
 
 
 
-# def dump_scalar_metrics(metrics: Dict, writer: SummaryWriter, phase: str, global_step: int =0, dataset: str=''):
-#     prefix = phase.lower() + (f'_{dataset}' if dataset else '')
-#     for metric_name, metric_value in metrics.items():
-#         writer.add_scalar(
-#             f'{metric_name}/{prefix}',
-#             metric_value,
-#             global_step=global_step,
-#         )
+def dump_scalar_metrics(metrics: Dict, writer: SummaryWriter, phase: str, global_step: int =0, dataset: str=''):
+    prefix = phase.lower() + (f'_{dataset}' if dataset else '')
+    for metric_name, metric_value in metrics.items():
+        writer.add_scalar(
+            f'{metric_name}/{prefix}',
+            metric_value,
+            global_step=global_step,
+        )
