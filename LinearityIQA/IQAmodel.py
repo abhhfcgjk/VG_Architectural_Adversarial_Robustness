@@ -6,14 +6,15 @@ from torchvision import models
 from torchvision.models.resnet import BasicBlock
 import numpy as np
 
+
 from typing import List
 
 if __name__=='IQAmodel':
-    from activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
+    from activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, PruneConv
     from SE import SqueezeExcitation
     from VOneNet import get_model
 else:
-    from LinearityIQA.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
+    from LinearityIQA.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, PruneConv
     from LinearityIQA.SE import SqueezeExcitation
 
     from LinearityIQA.VOneNet import get_model
@@ -156,6 +157,23 @@ class IQAModel(nn.Module):
         
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
+            # print(list(resnet_model.named_children()))
+            # print(list(resnet_model.named_children()).__len__())
+
+            # for label, module in resnet_model.named_children():
+            #     if 'layer' in label:
+            #         print(module[0].conv1)
+            # from PIL import Image
+            # from pathlib import Path
+            # from torchvision.transforms.functional import resize, to_tensor
+            # im_path = list(Path('./KonIQ-10k/').iterdir())[0]
+            # im = to_tensor(Image.open(im_path).convert('RGB'))
+            # im = im.unsqueeze(0)
+            # print(im)
+            # print(resnet_model(im))
+            PruneConv.apply(resnet_model, '',0.1, train_count=5)
+
+            quit()
             print(self.pruning)
             if self.pruning is not None and self.pruning > 0:
                 prune_parameters = tuple(self.get_prune_features(resnet_model))
