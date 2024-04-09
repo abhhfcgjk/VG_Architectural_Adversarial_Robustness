@@ -16,6 +16,7 @@ from typing import Tuple, List
 
 from PIL import Image
 import h5py
+from tqdm import tqdm
 
 
 class Activaion_forward_ReLU_backward_SiLU(Function):
@@ -74,6 +75,8 @@ def ReLU_to_ReLUSiLU(model):
 class PruneDataLoader(Dataset):
     def __init__(self, train_count=20, dataset_path='./KonIQ-10k/', dataset_labels_path='./data/KonIQ-10kinfo.mat',
                  is_resize=True, resize_height=498, resize_width=664):
+        resize_height =128
+        resize_width=128
         self.dataset_path = dataset_path
         self.dataset_labels_path = dataset_labels_path
         self.resize = is_resize
@@ -114,23 +117,6 @@ class PruneDataLoader(Dataset):
     def __iter__(self):
         return zip(self.ims, self.label)
 
-class FeatureExtractor(nn.Module):
-    def __init__(self, layers: List):
-        super(FeatureExtractor, self).__init__()
-        self.layers = layers
-        for layer in self.layers:
-            for block in range(len(layer)):
-                for conv in layer[block].children():
-                    if isinstance(conv, nn.Conv2d):
-                        print(conv)
-        self.feature_maps = nn.ModuleList([nn.Sequential(conv, nn.AvgPool2d((1, 1)))
-                              for layer in self.layers 
-                              for block in range(len(layer)) 
-                              for conv in layer[block].children()
-                              if isinstance(conv, nn.Conv2d)])
-    def forward(self, x):
-        feature_maps = [x:=feature_map(x) for feature_map in self.feature_maps]
-        return feature_maps
 
 class PruneConv(BasePruningMethod):
     # PRUNING_TYPE = 'unstructured'
@@ -146,6 +132,7 @@ class PruneConv(BasePruningMethod):
     @staticmethod
     def flatten(features):
         print(len(features))
+        print(features[0].shape)
         # for f in features:
         #     print(f.shape)
         n_samples = features[0].shape[0]
@@ -183,6 +170,34 @@ class PruneConv(BasePruningMethod):
                 X = out
                 y = np.array(label)
         return X, y
+    
+    @staticmethod
+    def VIP(x, y, model):
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        t = Tensor(model.x_scores_).to(device)
+        w = Tensor(model.x_weights_).to(device)
+        q = Tensor(model.y_loadings_).to(device)
+
+        m, p = x.shape
+        _, h = t.shape
+        
+        vips = np.zeros((p,))
+        print(vips.shape)
+        # s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
+        s = torch.diag(torch.mm(torch.mm(torch.mm(t.t(), t), q.t()), q)).reshape(h, -1)
+        print('S',s.shape, s.t())
+        total_s = torch.sum(s).detach().numpy()
+        print(total_s)
+
+        for i in tqdm(range(p), total=p):
+            weight = Tensor([(w[i, j] / torch.linalg.norm(w[:, j])).to(device) ** 2 for j in range(h)]).to(device)
+            weight = weight.unsqueeze(1)
+            # print(weight.shape)
+            #vips[i] = np.sqrt(p * (s.T @ weight) / total_s)
+            vips[i] = np.sqrt(p * (torch.mm(s.t(), weight).detach().numpy()) / total_s)
+        # vips = vips.detach().numpy()
+        return vips
+
     @classmethod
     def _load_data(cls, *args, **kwargs) -> Tuple[List, List]:
         data_loader = PruneDataLoader(train_count=kwargs.get('train_count'))
@@ -201,13 +216,16 @@ class PruneConv(BasePruningMethod):
                              resize_height=resize_height, resize_width=resize_width)
         
         layers = [module for label, module in model.named_children() if 'layer' in label]
+        # layers = [layers[0]]
+        
         PruneConv.idx_score_layer = []
         conv1 = model.conv1
+        convs = [conv for layer in layers 
+                 for block in range(len(layer)) 
+                 for conv in layer[block].children()
+                 if isinstance(conv, nn.Conv2d)]
         feature_maps = nn.ModuleList([nn.Sequential(conv, nn.AvgPool2d((1, 1)))
-                              for layer in layers 
-                              for block in range(len(layer)) 
-                              for conv in layer[block].children()
-                              if isinstance(conv, nn.Conv2d)])
+                              for conv in convs])
 
         
         # convs_count = len(feature_maps)
@@ -228,10 +246,24 @@ class PruneConv(BasePruningMethod):
         print(len(X), len(X[0]), len(feature_maps))
         X = PruneConv.flatten(X)
         print(X.shape, y.shape)
-
+        
         pls_model = PLSRegression(n_components=c, scale=True)
         pls_model.fit(X, y)
         
+        scores = PruneConv.VIP(X, y, pls_model)
+        PruneConv.score_layer = []
+        for idx, conv in enumerate(convs):
+            n_filters = conv.weight.shape[3]
+            print(conv)
+            print(n_filters, conv.weight.shape)
+            
+            begin, end = PruneConv.idx_score_layer[idx]
+            score_layer = scores[begin:end+1]
 
+            features_filter = (end-begin+1)//n_filters
+            score_filters = np.zeros((n_filters))
+            for filter_idx in range(n_filters):
+                score_filters[filter_idx] = np.mean(score_layer[filter_idx:filter_idx+features_filter])
+            PruneConv.score_layer.append(score_filters)
         # return super(PruneConv, cls).apply(module, name, amount=amount, c=c, importance_scores=importance_scores)
     

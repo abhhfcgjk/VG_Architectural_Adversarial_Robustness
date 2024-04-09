@@ -171,7 +171,13 @@ class IQAModel(nn.Module):
             # im = im.unsqueeze(0)
             # print(im)
             # print(resnet_model(im))
-            PruneConv.apply(resnet_model, '',0.1, train_count=5)
+            COLAB = False
+            if COLAB:
+                PruneConv.apply(resnet_model, '',0.1, train_count=5,
+                                dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
+                                dataset_path='./drive/MyDrive/KonIQ-10k')
+            else:
+                PruneConv.apply(resnet_model, '',0.1, train_count=5)
 
             quit()
             print(self.pruning)
