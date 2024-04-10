@@ -75,8 +75,8 @@ def ReLU_to_ReLUSiLU(model):
 class PruneDataLoader(Dataset):
     def __init__(self, train_count=20, dataset_path='./KonIQ-10k/', dataset_labels_path='./data/KonIQ-10kinfo.mat',
                  is_resize=True, resize_height=498, resize_width=664):
-        resize_height =128
-        resize_width=128
+        resize_height =12
+        resize_width=12
         self.dataset_path = dataset_path
         self.dataset_labels_path = dataset_labels_path
         self.resize = is_resize
@@ -118,6 +118,13 @@ class PruneDataLoader(Dataset):
         return zip(self.ims, self.label)
 
 
+# class PLSEssitimator:
+#     def __init__(self,train_count=20, dataset_path='./KonIQ-10k/',
+#                              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True,
+#                              resize_height=498, resize_width=664):
+#         pass
+
+
 class PruneConv(BasePruningMethod):
     # PRUNING_TYPE = 'unstructured'
 
@@ -137,6 +144,7 @@ class PruneConv(BasePruningMethod):
         #     print(f.shape)
         n_samples = features[0].shape[0]
         conv_count = len(features)
+        
         print('N samples:',n_samples)
         X = None
         for idx in range(conv_count):
@@ -149,6 +157,7 @@ class PruneConv(BasePruningMethod):
                 tmp = features[idx].reshape(n_samples, -1)
                 PruneConv.idx_score_layer.append((X.shape[1], X.shape[1] + tmp.shape[1]-1))
                 X = np.hstack((X, tmp))
+            print('features',features[idx].shape, X.shape, PruneConv.idx_score_layer[-1][1]-PruneConv.idx_score_layer[-1][0]+1)
         # print(X.shape)
         X = np.array(X)
         return X
@@ -161,7 +170,7 @@ class PruneConv(BasePruningMethod):
         for im, label in loader:
             x = model.conv1(im)
             out = [x:=feature(x) for feature in feature_maps]
-            out = [item.detach().numpy() for item in out]
+            out = [item.detach().cpu().numpy() for item in out]
             if X[0] is not None:
                 X = [np.vstack((X[i], out[i])) for i in range(convs_count)]
                 y = np.vstack((y, np.array(label)))
@@ -170,6 +179,30 @@ class PruneConv(BasePruningMethod):
                 X = out
                 y = np.array(label)
         return X, y
+    
+    @staticmethod
+    def find_closer_th(percentage, score_layer):
+        scores = None
+        print("score layer:")
+        for i in range(len(score_layer)):
+            # print('SCORE filter: ', len(score_layer))
+            if scores is None:
+                scores = score_layer[i]
+            else:
+                scores = np.concatenate((scores, score_layer[i])) #np.hstack
+        total = scores.shape[0]
+        print("scores shape: ", scores.shape)
+        
+        esstimations = np.zeros((total))
+        for i in range(total):
+            th = scores[i]
+            # print(np.where(scores<=th))
+            destin = len(np.where(scores <= th)[0])/total
+            # print('Destin: ', destin)
+            esstimations[i] = abs(percentage - destin)
+        
+        th = scores[np.argmin(esstimations)]
+        return th
     
     @staticmethod
     def VIP(x, y, model):
@@ -186,7 +219,7 @@ class PruneConv(BasePruningMethod):
         # s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
         s = torch.diag(torch.mm(torch.mm(torch.mm(t.t(), t), q.t()), q)).reshape(h, -1)
         print('S',s.shape, s.t())
-        total_s = torch.sum(s).detach().numpy()
+        total_s = torch.sum(s).detach().cpu().numpy()
         print(total_s)
 
         for i in tqdm(range(p), total=p):
@@ -194,13 +227,29 @@ class PruneConv(BasePruningMethod):
             weight = weight.unsqueeze(1)
             # print(weight.shape)
             #vips[i] = np.sqrt(p * (s.T @ weight) / total_s)
-            vips[i] = np.sqrt(p * (torch.mm(s.t(), weight).detach().numpy()) / total_s)
+            elem = torch.sqrt(p * (torch.mm(s.t(), weight).to(device)) / total_s).to(device)
+            vips[i] = elem.detach().cpu().numpy()
         # vips = vips.detach().numpy()
+        print('vips len: ', len(vips), vips[0])
         return vips
+    
+    @staticmethod
+    def get_prune_idxs(score_layer, th):
+        output = []
+        for i in range(len(score_layer)):
+            score_filters = score_layer[i]
+            idxs = np.where(score_filters <= th)[0]
+            if len(idxs)==len(score_filters):
+                print(f"Warning: All filters at layer [{i}]")
+                idxs = []
+            output.append((i, idxs))
+        return output
+
 
     @classmethod
     def _load_data(cls, *args, **kwargs) -> Tuple[List, List]:
-        data_loader = PruneDataLoader(train_count=kwargs.get('train_count'))
+        # print(args, kwargs)
+        data_loader = PruneDataLoader(**kwargs)
         # dataset = DataLoader(data_loader, batch_size=kwargs.get('train_count'),
                             #  shuffle=False, num_workers=1, pin_memory=False)
         return data_loader
@@ -209,10 +258,10 @@ class PruneConv(BasePruningMethod):
     def apply(cls, model, name, amount, c=2,
               importance_scores=None, /,
               train_count=20, dataset_path='./KonIQ-10k/', 
-              dataset_labels_path='./data/KonIQ-10kinfo.mat', resize=True, 
+              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True, 
               resize_height=498, resize_width=664):
         prune_loader = PruneConv._load_data(cls, train_count=train_count, dataset_path=dataset_path,
-                             dataset_labels_path=dataset_labels_path, resize=resize,
+                             dataset_labels_path=dataset_labels_path, is_resize=is_resize,
                              resize_height=resize_height, resize_width=resize_width)
         
         layers = [module for label, module in model.named_children() if 'layer' in label]
@@ -244,6 +293,7 @@ class PruneConv(BasePruningMethod):
         #         y = np.array(label)
         X, y = PruneConv.get_layer_features(model, feature_maps, prune_loader)
         print(len(X), len(X[0]), len(feature_maps))
+        assert len(X)==len(convs)
         X = PruneConv.flatten(X)
         print(X.shape, y.shape)
         
@@ -253,17 +303,36 @@ class PruneConv(BasePruningMethod):
         scores = PruneConv.VIP(X, y, pls_model)
         PruneConv.score_layer = []
         for idx, conv in enumerate(convs):
-            n_filters = conv.weight.shape[3]
+            n_filters = conv.weight.shape[0]
             print(conv)
-            print(n_filters, conv.weight.shape)
+            print('weight shape', conv.weight.shape)
             
             begin, end = PruneConv.idx_score_layer[idx]
+            print('end-begin: ', end-begin+1)
             score_layer = scores[begin:end+1]
 
             features_filter = (end-begin+1)//n_filters
+            print('features_filter:',features_filter, n_filters)
             score_filters = np.zeros((n_filters))
             for filter_idx in range(n_filters):
                 score_filters[filter_idx] = np.mean(score_layer[filter_idx:filter_idx+features_filter])
             PruneConv.score_layer.append(score_filters)
+        
+        th = PruneConv.find_closer_th(percentage=amount, score_layer=PruneConv.score_layer)
+        print('th: ', th)
+        prune_idxs = PruneConv.get_prune_idxs(PruneConv.score_layer, th)
+        
+        for i in range(len(convs)):
+            idxs = [item for item in prune_idxs if item[0]==i]
+            if len(idxs)!=0:
+                print('idxs: ', len(idxs), len(idxs[0]), len(idxs[0][1]), idxs[0],idxs[0][1])
+                print(idxs)
+                idxs = idxs[0][1]
+            w_map = np.ones_like(convs[i].weight.detach().cpu().numpy())
+            w_map[idxs, :] = 0
+            print(w_map.shape)
+
+            print(convs[i].weight.shape)
+        
         # return super(PruneConv, cls).apply(module, name, amount=amount, c=c, importance_scores=importance_scores)
     
