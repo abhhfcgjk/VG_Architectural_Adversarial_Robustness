@@ -5,10 +5,11 @@ from torch import nn
 import torch.nn.functional as F
 from torch import Tensor, exp
 from torch.autograd import Function
-from torch.nn.utils.prune import BasePruningMethod, _validate_pruning_amount
+from torch.nn.utils.prune import BasePruningMethod, _validate_pruning_amount, _validate_pruning_amount_init, remove
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms.functional import resize, to_tensor, normalize
 import numpy as np
+import numpy.typing as npt
 from sklearn.cross_decomposition import PLSRegression
 
 import os
@@ -75,8 +76,8 @@ def ReLU_to_ReLUSiLU(model):
 class PruneDataLoader(Dataset):
     def __init__(self, train_count=20, dataset_path='./KonIQ-10k/', dataset_labels_path='./data/KonIQ-10kinfo.mat',
                  is_resize=True, resize_height=498, resize_width=664):
-        resize_height =12
-        resize_width=12
+        # resize_height =12
+        # resize_width=12
         self.dataset_path = dataset_path
         self.dataset_labels_path = dataset_labels_path
         self.resize = is_resize
@@ -118,98 +119,54 @@ class PruneDataLoader(Dataset):
         return zip(self.ims, self.label)
 
 
-# class PLSEssitimator:
-#     def __init__(self,train_count=20, dataset_path='./KonIQ-10k/',
-#                              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True,
-#                              resize_height=498, resize_width=664):
-#         pass
-
-
-class PruneConv(BasePruningMethod):
-    # PRUNING_TYPE = 'unstructured'
-
-    def __init__(self, amount, c=2):
-        _validate_pruning_amount(amount)
-        self.amount = amount
-        self.c = c
+class PLSEssitimator:
+    def __init__(self, model, arch='resnet', n_components=2, device='cuda'):
+        assert 'resnet' in arch
+        self.device = 'cuda' if (device=='cuda' and torch.cuda.is_available()) else 'cpu'
+        self.n_comp = n_components
+        self.idx_score_layer = []
+        self.model = model
+        self.layers = [module for label, module in self.model.named_children() 
+                       if 'layer' in label]
+        self.convs = [conv for layer in self.layers 
+                      for block in range(len(layer)) 
+                      for conv in layer[block].children()
+                      if isinstance(conv, nn.Conv2d)]
+        self.feature_maps = nn.ModuleList([
+                            nn.Sequential(conv, nn.AvgPool2d((1, 1))) for conv in self.convs
+                            ])
         
-    def compute_mask(self, t, default_mask):
-        return super().compute_mask(t, default_mask)
-    
-    @staticmethod
-    def flatten(features):
-        print(len(features))
-        print(features[0].shape)
+
+    def flatten(self, features) -> npt.ArrayLike:
+        # print(len(features))
+        # print(features[0].shape)
         # for f in features:
         #     print(f.shape)
         n_samples = features[0].shape[0]
         conv_count = len(features)
         
-        print('N samples:',n_samples)
+        # print('N samples:',n_samples)
         X = None
         for idx in range(conv_count):
             if X is None:
                 # print(features[idx].shape)
                 X = features[idx].reshape(n_samples, -1)
                 # print(X.shape)
-                PruneConv.idx_score_layer.append((0, X.shape[1]-1))
+                self.idx_score_layer.append((0, X.shape[1]-1))
             else:
                 tmp = features[idx].reshape(n_samples, -1)
-                PruneConv.idx_score_layer.append((X.shape[1], X.shape[1] + tmp.shape[1]-1))
+                self.idx_score_layer.append((X.shape[1], X.shape[1] + tmp.shape[1]-1))
                 X = np.hstack((X, tmp))
-            print('features',features[idx].shape, X.shape, PruneConv.idx_score_layer[-1][1]-PruneConv.idx_score_layer[-1][0]+1)
+            # print('features',features[idx].shape, X.shape, PruneConv.idx_score_layer[-1][1]-PruneConv.idx_score_layer[-1][0]+1)
         # print(X.shape)
         X = np.array(X)
         return X
     
-    @staticmethod
-    def get_layer_features(model, feature_maps, loader):
-        convs_count = len(feature_maps)
-        X = [None for _ in range(convs_count)]
-        y = None
-        for im, label in loader:
-            x = model.conv1(im)
-            out = [x:=feature(x) for feature in feature_maps]
-            out = [item.detach().cpu().numpy() for item in out]
-            if X[0] is not None:
-                X = [np.vstack((X[i], out[i])) for i in range(convs_count)]
-                y = np.vstack((y, np.array(label)))
-                print(y)
-            else:
-                X = out
-                y = np.array(label)
-        return X, y
-    
-    @staticmethod
-    def find_closer_th(percentage, score_layer):
-        scores = None
-        print("score layer:")
-        for i in range(len(score_layer)):
-            # print('SCORE filter: ', len(score_layer))
-            if scores is None:
-                scores = score_layer[i]
-            else:
-                scores = np.concatenate((scores, score_layer[i])) #np.hstack
-        total = scores.shape[0]
-        print("scores shape: ", scores.shape)
-        
-        esstimations = np.zeros((total))
-        for i in range(total):
-            th = scores[i]
-            # print(np.where(scores<=th))
-            destin = len(np.where(scores <= th)[0])/total
-            # print('Destin: ', destin)
-            esstimations[i] = abs(percentage - destin)
-        
-        th = scores[np.argmin(esstimations)]
-        return th
-    
-    @staticmethod
-    def VIP(x, y, model):
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        t = Tensor(model.x_scores_).to(device)
-        w = Tensor(model.x_weights_).to(device)
-        q = Tensor(model.y_loadings_).to(device)
+
+    def VIP(self, x, y, pls_model):
+        t = Tensor(pls_model.x_scores_).to(self.device)
+        w = Tensor(pls_model.x_weights_).to(self.device)
+        q = Tensor(pls_model.y_loadings_).to(self.device)
 
         m, p = x.shape
         _, h = t.shape
@@ -223,28 +180,106 @@ class PruneConv(BasePruningMethod):
         print(total_s)
 
         for i in tqdm(range(p), total=p):
-            weight = Tensor([(w[i, j] / torch.linalg.norm(w[:, j])).to(device) ** 2 for j in range(h)]).to(device)
+            weight = Tensor([(w[i, j] / torch.linalg.norm(w[:, j])).to(self.device) ** 2 
+                             for j in range(h)]).to(self.device)
             weight = weight.unsqueeze(1)
             # print(weight.shape)
             #vips[i] = np.sqrt(p * (s.T @ weight) / total_s)
-            elem = torch.sqrt(p * (torch.mm(s.t(), weight).to(device)) / total_s).to(device)
+            elem = torch.sqrt(p * (torch.mm(s.t(), weight).to(self.device)) / total_s).to(self.device)
             vips[i] = elem.detach().cpu().numpy()
         # vips = vips.detach().numpy()
         print('vips len: ', len(vips), vips[0])
         return vips
-    
-    @staticmethod
-    def get_prune_idxs(score_layer, th):
+
+    def get_layer_features(self, model, loader: Dataset):
+
+        convs_count = len(self.feature_maps)
+        X = [None for _ in range(convs_count)]
+        y = None
+        for im, label in loader:
+            x = model.conv1(im)
+            out = [x:=feature(x) for feature in self.feature_maps]
+            out = [item.detach().cpu().numpy() for item in out]
+            if X[0] is not None:
+                X = [np.vstack((X[i], out[i])) for i in range(convs_count)]
+                y = np.vstack((y, np.array(label)))
+                print(y)
+            else:
+                X = out
+                y = np.array(label)
+        return X, y
+
+    def get_prune_idxs(self, amount=0.1):
+        low_bound = self.find_closer_th(amount)
         output = []
-        for i in range(len(score_layer)):
-            score_filters = score_layer[i]
-            idxs = np.where(score_filters <= th)[0]
+        for i in range(len(self.score_layer)):
+            score_filters = self.score_layer[i]
+            idxs = np.where(score_filters <= low_bound)[0]
             if len(idxs)==len(score_filters):
                 print(f"Warning: All filters at layer [{i}]")
                 idxs = []
             output.append((i, idxs))
         return output
+    
+    def find_closer_th(self, percentage):
+        scores = None
+        print("score layer:")
+        for i in range(len(self.score_layer)):
+            # print('SCORE filter: ', len(score_layer))
+            if scores is None:
+                scores = self.score_layer[i]
+            else:
+                scores = np.concatenate((scores, self.score_layer[i])) #np.hstack
+        total = scores.shape[0]
+        print("scores shape: ", scores.shape)
+        
+        esstimations = np.zeros((total))
+        for i in range(total):
+            th = scores[i]
+            # print(np.where(scores<=th))
+            destin = len(np.where(scores <= th)[0])/total
+            # print('Destin: ', destin)
+            esstimations[i] = abs(percentage - destin)
+        
+        th = scores[np.argmin(esstimations)]
+        return th
 
+    def _generate_score_layer(self, X, y) -> None:
+        scores = self.VIP(X, y, self.pls)
+        self.score_layer = []
+        for idx, conv in enumerate(self.convs):
+            n_filters = conv.weight.shape[0]
+            print(conv)
+            print('weight shape', conv.weight.shape)
+            
+            begin, end = self.idx_score_layer[idx]
+            print('end-begin: ', end-begin+1)
+            score_layer = scores[begin:end+1]
+
+            features_filter = (end-begin+1)//n_filters
+            print('features_filter:',features_filter, n_filters)
+            score_filters = np.zeros((n_filters))
+            for filter_idx in range(n_filters):
+                score_filters[filter_idx] = np.mean(score_layer[filter_idx:filter_idx+features_filter])
+            self.score_layer.append(score_filters)
+
+    def fit(self, X, y):
+        self.pls = PLSRegression(n_components=self.n_comp, scale=True)
+        self.pls.fit(X, y)
+
+        self._generate_score_layer(X, y)
+
+class PruneConv(BasePruningMethod):
+    PRUNING_TYPE = 'unstructured'
+
+    def __init__(self, amount, c=2):
+        _validate_pruning_amount_init(amount)
+        self.amount = amount
+        self.c = c
+        
+    def compute_mask(self, t, default_mask):
+        mask = t
+        return mask
 
     @classmethod
     def _load_data(cls, *args, **kwargs) -> Tuple[List, List]:
@@ -260,79 +295,39 @@ class PruneConv(BasePruningMethod):
               train_count=20, dataset_path='./KonIQ-10k/', 
               dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True, 
               resize_height=498, resize_width=664):
-        prune_loader = PruneConv._load_data(cls, train_count=train_count, dataset_path=dataset_path,
+        prune_loader = cls._load_data(cls, train_count=train_count, dataset_path=dataset_path,
                              dataset_labels_path=dataset_labels_path, is_resize=is_resize,
                              resize_height=resize_height, resize_width=resize_width)
         
-        layers = [module for label, module in model.named_children() if 'layer' in label]
-        # layers = [layers[0]]
-        
-        PruneConv.idx_score_layer = []
-        conv1 = model.conv1
-        convs = [conv for layer in layers 
-                 for block in range(len(layer)) 
-                 for conv in layer[block].children()
-                 if isinstance(conv, nn.Conv2d)]
-        feature_maps = nn.ModuleList([nn.Sequential(conv, nn.AvgPool2d((1, 1)))
-                              for conv in convs])
+        pls_prune = PLSEssitimator(model)
+        cls.convs = pls_prune.convs
 
-        
-        # convs_count = len(feature_maps)
-        # X = [None for _ in range(convs_count)]
-        # y = None
-        # for im, label in prune_loader:
-        #     x = conv1(im)
-        #     out = [x:=feature(x) for feature in feature_maps]
-        #     out = [item.detach().numpy() for item in out]
-        #     if X[0] is not None:
-        #         X = [np.vstack((X[i], out[i])) for i in range(convs_count)]
-        #         y = np.vstack((y, np.array(label)))
-        #         print(y)
-        #     else:
-        #         X = out
-        #         y = np.array(label)
-        X, y = PruneConv.get_layer_features(model, feature_maps, prune_loader)
-        print(len(X), len(X[0]), len(feature_maps))
-        assert len(X)==len(convs)
-        X = PruneConv.flatten(X)
-        print(X.shape, y.shape)
-        
-        pls_model = PLSRegression(n_components=c, scale=True)
-        pls_model.fit(X, y)
-        
-        scores = PruneConv.VIP(X, y, pls_model)
-        PruneConv.score_layer = []
-        for idx, conv in enumerate(convs):
-            n_filters = conv.weight.shape[0]
-            print(conv)
-            print('weight shape', conv.weight.shape)
-            
-            begin, end = PruneConv.idx_score_layer[idx]
-            print('end-begin: ', end-begin+1)
-            score_layer = scores[begin:end+1]
+        X, y = pls_prune.get_layer_features(model, prune_loader)
+        X = pls_prune.flatten(X)
 
-            features_filter = (end-begin+1)//n_filters
-            print('features_filter:',features_filter, n_filters)
-            score_filters = np.zeros((n_filters))
-            for filter_idx in range(n_filters):
-                score_filters[filter_idx] = np.mean(score_layer[filter_idx:filter_idx+features_filter])
-            PruneConv.score_layer.append(score_filters)
-        
-        th = PruneConv.find_closer_th(percentage=amount, score_layer=PruneConv.score_layer)
-        print('th: ', th)
-        prune_idxs = PruneConv.get_prune_idxs(PruneConv.score_layer, th)
-        
-        for i in range(len(convs)):
-            idxs = [item for item in prune_idxs if item[0]==i]
+        pls_prune.fit(X, y)
+
+        cls.prune_idxs = pls_prune.get_prune_idxs(amount=amount)
+
+        cls.pruned_convs = []
+        for i in range(len(pls_prune.convs)):
+            idxs = [item for item in cls.prune_idxs if item[0]==i]
             if len(idxs)!=0:
-                print('idxs: ', len(idxs), len(idxs[0]), len(idxs[0][1]), idxs[0],idxs[0][1])
-                print(idxs)
                 idxs = idxs[0][1]
-            w_map = np.ones_like(convs[i].weight.detach().cpu().numpy())
-            w_map[idxs, :] = 0
-            print(w_map.shape)
+            module = pls_prune.convs[i]
+            importance_scores = np.ones_like(module.weight.detach().cpu().numpy())
+            importance_scores[idxs, :] = 0
+            importance_scores = torch.from_numpy(importance_scores)
+            super(PruneConv, cls).apply(module, name, amount=amount, c=c, importance_scores=importance_scores)
 
-            print(convs[i].weight.shape)
-        
-        # return super(PruneConv, cls).apply(module, name, amount=amount, c=c, importance_scores=importance_scores)
+        return cls
     
+    @classmethod
+    def remove(cls, name: str):
+        for i in range(len(cls.pruned_convs)):
+            module = cls.pruned_convs[i]
+            remove(module, name)
+
+
+def PLS_prune_resnet(model):
+    pass

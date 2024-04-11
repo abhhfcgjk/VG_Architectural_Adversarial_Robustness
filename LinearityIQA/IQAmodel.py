@@ -127,8 +127,9 @@ class IQAModel(nn.Module):
         
         for (module, attr) in p_list:
             percentage = 100. * float(torch.sum(getattr(module, attr) == 0))/float(getattr(module, attr).nelement())
-            if percentage > 0.5:
-                print("Sparsity in {}.{}: {:.2f}%".format(module.__class__.__name__, attr, percentage))
+            if percentage > 0.0:
+                print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
+                                                             getattr(module, attr).shape, percentage))
 
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False, pruning=0.0):
         super(IQAModel, self).__init__()
@@ -171,30 +172,41 @@ class IQAModel(nn.Module):
             # im = im.unsqueeze(0)
             # print(im)
             # print(resnet_model(im))
-            COLAB = False
-            if COLAB:
-                PruneConv.apply(resnet_model, '',0.1, train_count=5,
-                                dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
-                                dataset_path='./drive/MyDrive/KonIQ-10k')
-            else:
-                PruneConv.apply(resnet_model, '',0.1, train_count=5)
+            
 
-            quit()
+            # quit()
             print(self.pruning)
-            if self.pruning is not None and self.pruning > 0:
-                prune_parameters = tuple(self.get_prune_features(resnet_model))
+            # if self.pruning is not None and self.pruning > 0:
+            #     prune_parameters = tuple(self.get_prune_features(resnet_model))
 
-                prune.global_unstructured(
-                    prune_parameters,
-                    pruning_method=prune.L1Unstructured,
-                    amount=self.pruning,
-                )
+            #     prune.global_unstructured(
+            #         prune_parameters,
+            #         pruning_method=prune.L1Unstructured,
+            #         amount=self.pruning,
+            #     )
 
-                for module, param in prune_parameters:
-                    prune.remove(module, param)
+            #     for module, param in prune_parameters:
+            #         prune.remove(module, param)
 
-                IQAModel.print_sparcity(resnet_model, prune_parameters)
+            #     IQAModel.print_sparcity(resnet_model, prune_parameters)
+
+            if self.pruning is not None and self.pruning>0:
+                COLAB = False
+                if COLAB:
+                    PruneConv.apply(resnet_model, '',self.pruning, train_count=5,
+                                    dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
+                                    dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
+                                    resize_height=96, resize_width=128)
+                else:
+                    PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=10, is_resize=True,
+                                    resize_height=92, resize_width=128)
+                PruneConv.remove('weight')
+            prune_parameters = []
+            for i in range(len(PruneConv.convs)):
+                prune_parameters.append((PruneConv.convs[i], 'weight'))
+            IQAModel.print_sparcity(resnet_model, prune_parameters)
             features = list(resnet_model.children())[:-2]
+            
 
 
         if arch == 'alexnet':
