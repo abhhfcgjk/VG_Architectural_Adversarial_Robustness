@@ -176,7 +176,7 @@ class PLSEssitimator:
         # s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
         s = torch.diag(torch.mm(torch.mm(torch.mm(t.t(), t), q.t()), q)).reshape(h, -1)
         print('S',s.shape, s.t())
-        total_s = torch.sum(s).detach().cpu().numpy()
+        total_s = torch.sum(s)
         print(total_s)
 
         for i in tqdm(range(p), total=p):
@@ -271,7 +271,7 @@ class PLSEssitimator:
 
 class PruneConv(BasePruningMethod):
     PRUNING_TYPE = 'unstructured'
-
+    SAVE_PATH = "prune/resnet"
     def __init__(self, amount, c=2):
         _validate_pruning_amount_init(amount)
         self.amount = amount
