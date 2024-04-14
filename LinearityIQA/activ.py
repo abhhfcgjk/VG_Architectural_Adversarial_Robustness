@@ -292,8 +292,8 @@ class PruneConv(BasePruningMethod):
     @classmethod
     def apply(cls, model, name, amount, c=2,
               importance_scores=None, /,
-              train_count=20, dataset_path='./KonIQ-10k/', 
-              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True, 
+              train_count=20, dataset_path='./LinearityIQA/KonIQ-10k/', 
+              dataset_labels_path='./LinearityIQA/data/KonIQ-10kinfo.mat', is_resize=True, 
               resize_height=498, resize_width=664):
         prune_loader = cls._load_data(cls, train_count=train_count, dataset_path=dataset_path,
                              dataset_labels_path=dataset_labels_path, is_resize=is_resize,

@@ -201,10 +201,10 @@ class IQAModel(nn.Module):
                     PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=10, is_resize=True,
                                     resize_height=92, resize_width=128)
                 PruneConv.remove('weight')
-            prune_parameters = []
-            for i in range(len(PruneConv.convs)):
-                prune_parameters.append((PruneConv.convs[i], 'weight'))
-            IQAModel.print_sparcity(resnet_model, prune_parameters)
+                prune_parameters = []
+                for i in range(len(PruneConv.convs)):
+                    prune_parameters.append((PruneConv.convs[i], 'weight'))
+                IQAModel.print_sparcity(resnet_model, prune_parameters)
             features = list(resnet_model.children())[:-2]
             
 

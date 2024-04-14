@@ -119,8 +119,8 @@ if __name__ == "__main__":
     parser.add_argument('-pbar', '--pbar', action='store_true',
                         help='Use progressbar for the training')
     
-    parser.add_argument('-prune', "--pruning", type=float,
-                        help="adversarial pruning percent")
+    # parser.add_argument('-prune', "--pruning", type=float,
+    #                     help="adversarial pruning percent")
     
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 
@@ -155,6 +155,7 @@ if __name__ == "__main__":
     default_path = "./data/KonIQ-10kinfo.mat"
     args.data_info = {'KonIQ-10k': COLAB_path if args.colab else default_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
+    args.pruning = None
 
     if not args.randomness:
         torch.manual_seed(args.seed)  #
@@ -169,9 +170,9 @@ if __name__ == "__main__":
     #                   .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
     #                           args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation, args.augmentation, 
     #                           args.learning_rate, args.batch_size, args.epochs, args.opt_level)
-    args.format_str = 'activation={}-{}-prune={}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}'\
+    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}'\
                       .format(args.activation, args.architecture,
-                              args.pruning,
+                              
                               args.loss_type, args.p, args.q, args.detach, 
                               args.dataset, args.resize, args.resize_size_h, args.resize_size_w,
                               "-se=True" if args.squeeze_excitation else '',)
