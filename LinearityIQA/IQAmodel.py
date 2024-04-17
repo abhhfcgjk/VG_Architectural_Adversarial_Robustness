@@ -215,7 +215,7 @@ class IQAModel(nn.Module):
                     prune.remove(module, 'weight')
                 # PruneConv.remove('weight')
                 IQAModel.print_sparcity(resnet_model, prune_parameters)
-                torch.save(resnet_model.state_dict(), f"pruned/{arch}_{h}x{w}_amount={self.pruning}_imgs={t_count}")
+                torch.save(resnet_model.state_dict(), f"prune/{arch}_{h}x{w}_amount={self.pruning}_imgs={t_count}")
             features = list(resnet_model.children())[:-2]
             
 
