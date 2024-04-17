@@ -15,3 +15,4 @@ runs/
 *.log
 /KonIQ-10k
 /prune
+/LinearityIQA/adversarial_trained

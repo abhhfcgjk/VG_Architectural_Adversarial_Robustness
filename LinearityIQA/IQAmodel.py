@@ -156,41 +156,15 @@ class IQAModel(nn.Module):
             features = list(get_model(model_arch='resnet50', pretrained=True, map_location='cuda' if torch.cuda.is_available() else 'cpu').children())
             features[0][-1].avgpool = Identity()
             features[0][-1].fc = Identity()
-        
+        elif arch=="advresnet50":
+            advpath = './adversarial_trained/resnet50_imagenet_linf_4.pt'
+            advresnet = models.__dict__[arch](pretrained=False)
+            advresnet.load_state_dict(advpath)
+            features = list(advresnet.children())[:-2]
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
-            # print(list(resnet_model.named_children()))
-            # print(list(resnet_model.named_children()).__len__())
-
-            # for label, module in resnet_model.named_children():
-            #     if 'layer' in label:
-            #         print(module[0].conv1)
-            # from PIL import Image
-            # from pathlib import Path
-            # from torchvision.transforms.functional import resize, to_tensor
-            # im_path = list(Path('./KonIQ-10k/').iterdir())[0]
-            # im = to_tensor(Image.open(im_path).convert('RGB'))
-            # im = im.unsqueeze(0)
-            # print(im)
-            # print(resnet_model(im))
             
-
-            # quit()
             print(self.pruning)
-            # if self.pruning is not None and self.pruning > 0:
-            #     prune_parameters = tuple(self.get_prune_features(resnet_model))
-
-            #     prune.global_unstructured(
-            #         prune_parameters,
-            #         pruning_method=prune.L1Unstructured,
-            #         amount=self.pruning,
-            #     )
-
-            #     for module, param in prune_parameters:
-            #         prune.remove(module, param)
-
-            #     IQAModel.print_sparcity(resnet_model, prune_parameters)
-
             if self.pruning is not None and self.pruning>0:
                 COLAB = False
                 h=90
@@ -204,7 +178,7 @@ class IQAModel(nn.Module):
                 else:
                     PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=t_count, is_resize=True,
                                     resize_height=h, resize_width=w)
-                # PruneConv.remove('weight')
+                
                 prune_parameters = []
                 for i in range(len(PruneConv.convs)):
                     prune_parameters.append((PruneConv.convs[i], 'weight'))
@@ -214,7 +188,6 @@ class IQAModel(nn.Module):
                     module = PruneConv.convs[i]
                     # print(module.weight)                    
                     prune.remove(module, 'weight')
-                # PruneConv.remove('weight')
                 IQAModel.print_sparcity(resnet_model, prune_parameters)
                 # checkpoints = {
                 #     'model': resnet_model.state_dict(),

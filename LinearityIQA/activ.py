@@ -188,7 +188,7 @@ class PLSEssitimator:
             elem = torch.sqrt(p * (torch.mm(s.t(), weight).to(self.device)) / total_s).to(self.device)
             vips[i] = elem.detach().cpu().numpy()
         # vips = vips.detach().numpy()
-        print('vips len: ', len(vips), vips[0])
+        # print('vips len: ', len(vips), vips[0])
         return vips
 
     def get_layer_features(self, model, loader: Dataset):
@@ -196,14 +196,14 @@ class PLSEssitimator:
         convs_count = len(self.feature_maps)
         X = [None for _ in range(convs_count)]
         y = None
-        for im, label in loader:
+        for im, label in tqdm(loader, total=len(loader)):
             x = model.conv1(im)
             out = [x:=feature(x) for feature in self.feature_maps]
             out = [item.detach().cpu().numpy() for item in out]
             if X[0] is not None:
                 X = [np.vstack((X[i], out[i])) for i in range(convs_count)]
                 y = np.vstack((y, np.array(label)))
-                print(y)
+                # print(y)
             else:
                 X = out
                 y = np.array(label)
@@ -231,14 +231,12 @@ class PLSEssitimator:
             else:
                 scores = np.concatenate((scores, self.score_layer[i])) #np.hstack
         total = scores.shape[0]
-        print("scores shape: ", scores.shape)
+        # print("scores shape: ", scores.shape)
         
         esstimations = np.zeros((total))
         for i in range(total):
             th = scores[i]
-            # print(np.where(scores<=th))
             destin = len(np.where(scores <= th)[0])/total
-            # print('Destin: ', destin)
             esstimations[i] = abs(percentage - destin)
         
         th = scores[np.argmin(esstimations)]
@@ -250,14 +248,14 @@ class PLSEssitimator:
         for idx, conv in enumerate(self.convs):
             n_filters = conv.weight.shape[0]
             print(conv)
-            print('weight shape', conv.weight.shape)
+            # print('weight shape', conv.weight.shape)
             
             begin, end = self.idx_score_layer[idx]
-            print('end-begin: ', end-begin+1)
+            # print('end-begin: ', end-begin+1)
             score_layer = scores[begin:end+1]
 
             features_filter = (end-begin+1)//n_filters
-            print('features_filter:',features_filter, n_filters)
+            # print('features_filter:',features_filter, n_filters)
             score_filters = np.zeros((n_filters))
             for filter_idx in range(n_filters):
                 score_filters[filter_idx] = np.mean(score_layer[filter_idx:filter_idx+features_filter])
@@ -321,6 +319,3 @@ class PruneConv(BasePruningMethod):
 
         return cls
     
-
-def PLS_prune_resnet(model):
-    pass
