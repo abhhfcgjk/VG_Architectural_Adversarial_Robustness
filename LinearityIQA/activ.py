@@ -322,11 +322,18 @@ class PruneConv(BasePruningMethod):
 
         return cls
     
-    @classmethod
-    def remove(cls, name: str):
-        for i in range(len(cls.pruned_convs)):
-            module = cls.pruned_convs[i]
-            remove(module, name)
+    # @classmethod
+    # def remove(cls, name: str):
+        
+    #     for i in range(len(cls.convs)):
+    #         print(name)
+    #         module = cls.convs[i]
+    #         # print(module.weight)
+    #         for k, hook in module._forward_pre_hooks.items():
+    #             # print( isinstance(hook, BasePruningMethod), hook._tensor_name == name, hook._tensor_name, name)
+    #             print(type(hook))
+            
+    #         remove(module, 'weight')
 
 
 def PLS_prune_resnet(model):

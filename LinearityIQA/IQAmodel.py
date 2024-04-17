@@ -192,23 +192,30 @@ class IQAModel(nn.Module):
 
             if self.pruning is not None and self.pruning>0:
                 COLAB = False
-                h=10
-                w=10
+                h=90
+                w=120
+                t_count = 100
                 if COLAB:
                     PruneConv.apply(resnet_model, '',self.pruning, train_count=5,
                                     dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
                                     dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
                                     resize_height=96, resize_width=128)
                 else:
-                    PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=10, is_resize=True,
+                    PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=t_count, is_resize=True,
                                     resize_height=h, resize_width=w)
-                PruneConv.remove('weight')
+                # PruneConv.remove('weight')
                 prune_parameters = []
                 for i in range(len(PruneConv.convs)):
                     prune_parameters.append((PruneConv.convs[i], 'weight'))
-                PruneConv.remove('weight')
+        
+                for i in range(len(PruneConv.convs)):
+                    # print(name)
+                    module = PruneConv.convs[i]
+                    # print(module.weight)                    
+                    prune.remove(module, 'weight')
+                # PruneConv.remove('weight')
                 IQAModel.print_sparcity(resnet_model, prune_parameters)
-                torch.save(resnet_model.state_dict(), PruneConv.SAVE_PATH)
+                torch.save(resnet_model.state_dict(), f"pruned/{arch}_{h}x{w}_amount={self.pruning}_imgs={t_count}")
             features = list(resnet_model.children())[:-2]
             
 
