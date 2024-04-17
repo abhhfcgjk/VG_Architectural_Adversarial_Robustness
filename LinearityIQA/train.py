@@ -240,6 +240,9 @@ class Trainer:
             self._val_step(inputs, label)
         metrics = self.metric_computer.compute()
 
+        if self.args.pruning:
+            self.args.trained_model_file = self.args.trained_model_file + '+prune'
+
         checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
         torch.save(checkpoint, self.args.trained_model_file)
         
@@ -256,7 +259,7 @@ class Trainer:
         #     data = yaml.load(conf, Loader=yaml.SafeLoader)
         trainer = cls(device, args)
         # print(args.evaluate)
-        if args.evaluate:
+        if args.evaluate or args.pruning:
             # print("EVAL")
             trainer.eval()
         else:

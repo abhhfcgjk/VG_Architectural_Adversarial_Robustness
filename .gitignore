@@ -14,4 +14,4 @@ graph_data
 runs/
 *.log
 /KonIQ-10k
-/prune/*
+/prune

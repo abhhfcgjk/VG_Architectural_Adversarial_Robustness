@@ -283,7 +283,6 @@ class PruneConv(BasePruningMethod):
 
     @classmethod
     def _load_data(cls, *args, **kwargs) -> Tuple[List, List]:
-        # print(args, kwargs)
         data_loader = PruneDataLoader(**kwargs)
         # dataset = DataLoader(data_loader, batch_size=kwargs.get('train_count'),
                             #  shuffle=False, num_workers=1, pin_memory=False)
@@ -322,19 +321,6 @@ class PruneConv(BasePruningMethod):
 
         return cls
     
-    # @classmethod
-    # def remove(cls, name: str):
-        
-    #     for i in range(len(cls.convs)):
-    #         print(name)
-    #         module = cls.convs[i]
-    #         # print(module.weight)
-    #         for k, hook in module._forward_pre_hooks.items():
-    #             # print( isinstance(hook, BasePruningMethod), hook._tensor_name == name, hook._tensor_name, name)
-    #             print(type(hook))
-            
-    #         remove(module, 'weight')
-
 
 def PLS_prune_resnet(model):
     pass

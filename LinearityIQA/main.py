@@ -119,8 +119,8 @@ if __name__ == "__main__":
     parser.add_argument('-pbar', '--pbar', action='store_true',
                         help='Use progressbar for the training')
     
-    # parser.add_argument('-prune', "--pruning", type=float,
-    #                     help="adversarial pruning percent")
+    parser.add_argument('-prune', "--pruning", type=float,
+                        help="adversarial pruning percent")
     
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 

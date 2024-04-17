@@ -13,11 +13,12 @@ if __name__=='IQAmodel':
     from activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, PruneConv
     from SE import SqueezeExcitation
     from VOneNet import get_model
+    from train import Trainer
 else:
     from LinearityIQA.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, PruneConv
     from LinearityIQA.SE import SqueezeExcitation
-
     from LinearityIQA.VOneNet import get_model
+    from LinearityIQA.train import Trainer
 
 
 class Identity(nn.Module):
@@ -215,7 +216,11 @@ class IQAModel(nn.Module):
                     prune.remove(module, 'weight')
                 # PruneConv.remove('weight')
                 IQAModel.print_sparcity(resnet_model, prune_parameters)
-                torch.save(resnet_model.state_dict(), f"prune/{arch}_{h}x{w}_amount={self.pruning}_imgs={t_count}")
+                # checkpoints = {
+                #     'model': resnet_model.state_dict(),
+                #     'SROCC':'',
+                # }
+                # torch.save(resnet_model.state_dict(), f"prune/{arch}_{h}x{w}_amount={self.pruning}_imgs={t_count}")
             features = list(resnet_model.children())[:-2]
             
 

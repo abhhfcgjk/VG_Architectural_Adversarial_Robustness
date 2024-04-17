@@ -83,14 +83,15 @@ if __name__ == "__main__":
 
     print(args.architecture, args.pruning)
 
-    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}'.format(args.checkpoints_dir,
+    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}{}'.format(args.checkpoints_dir,
                                                                                                                 args.activation, 
                                                                                                                 args.architecture,
                                                                                                                 
                                                                                                                 args.resize, 
                                                                                                                 args.resize_size_h,
                                                                                                                 args.resize_size_w,
-                                                                                                                "-se=True" if args.squeeze_excitation else '')
+                                                                                                                "-se=True" if args.squeeze_excitation else '',
+                                                                                                                '+prune' if args.pruning else '')
 
     print("Device: ", args.device)
     print(path)
