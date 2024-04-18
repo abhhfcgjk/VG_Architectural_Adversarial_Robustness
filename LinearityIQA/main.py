@@ -155,7 +155,7 @@ if __name__ == "__main__":
     default_path = "./data/KonIQ-10kinfo.mat"
     args.data_info = {'KonIQ-10k': COLAB_path if args.colab else default_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
-    args.pruning = None
+    # args.pruning = None
 
     if not args.randomness:
         torch.manual_seed(args.seed)  #

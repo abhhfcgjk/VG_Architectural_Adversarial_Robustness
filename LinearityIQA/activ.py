@@ -126,12 +126,20 @@ class PLSEssitimator:
         self.n_comp = n_components
         self.idx_score_layer = []
         self.model = model
-        self.layers = [module for label, module in self.model.named_children() 
-                       if 'layer' in label]
-        self.convs = [conv for layer in self.layers 
-                      for block in range(len(layer)) 
-                      for conv in layer[block].children()
-                      if isinstance(conv, nn.Conv2d)]
+        # self.layers = [module for label, module in self.model.named_children() 
+        #                if 'layer' in label]
+        # self.convs = [conv for layer in self.layers 
+        #               for block in range(len(layer)) 
+        #               for conv in layer[block].children()
+        #               if isinstance(conv, nn.Conv2d)]
+        self.convs = []
+        for layer in self.model:
+            if isinstance(layer, nn.Sequential):
+                for block in layer:
+                    for conv in block.children():
+                        if isinstance(conv, nn.Conv2d):
+                            self.convs.append(conv)
+        print(len(self.convs))
         self.feature_maps = nn.ModuleList([
                             nn.Sequential(conv, nn.AvgPool2d((1, 1))) for conv in self.convs
                             ])
@@ -197,7 +205,9 @@ class PLSEssitimator:
         X = [None for _ in range(convs_count)]
         y = None
         for im, label in tqdm(loader, total=len(loader)):
-            x = model.conv1(im)
+            # print(model[0].weight.shape, im.shape)
+            im = im.to(self.device)
+            x = model[0](im)
             out = [x:=feature(x) for feature in self.feature_maps]
             out = [item.detach().cpu().numpy() for item in out]
             if X[0] is not None:
@@ -277,7 +287,7 @@ class PruneConv(BasePruningMethod):
         
     def compute_mask(self, t, default_mask):
         mask = t
-        return mask
+        return mask.to('cuda')
 
     @classmethod
     def _load_data(cls, *args, **kwargs) -> Tuple[List, List]:
@@ -289,8 +299,8 @@ class PruneConv(BasePruningMethod):
     @classmethod
     def apply(cls, model, name, amount, c=2,
               importance_scores=None, /,
-              train_count=20, dataset_path='./LinearityIQA/KonIQ-10k/', 
-              dataset_labels_path='./LinearityIQA/data/KonIQ-10kinfo.mat', is_resize=True, 
+              train_count=20, dataset_path='./KonIQ-10k/', 
+              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True, 
               resize_height=498, resize_width=664):
         prune_loader = cls._load_data(cls, train_count=train_count, dataset_path=dataset_path,
                              dataset_labels_path=dataset_labels_path, is_resize=is_resize,

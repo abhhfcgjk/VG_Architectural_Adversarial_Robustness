@@ -91,7 +91,7 @@ if __name__ == "__main__":
                                                                                                                 args.resize_size_h,
                                                                                                                 args.resize_size_w,
                                                                                                                 "-se=True" if args.squeeze_excitation else '',
-                                                                                                                '+prune' if args.pruning else '')
+                                                                                                                f'+prune={args.pruning}' if args.pruning else '')
 
     print("Device: ", args.device)
     print(path)

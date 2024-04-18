@@ -13,12 +13,10 @@ if __name__=='IQAmodel':
     from activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, PruneConv
     from SE import SqueezeExcitation
     from VOneNet import get_model
-    from train import Trainer
 else:
-    from LinearityIQA.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, PruneConv
+    from LinearityIQA.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, PruneConv, PLSEssitimator
     from LinearityIQA.SE import SqueezeExcitation
     from LinearityIQA.VOneNet import get_model
-    from LinearityIQA.train import Trainer
 
 
 class Identity(nn.Module):
@@ -118,18 +116,16 @@ class IQAModel(nn.Module):
 
 
     @staticmethod
-    def print_sparcity(model: nn.Module, prune_list: List = None):
+    def print_sparcity(model: nn.Module, prune_list: List):
         """only for resnet"""
-        p_list = []
-        if prune_list:
-            p_list = prune_list
-        else:
-            p_list = IQAModel.get_prune_list(model)
-        
+        print("SPARCITY")
+        p_list = prune_list
+        print(p_list.__len__())
         for (module, attr) in p_list:
             percentage = 100. * float(torch.sum(getattr(module, attr) == 0))/float(getattr(module, attr).nelement())
-            if percentage > 0.0:
-                print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
+            
+            
+            print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
                                                              getattr(module, attr).shape, percentage))
 
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False, pruning=0.0):
@@ -158,42 +154,38 @@ class IQAModel(nn.Module):
             features[0][-1].fc = Identity()
         elif arch=="advresnet50":
             advpath = './adversarial_trained/resnet50_imagenet_linf_4.pt'
-            advresnet = models.__dict__[arch](pretrained=False)
-            advresnet.load_state_dict(advpath)
+            advresnet = models.__dict__[arch.replace('adv','')]()
+            advresnet.load_state_dict(torch.load(advpath)['model'])
             features = list(advresnet.children())[:-2]
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
-            
+            # print(resnet_model)
             print(self.pruning)
-            if self.pruning is not None and self.pruning>0:
-                COLAB = False
-                h=90
-                w=120
-                t_count = 100
-                if COLAB:
-                    PruneConv.apply(resnet_model, '',self.pruning, train_count=5,
-                                    dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
-                                    dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
-                                    resize_height=96, resize_width=128)
-                else:
-                    PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=t_count, is_resize=True,
-                                    resize_height=h, resize_width=w)
+            # if self.pruning is not None and self.pruning>0:
+            #     COLAB = False
+            #     h=16#90
+            #     w=24#120
+            #     t_count = 100
+            #     if COLAB:
+            #         PruneConv.apply(resnet_model, '',self.pruning, train_count=5,
+            #                         dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
+            #                         dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
+            #                         resize_height=96, resize_width=128)
+            #     else:
+            #         PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=t_count, is_resize=True,
+            #                         resize_height=h, resize_width=w)
                 
-                prune_parameters = []
-                for i in range(len(PruneConv.convs)):
-                    prune_parameters.append((PruneConv.convs[i], 'weight'))
+            #     prune_parameters = []
+            #     for i in range(len(PruneConv.convs)):
+            #         prune_parameters.append((PruneConv.convs[i], 'weight'))
         
-                for i in range(len(PruneConv.convs)):
-                    # print(name)
-                    module = PruneConv.convs[i]
-                    # print(module.weight)                    
-                    prune.remove(module, 'weight')
-                IQAModel.print_sparcity(resnet_model, prune_parameters)
-                # checkpoints = {
-                #     'model': resnet_model.state_dict(),
-                #     'SROCC':'',
-                # }
-                # torch.save(resnet_model.state_dict(), f"prune/{arch}_{h}x{w}_amount={self.pruning}_imgs={t_count}")
+            #     for i in range(len(PruneConv.convs)):
+            #         # print(name)
+            #         module = PruneConv.convs[i]
+            #         # print(module.weight)                    
+            #         prune.remove(module, 'weight')
+            #     IQAModel.print_sparcity(resnet_model, prune_parameters)
+
             features = list(resnet_model.children())[:-2]
             
 
