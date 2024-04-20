@@ -6,6 +6,7 @@ import torch.nn.functional as F
 from torch import Tensor, exp
 from torch.autograd import Function
 from torch.nn.utils.prune import BasePruningMethod, _validate_pruning_amount, _validate_pruning_amount_init, remove
+from torch.nn.utils import prune
 from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms.functional import resize, to_tensor, normalize
 import numpy as np
@@ -329,3 +330,53 @@ class PruneConv(BasePruningMethod):
 
         return cls
     
+def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50):
+    resnet_model = model.features
+    # print(resnet_model)
+    COLAB = False
+    h=height#16#90
+    w=width#24#120
+    t_count = images_count
+    if COLAB:
+        PruneConv.apply(resnet_model, '',amount, train_count=5,
+                        dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
+                        dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
+                        resize_height=96, resize_width=128)
+    else:
+        PruneConv.apply(resnet_model, 'weight',amount, train_count=t_count, is_resize=True,
+                        resize_height=h, resize_width=w)
+    
+    prune_parameters = []
+    for i in range(len(PruneConv.convs)):
+        prune_parameters.append((PruneConv.convs[i], 'weight'))
+
+    prune_parameters = tuple(prune_parameters)
+    for i in range(len(PruneConv.convs)):
+        # print(name)
+        module = PruneConv.convs[i]
+        # print(module.weight)                    
+        prune.remove(module, 'weight')
+    return prune_parameters
+
+
+def get_prune_features(model: nn.Module) -> List:
+    prune_params_list = []
+
+    for name, module in model.named_children():
+        if isinstance(module, nn.Conv2d):
+            prune_params_list.append((module, 'weight'))
+        else:
+            prune_params_list += get_prune_features(module)
+    return prune_params_list
+
+def l1_prune(model:nn.Module, amount:float)->None:
+    prune_params = tuple(get_prune_features(model))
+    prune.global_unstructured(
+        parameters=prune_params,
+        pruning_method=prune.L1Unstructured,
+        importance_scores=amount
+    )
+    for name,module in prune_params:
+        prune.remove(module, name)
+    return prune_params
+

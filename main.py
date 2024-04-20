@@ -77,13 +77,14 @@ if __name__ == "__main__":
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
+    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls') # pls, l1
 
     args = parser.parse_args()
 
 
     print(args.architecture, args.pruning)
 
-    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}{}'.format(args.checkpoints_dir,
+    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}{}{}'.format(args.checkpoints_dir,
                                                                                                                 args.activation, 
                                                                                                                 args.architecture,
                                                                                                                 
@@ -91,7 +92,8 @@ if __name__ == "__main__":
                                                                                                                 args.resize_size_h,
                                                                                                                 args.resize_size_w,
                                                                                                                 "-se=True" if args.squeeze_excitation else '',
-                                                                                                                f'+prune={args.pruning}' if args.pruning else '')
+                                                                                                                f'+prune={args.pruning}' if args.pruning else '',
+                                                                                                                args.pruning_type)
 
     print("Device: ", args.device)
     print(path)

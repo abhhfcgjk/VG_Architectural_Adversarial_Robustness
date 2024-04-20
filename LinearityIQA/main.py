@@ -121,7 +121,7 @@ if __name__ == "__main__":
     
     parser.add_argument('-prune', "--pruning", type=float,
                         help="adversarial pruning percent")
-    
+    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls') # pls, l1
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 
 

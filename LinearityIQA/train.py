@@ -13,7 +13,7 @@ from typing import Dict
 from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from tqdm import tqdm
 from torch.nn.utils import prune
-from activ import PruneConv
+from activ import PruneConv, l1_prune, pls_prune
 
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
@@ -247,7 +247,7 @@ class Trainer:
         metrics = self.metric_computer.compute()
 
         if self.args.pruning:
-            self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}'
+            self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' +self.args.pruning_type
 
         checkpoint['model'] = self.model.state_dict()
         checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
@@ -261,31 +261,38 @@ class Trainer:
 
     def prune(self):
         # if self.pruning is not None and self.pruning>0:
-        resnet_model = self.model.features
-        # print(resnet_model)
-        COLAB = False
-        h=90#16#90
-        w=120#24#120
-        t_count = 50
-        if COLAB:
-            PruneConv.apply(resnet_model, '',self.pruning, train_count=5,
-                            dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
-                            dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
-                            resize_height=96, resize_width=128)
-        else:
-            PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=t_count, is_resize=True,
-                            resize_height=h, resize_width=w)
+        # resnet_model = self.model.features
+        # # print(resnet_model)
+        # COLAB = False
+        # h=90#16#90
+        # w=120#24#120
+        # t_count = 50
+        # if COLAB:
+        #     PruneConv.apply(resnet_model, '',self.pruning, train_count=5,
+        #                     dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
+        #                     dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
+        #                     resize_height=96, resize_width=128)
+        # else:
+        #     PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=t_count, is_resize=True,
+        #                     resize_height=h, resize_width=w)
         
-        prune_parameters = []
-        for i in range(len(PruneConv.convs)):
-            prune_parameters.append((PruneConv.convs[i], 'weight'))
+        # prune_parameters = []
+        # for i in range(len(PruneConv.convs)):
+        #     prune_parameters.append((PruneConv.convs[i], 'weight'))
 
-        for i in range(len(PruneConv.convs)):
-            # print(name)
-            module = PruneConv.convs[i]
-            # print(module.weight)                    
-            prune.remove(module, 'weight')
-        IQAModel.print_sparcity(resnet_model, prune_parameters)
+        # for i in range(len(PruneConv.convs)):
+        #     # print(name)
+        #     module = PruneConv.convs[i]
+        #     # print(module.weight)                    
+        #     prune.remove(module, 'weight')
+        prune_parameters: tuple
+        if self.args.pruning_type=='l1':
+            prune_parameters = l1_prune(self.model, self.pruning)
+        elif self.args.pruning_type=='pls':
+            prune_parameters = pls_prune(self.model, self.pruning, 
+                                         width=120, height=90, images_count=50)
+
+        IQAModel.print_sparcity(prune_parameters)
 
     @classmethod
     def run(cls, args):

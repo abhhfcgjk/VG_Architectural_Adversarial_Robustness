@@ -103,20 +103,7 @@ def SPSP(x, P=1, method='avg'):
 
 class IQAModel(nn.Module):
     @staticmethod
-    def get_prune_features(model: nn.Module) -> List:
-
-        prune_params_list = []
-
-        for name, module in model.named_children():
-            if hasattr(module, 'weight'):
-                prune_params_list.append((module, 'weight'))
-            else:
-                prune_params_list += IQAModel.get_prune_features(module)
-        return prune_params_list
-
-
-    @staticmethod
-    def print_sparcity(model: nn.Module, prune_list: List):
+    def print_sparcity(prune_list: List):
         """only for resnet"""
         print("SPARCITY")
         p_list = prune_list
@@ -155,7 +142,8 @@ class IQAModel(nn.Module):
         elif arch=="advresnet50":
             advpath = './adversarial_trained/resnet50_imagenet_linf_4.pt'
             advresnet = models.__dict__[arch.replace('adv','')]()
-            advresnet.load_state_dict(torch.load(advpath)['model'])
+            print(torch.load(advpath).keys())
+            # advresnet.load_state_dict(torch.load(advpath)['model'])
             features = list(advresnet.children())[:-2]
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
