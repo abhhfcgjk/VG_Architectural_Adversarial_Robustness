@@ -223,7 +223,7 @@ class Trainer:
 
         checkpoint = torch.load(self.args.trained_model_file)
         # results = {}
-        print(checkpoint['model'])
+        # print(checkpoint['model'])
         self.model.load_state_dict(checkpoint['model'])
         self.k = checkpoint['k']
         self.b = checkpoint['b']

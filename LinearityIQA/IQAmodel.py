@@ -140,10 +140,24 @@ class IQAModel(nn.Module):
             features[0][-1].avgpool = Identity()
             features[0][-1].fc = Identity()
         elif arch=="advresnet50":
-            advpath = './adversarial_trained/resnet50_imagenet_linf_4.pt'
+            advpath = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
             advresnet = models.__dict__[arch.replace('adv','')]()
-            print(torch.load(advpath).keys())
-            # advresnet.load_state_dict(torch.load(advpath)['model'])
+            # print(torch.load(advpath).keys())
+            # print(len(torch.load(advpath)['model']), len(advresnet.state_dict()))
+            # quit()
+            sd = torch.load(advpath)['model']
+            # print(list(sd.keys()))
+            for key in list(sd.keys()):
+                # print(key)
+                if ('attacker' in key)and not('new_mean' in key or 'new_std' in key):
+                    sd[key.replace('module.attacker.model.','')] = sd.pop(key)
+                # elif 'new_mean' in key or 'new_std' in key:
+                #     sd.pop(key)
+                else:
+                    sd.pop(key)
+                # quit()
+            
+            advresnet.load_state_dict(sd)
             features = list(advresnet.children())[:-2]
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
