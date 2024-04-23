@@ -53,6 +53,8 @@ class Trainer:
         self._optimizer()
         
     def train(self):
+        if self.args.pruning:
+            self._prepair_prune()
         self._prepair_train()
         self._train_loop()
 
@@ -217,7 +219,7 @@ class Trainer:
         output = self.model(inputs)
         self.metric_computer.update((output, label))
         
-    def eval(self):
+    def eval(self, prune:bool=False):
         if self.args.evaluate:
             self._prepair(train=False, val=True, test=True)
 
@@ -234,7 +236,7 @@ class Trainer:
 
         checkpoint = torch.load(self.args.trained_model_file)
         self.model.load_state_dict(checkpoint['model'])
-        if self.args.pruning:
+        if prune:
             self.prune()
         # print(getattr(self.model.layer1.conv1, 'weight') == 0)
         self.k = checkpoint['k']
@@ -246,7 +248,7 @@ class Trainer:
             self._val_step(inputs, label)
         metrics = self.metric_computer.compute()
 
-        if self.args.pruning:
+        if prune:
             self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' +self.args.pruning_type
 
         checkpoint['model'] = self.model.state_dict()
@@ -259,32 +261,14 @@ class Trainer:
     # def __del__(self):
     #     self.writer.close()
 
-    def prune(self):
-        # if self.pruning is not None and self.pruning>0:
-        # resnet_model = self.model.features
-        # # print(resnet_model)
-        # COLAB = False
-        # h=90#16#90
-        # w=120#24#120
-        # t_count = 50
-        # if COLAB:
-        #     PruneConv.apply(resnet_model, '',self.pruning, train_count=5,
-        #                     dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
-        #                     dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
-        #                     resize_height=96, resize_width=128)
-        # else:
-        #     PruneConv.apply(resnet_model, 'weight',self.pruning, train_count=t_count, is_resize=True,
-        #                     resize_height=h, resize_width=w)
-        
-        # prune_parameters = []
-        # for i in range(len(PruneConv.convs)):
-        #     prune_parameters.append((PruneConv.convs[i], 'weight'))
+    def _prepair_prune(self):
+        checkpoint = torch.load(self.args.trained_model_file)
+        self.model.load_state_dict(checkpoint['model'])
+        if self.args.trained_model_file.find('+prune=')<0:
+            self.prune()
+            self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' +self.args.pruning_type
 
-        # for i in range(len(PruneConv.convs)):
-        #     # print(name)
-        #     module = PruneConv.convs[i]
-        #     # print(module.weight)                    
-        #     prune.remove(module, 'weight')
+    def prune(self):
         prune_parameters: tuple
         if self.args.pruning_type=='l1':
             prune_parameters = l1_prune(self.model, self.pruning)
@@ -297,13 +281,14 @@ class Trainer:
     @classmethod
     def run(cls, args):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # with open(config_path, "r") as conf:
-        #     data = yaml.load(conf, Loader=yaml.SafeLoader)
+        
         trainer = cls(device, args)
         # print(args.evaluate)
-        if args.evaluate or args.pruning:
+        if args.pruning:
             # print("EVAL")
-            args.evaluate = args.pruning
+            trainer.train()
+            trainer.eval(False)
+        elif args.evaluate:
             trainer.eval()
         else:
             trainer.train()
