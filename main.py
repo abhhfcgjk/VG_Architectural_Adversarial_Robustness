@@ -92,7 +92,7 @@ if __name__ == "__main__":
                                                                                                                 args.resize_size_h,
                                                                                                                 args.resize_size_w,
                                                                                                                 "-se=True" if args.squeeze_excitation else '',
-                                                                                                                f'+prune={args.pruning}{args.pruning_type}' if args.pruning else ''
+                                                                                                                f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
                                                                                                                 )
 
     print("Device: ", args.device)

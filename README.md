@@ -56,10 +56,12 @@ rm -rf apex
 ## Training on KonIQ-10k
 ```
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 --ft_lr_ratio 0.1 -arch resnet34 --loss_type norm-in-norm --p 1 --q 2 --activation silu --pbar
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 4 -e 5 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --pbar
 ```
 ## Testing
 ```
 python main.py --dataset_path ./NIPS_test/ --resize -arch resnet34 --activation silu --device cpu --csv_results_dir rs -iter 10
+python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 -prune 0.1 -t_prune pls
 ```
 
 ## Visualization

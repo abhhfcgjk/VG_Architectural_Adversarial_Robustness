@@ -14,7 +14,7 @@ from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from tqdm import tqdm
 from torch.nn.utils import prune
 from activ import PruneConv, l1_prune, pls_prune
-
+from torch import nn
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
 # from dataclasses import dataclass
@@ -219,7 +219,7 @@ class Trainer:
         output = self.model(inputs)
         self.metric_computer.update((output, label))
         
-    def eval(self, prune:bool=False):
+    def eval(self):
         if self.args.evaluate:
             self._prepair(train=False, val=True, test=True)
 
@@ -236,8 +236,8 @@ class Trainer:
 
         checkpoint = torch.load(self.args.trained_model_file)
         self.model.load_state_dict(checkpoint['model'])
-        if prune:
-            self.prune()
+        # if prune:
+        #     self.prune()
         # print(getattr(self.model.layer1.conv1, 'weight') == 0)
         self.k = checkpoint['k']
         self.b = checkpoint['b']
@@ -248,8 +248,8 @@ class Trainer:
             self._val_step(inputs, label)
         metrics = self.metric_computer.compute()
 
-        if prune:
-            self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' +self.args.pruning_type
+        # if prune:
+        #     self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' +self.args.pruning_type
 
         checkpoint['model'] = self.model.state_dict()
         checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
@@ -262,11 +262,38 @@ class Trainer:
     #     self.writer.close()
 
     def _prepair_prune(self):
-        checkpoint = torch.load(self.args.trained_model_file)
-        self.model.load_state_dict(checkpoint['model'])
-        if self.args.trained_model_file.find('+prune=')<0:
+        form = self.args.trained_model_file + f'+prune={self.args.pruning}' +self.args.pruning_type + f'_lr={self.args.learning_rate}_e={self.args.epochs}'
+
+        try:
+            checkpoint = torch.load(self.args.trained_model_file + f'+prune={self.args.pruning}'+self.args.pruning_type)
+        except:
+            checkpoint = torch.load(self.args.trained_model_file)
+            self.model.load_state_dict(checkpoint['model'])
             self.prune()
-            self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' +self.args.pruning_type
+            checkpoint['model'] = self.model.state_dict()
+            self.args.trained_model_file = self.args.trained_model_file +f'+prune={self.args.pruning}'+self.args.pruning_type
+            torch.save(checkpoint,self.args.trained_model_file)
+            self.eval()
+            
+        self.args.trained_model_file = form
+        self.model.load_state_dict(checkpoint['model'])
+
+        ##################
+        convs = []
+        prune_parameters = []
+        for layer in self.model.features:
+            if isinstance(layer, nn.Sequential):
+                for block in layer:
+                    for conv in block.children():
+                        if isinstance(conv, nn.Conv2d):
+                            convs.append(conv)
+        for i in range(len(convs)):
+            prune_parameters.append((convs[i], 'weight'))
+        ######################
+
+
+        IQAModel.print_sparcity(prune_parameters)
+            
 
     def prune(self):
         prune_parameters: tuple

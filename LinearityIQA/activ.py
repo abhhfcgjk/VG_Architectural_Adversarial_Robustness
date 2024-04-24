@@ -374,9 +374,9 @@ def l1_prune(model:nn.Module, amount:float)->None:
     prune.global_unstructured(
         parameters=prune_params,
         pruning_method=prune.L1Unstructured,
-        importance_scores=amount
+        amount=amount
     )
-    for name,module in prune_params:
+    for module,name in prune_params:
         prune.remove(module, name)
     return prune_params
 
