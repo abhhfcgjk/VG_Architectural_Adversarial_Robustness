@@ -266,13 +266,15 @@ class Trainer:
 
         try:
             checkpoint = torch.load(self.args.trained_model_file + f'+prune={self.args.pruning}'+self.args.pruning_type)
-        except:
+        except Exception:
             checkpoint = torch.load(self.args.trained_model_file)
             self.model.load_state_dict(checkpoint['model'])
             self.prune()
             checkpoint['model'] = self.model.state_dict()
             self.args.trained_model_file = self.args.trained_model_file +f'+prune={self.args.pruning}'+self.args.pruning_type
+            print(self.args.trained_model_file)
             torch.save(checkpoint,self.args.trained_model_file)
+            self._prepair(train=False, val=True, test=True)
             self.eval()
             
         self.args.trained_model_file = form
@@ -314,7 +316,7 @@ class Trainer:
         if args.pruning:
             # print("EVAL")
             trainer.train()
-            trainer.eval(False)
+            trainer.eval()
         elif args.evaluate:
             trainer.eval()
         else:
