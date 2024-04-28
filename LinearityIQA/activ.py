@@ -25,16 +25,18 @@ class Activaion_forward_ReLU_backward_SiLU(Function):
     @staticmethod
     def forward(ctx, x, inplace):
         result = F.relu(x, inplace=inplace)
-        dx = 1/(1+exp(-x)) + x*exp(-x)/(1+exp(-x))**2
+        dx = 1 / (1 + exp(-x)) + x * exp(-x) / (1 + exp(-x)) ** 2
         ctx.save_for_backward(dx)
         ctx.inplace = inplace
         return result
+
     @staticmethod
     def backward(ctx, grad_output):
         dx, = ctx.saved_tensors
-        result = grad_output*dx
+        result = grad_output * dx
         inplace = ctx.inplace
         return result, None
+
 
 class ReLU_SiLU(nn.Module):
     """
@@ -59,15 +61,16 @@ class ReLU_SiLU(nn.Module):
 
 def ReLU_to_SILU(model):
     """Swap ReLU activation to SiLU."""
-    for name,layer in model.named_children():
+    for name, layer in model.named_children():
         if isinstance(layer, nn.ReLU):
             setattr(model, name, nn.SiLU())
         else:
             ReLU_to_SILU(layer)
 
+
 def ReLU_to_ReLUSiLU(model):
     """Swap ReLU activation to ReLU_SiLU"""
-    for name,layer in model.named_children():
+    for name, layer in model.named_children():
         if isinstance(layer, nn.ReLU):
             setattr(model, name, ReLU_SiLU())
         else:
@@ -107,8 +110,10 @@ class PruneDataLoader(Dataset):
             im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             im = im.unsqueeze(0)
             self.ims.append(im)
+
     def __len__(self):
         return len(self.imgs_indexs)
+
     def __getitem__(self, index) -> Any:
         im = self.ims[index]
         # im = to_tensor(im)
@@ -116,6 +121,7 @@ class PruneDataLoader(Dataset):
         # im = im.unsqueeze(0)
         label = self.label[index]
         return im, label
+
     def __iter__(self):
         return zip(self.ims, self.label)
 
@@ -123,14 +129,14 @@ class PruneDataLoader(Dataset):
 class PLSEssitimator:
     def __init__(self, model, arch='resnet', n_components=2, device='cuda'):
         assert 'resnet' in arch
-        self.device = 'cuda' if (device=='cuda' and torch.cuda.is_available()) else 'cpu'
+        self.device = 'cuda' if (device == 'cuda' and torch.cuda.is_available()) else 'cpu'
         self.n_comp = n_components
         self.idx_score_layer = []
         self.model = model
-        # self.layers = [module for label, module in self.model.named_children() 
+        # self.layers = [module for label, module in self.model.named_children()
         #                if 'layer' in label]
-        # self.convs = [conv for layer in self.layers 
-        #               for block in range(len(layer)) 
+        # self.convs = [conv for layer in self.layers
+        #               for block in range(len(layer))
         #               for conv in layer[block].children()
         #               if isinstance(conv, nn.Conv2d)]
         self.convs = []
@@ -142,35 +148,24 @@ class PLSEssitimator:
                             self.convs.append(conv)
         print(len(self.convs))
         self.feature_maps = nn.ModuleList([
-                            nn.Sequential(conv, nn.AvgPool2d((1, 1))) for conv in self.convs
-                            ])
-        
+            nn.Sequential(conv, nn.AvgPool2d((1, 1))) for conv in self.convs
+        ])
 
     def flatten(self, features) -> npt.ArrayLike:
-        # print(len(features))
-        # print(features[0].shape)
-        # for f in features:
-        #     print(f.shape)
         n_samples = features[0].shape[0]
         conv_count = len(features)
-        
-        # print('N samples:',n_samples)
+
         X = None
         for idx in range(conv_count):
             if X is None:
-                # print(features[idx].shape)
                 X = features[idx].reshape(n_samples, -1)
-                # print(X.shape)
-                self.idx_score_layer.append((0, X.shape[1]-1))
+                self.idx_score_layer.append((0, X.shape[1] - 1))
             else:
                 tmp = features[idx].reshape(n_samples, -1)
-                self.idx_score_layer.append((X.shape[1], X.shape[1] + tmp.shape[1]-1))
+                self.idx_score_layer.append((X.shape[1], X.shape[1] + tmp.shape[1] - 1))
                 X = np.hstack((X, tmp))
-            # print('features',features[idx].shape, X.shape, PruneConv.idx_score_layer[-1][1]-PruneConv.idx_score_layer[-1][0]+1)
-        # print(X.shape)
         X = np.array(X)
         return X
-    
 
     def VIP(self, x, y, pls_model):
         t = Tensor(pls_model.x_scores_).to(self.device)
@@ -179,17 +174,17 @@ class PLSEssitimator:
 
         m, p = x.shape
         _, h = t.shape
-        
+
         vips = np.zeros((p,))
         print(vips.shape)
         # s = np.diag(t.T @ t @ q.T @ q).reshape(h, -1)
         s = torch.diag(torch.mm(torch.mm(torch.mm(t.t(), t), q.t()), q)).reshape(h, -1)
-        print('S',s.shape, s.t())
+        print('S', s.shape, s.t())
         total_s = torch.sum(s)
         print(total_s)
 
         for i in tqdm(range(p), total=p):
-            weight = Tensor([(w[i, j] / torch.linalg.norm(w[:, j])).to(self.device) ** 2 
+            weight = Tensor([(w[i, j] / torch.linalg.norm(w[:, j])).to(self.device) ** 2
                              for j in range(h)]).to(self.device)
             weight = weight.unsqueeze(1)
             # print(weight.shape)
@@ -209,7 +204,7 @@ class PLSEssitimator:
             # print(model[0].weight.shape, im.shape)
             im = im.to(self.device)
             x = model[0](im)
-            out = [x:=feature(x) for feature in self.feature_maps]
+            out = [x := feature(x) for feature in self.feature_maps]
             out = [item.detach().cpu().numpy() for item in out]
             if X[0] is not None:
                 X = [np.vstack((X[i], out[i])) for i in range(convs_count)]
@@ -220,18 +215,18 @@ class PLSEssitimator:
                 y = np.array(label)
         return X, y
 
-    def get_prune_idxs(self, amount=0.1):
+    def get_prune_idxs(self, amount=0.1) -> List:
         low_bound = self.find_closer_th(amount)
         output = []
         for i in range(len(self.score_layer)):
             score_filters = self.score_layer[i]
             idxs = np.where(score_filters <= low_bound)[0]
-            if len(idxs)==len(score_filters):
+            if len(idxs) == len(score_filters):
                 print(f"Warning: All filters at layer [{i}]")
                 idxs = []
             output.append((i, idxs))
         return output
-    
+
     def find_closer_th(self, percentage):
         scores = None
         print("score layer:")
@@ -240,16 +235,16 @@ class PLSEssitimator:
             if scores is None:
                 scores = self.score_layer[i]
             else:
-                scores = np.concatenate((scores, self.score_layer[i])) #np.hstack
+                scores = np.concatenate((scores, self.score_layer[i]))  #np.hstack
         total = scores.shape[0]
         # print("scores shape: ", scores.shape)
-        
+
         esstimations = np.zeros((total))
         for i in range(total):
             th = scores[i]
-            destin = len(np.where(scores <= th)[0])/total
+            destin = len(np.where(scores <= th)[0]) / total
             esstimations[i] = abs(percentage - destin)
-        
+
         th = scores[np.argmin(esstimations)]
         return th
 
@@ -260,16 +255,16 @@ class PLSEssitimator:
             n_filters = conv.weight.shape[0]
             print(conv)
             # print('weight shape', conv.weight.shape)
-            
+
             begin, end = self.idx_score_layer[idx]
             # print('end-begin: ', end-begin+1)
-            score_layer = scores[begin:end+1]
+            score_layer = scores[begin:end + 1]
 
-            features_filter = (end-begin+1)//n_filters
+            features_filter = (end - begin + 1) // n_filters
             # print('features_filter:',features_filter, n_filters)
             score_filters = np.zeros((n_filters))
             for filter_idx in range(n_filters):
-                score_filters[filter_idx] = np.mean(score_layer[filter_idx:filter_idx+features_filter])
+                score_filters[filter_idx] = np.mean(score_layer[filter_idx:filter_idx + features_filter])
             self.score_layer.append(score_filters)
 
     def fit(self, X, y):
@@ -278,35 +273,39 @@ class PLSEssitimator:
 
         self._generate_score_layer(X, y)
 
+
 class PruneConv(BasePruningMethod):
     PRUNING_TYPE = 'unstructured'
     SAVE_PATH = "prune/resnet"
+    prune_idxs: List
+    convs: List
+
     def __init__(self, amount, c=2):
         _validate_pruning_amount_init(amount)
         self.amount = amount
         self.c = c
-        
+
     def compute_mask(self, t, default_mask):
         mask = t
         return mask.to('cuda')
 
     @classmethod
-    def _load_data(cls, *args, **kwargs) -> Tuple[List, List]:
+    def _load_data(cls, *args, **kwargs) -> PruneDataLoader:
         data_loader = PruneDataLoader(**kwargs)
         # dataset = DataLoader(data_loader, batch_size=kwargs.get('train_count'),
-                            #  shuffle=False, num_workers=1, pin_memory=False)
+        #  shuffle=False, num_workers=1, pin_memory=False)
         return data_loader
 
     @classmethod
     def apply(cls, model, name, amount, c=2,
               importance_scores=None, /,
-              train_count=20, dataset_path='./KonIQ-10k/', 
-              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True, 
+              train_count=20, dataset_path='./KonIQ-10k/',
+              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True,
               resize_height=498, resize_width=664):
         prune_loader = cls._load_data(cls, train_count=train_count, dataset_path=dataset_path,
-                             dataset_labels_path=dataset_labels_path, is_resize=is_resize,
-                             resize_height=resize_height, resize_width=resize_width)
-        
+                                      dataset_labels_path=dataset_labels_path, is_resize=is_resize,
+                                      resize_height=resize_height, resize_width=resize_width)
+
         pls_prune = PLSEssitimator(model)
         cls.convs = pls_prune.convs
 
@@ -319,33 +318,26 @@ class PruneConv(BasePruningMethod):
 
         cls.pruned_convs = []
         for i in range(len(pls_prune.convs)):
-            idxs = [item for item in cls.prune_idxs if item[0]==i]
-            if len(idxs)!=0:
+            idxs = [item for item in cls.prune_idxs if item[0] == i]
+            if len(idxs) != 0:
                 idxs = idxs[0][1]
             module = pls_prune.convs[i]
             importance_scores = np.ones_like(module.weight.detach().cpu().numpy())
             importance_scores[idxs, :] = 0
             importance_scores = torch.from_numpy(importance_scores)
-            super(PruneConv, cls).apply(module, name, amount=amount, c=c, importance_scores=importance_scores)
+            super(PruneConv, cls).apply(module, name, amount, c=c, importance_scores=importance_scores)
 
         return cls
-    
-def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50):
+
+
+def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50) -> Tuple:
     resnet_model = model.features
-    # print(resnet_model)
-    COLAB = False
-    h=height#16#90
-    w=width#24#120
+    h = height  #16#90
+    w = width  #24#120
     t_count = images_count
-    if COLAB:
-        PruneConv.apply(resnet_model, '',amount, train_count=5,
-                        dataset_labels_path='./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat',
-                        dataset_path='./drive/MyDrive/KonIQ-10k', is_resize=True,
-                        resize_height=96, resize_width=128)
-    else:
-        PruneConv.apply(resnet_model, 'weight',amount, train_count=t_count, is_resize=True,
-                        resize_height=h, resize_width=w)
-    
+    PruneConv.apply(resnet_model, 'weight', amount, train_count=t_count, is_resize=True,
+                    resize_height=h, resize_width=w)
+
     prune_parameters = []
     for i in range(len(PruneConv.convs)):
         prune_parameters.append((PruneConv.convs[i], 'weight'))
@@ -354,7 +346,7 @@ def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50
     for i in range(len(PruneConv.convs)):
         # print(name)
         module = PruneConv.convs[i]
-        # print(module.weight)                    
+        # print(module.weight)
         prune.remove(module, 'weight')
     return prune_parameters
 
@@ -369,14 +361,14 @@ def get_prune_features(model: nn.Module) -> List:
             prune_params_list += get_prune_features(module)
     return prune_params_list
 
-def l1_prune(model:nn.Module, amount:float)->None:
+
+def l1_prune(model: nn.Module, amount: float) -> Tuple:
     prune_params = tuple(get_prune_features(model))
     prune.global_unstructured(
         parameters=prune_params,
         pruning_method=prune.L1Unstructured,
         amount=amount
     )
-    for module,name in prune_params:
+    for module, name in prune_params:
         prune.remove(module, name)
     return prune_params
-

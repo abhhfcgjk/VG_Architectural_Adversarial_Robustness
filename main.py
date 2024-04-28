@@ -4,37 +4,33 @@ import LinearityIQA
 from torchvision.transforms.functional import resize, to_tensor, normalize
 from attack_cls import Attack
 
-
 EPS = 1e-6
 
 
 def run(args):
-    exec = Attack(LinearityIQA.IQAModel, 
-                  arch=args.architecture, pool=args.pool,
-                  use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
-                  activation=args.activation, se=args.squeeze_excitation,
-                  device=args.device, pruning=args.pruning
-                  )
+    exec_: Attack = Attack(LinearityIQA.IQAModel,
+                           arch=args.architecture, pool=args.pool,
+                           use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
+                           activation=args.activation, se=args.squeeze_excitation,
+                           device=args.device, pruning=args.pruning
+                           )
     # print(exec.model.state_dict().keys())
     # quit()
 
-    exec.load_checkpoints(checkpoints_path=args.trained_model_file)
-    exec.set_load_conf(dataset_path=args.dataset_path,
-                       resize_size_h=args.resize_size_h, 
-                       resize_size_w=args.resize_size_w)
-    
-    exec.attack(attack_type=args.attack_type,
-                iterations=args.iterations, debug=args.debug)
-    
-    exec.save_results(args.csv_results_dir)
+    exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
+    exec_.set_load_conf(dataset_path=args.dataset_path,
+                        resize_size_h=args.resize_size_h,
+                        resize_size_w=args.resize_size_w)
 
-    return np.array(exec.res).mean()
+    exec_.attack(attack_type=args.attack_type,
+                 iterations=args.iterations, debug=args.debug)
 
+    exec_.save_results(args.csv_results_dir)
 
+    return np.array(exec_.res).mean()
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Test Demo for LinearityIQA")
 
     parser.add_argument(
@@ -77,23 +73,23 @@ if __name__ == "__main__":
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
-    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls') # pls, l1
+    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
 
     args = parser.parse_args()
 
-
     print(args.architecture, args.pruning)
 
-    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}{}'.format(args.checkpoints_dir,
-                                                                                                                args.activation, 
-                                                                                                                args.architecture,
-                                                                                                                
-                                                                                                                args.resize, 
-                                                                                                                args.resize_size_h,
-                                                                                                                args.resize_size_w,
-                                                                                                                "-se=True" if args.squeeze_excitation else '',
-                                                                                                                f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
-                                                                                                                )
+    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}{}'.format(
+        args.checkpoints_dir,
+        args.activation,
+        args.architecture,
+
+        args.resize,
+        args.resize_size_h,
+        args.resize_size_w,
+        "-se=True" if args.squeeze_excitation else '',
+        f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
+        )
 
     print("Device: ", args.device)
     print(path)

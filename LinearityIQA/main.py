@@ -7,8 +7,8 @@ from argparse import ArgumentParser
 
 from train import Trainer
 
-
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
+
 
 def writer_add_scalar(writer, status, dataset, scalars, iter):
     for metric_print in metrics_printed:
@@ -22,10 +22,11 @@ def run(args):
 
 if __name__ == "__main__":
 
-    parser = ArgumentParser(description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
+    parser = ArgumentParser(
+        description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
     parser.add_argument("--activation", default='relu',
                         help='activation function')
-    
+
     parser.add_argument("--seed", type=int, default=19920517)
 
     parser.add_argument('-lr', '--learning_rate', type=float, default=1e-4,
@@ -49,7 +50,7 @@ if __name__ == "__main__":
     parser.add_argument('-rn', '--randomness', action='store_true',
                         help='Allow randomness during training?')
     parser.add_argument('-valc', '--val_criterion', default='SROCC', type=str,
-                        help='val_criterion: SROCC or PLCC (default: SROCC)') # If using RMSE, minor modification should be made, i.e., 
+                        help='val_criterion: SROCC or PLCC (default: SROCC)')  # If using RMSE, minor modification should be made, i.e.,
 
     parser.add_argument('-a', '--alpha', nargs=2, type=float, default=[1, 0],
                         help='loss coefficient alpha in total loss (default: [1, 0])')
@@ -118,23 +119,22 @@ if __name__ == "__main__":
                         help='Debug the training by reducing dataflow to 5 batches')
     parser.add_argument('-pbar', '--pbar', action='store_true',
                         help='Use progressbar for the training')
-    
+
     parser.add_argument('-prune', "--pruning", type=float,
                         help="adversarial pruning percent")
-    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls') # pls, l1
+    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
     parser.add_argument('--colab', action='store_true', help="Train in colab")
-
 
     args = parser.parse_args()
     if args.lr_decay == 1 or args.epochs < 3:  # no lr decay
         args.lr_decay_step = args.epochs
     else:  # 
-        args.lr_decay_step = int(args.epochs/(1+np.log(args.overall_lr_decay)/np.log(args.lr_decay)))
+        args.lr_decay_step = int(args.epochs / (1 + np.log(args.overall_lr_decay) / np.log(args.lr_decay)))
 
     # KonIQ-10k that train-val-test split provided by the owner
     if args.dataset == 'KonIQ-10k':
-        args.train_ratio = 7058/10073
-        args.train_and_val_ratio = 8058/10073
+        args.train_ratio = 7058 / 10073
+        args.train_and_val_ratio = 8058 / 10073
         if not args.resize:
             args.resize_size_h = 768
             args.resize_size_w = 1024
@@ -148,9 +148,9 @@ if __name__ == "__main__":
     default_dir = "KonIQ-10k"
 
     args.im_dirs = {'KonIQ-10k': COLAB_dir if args.colab else default_dir,
-                    'CLIVE': 'CLIVE' 
+                    'CLIVE': 'CLIVE'
                     }  # ln -s database_path xxx
-    
+
     COLAB_path = "./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat"
     default_path = "./data/KonIQ-10kinfo.mat"
     args.data_info = {'KonIQ-10k': COLAB_path if args.colab else default_path,
@@ -166,16 +166,12 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-    # args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-se={}-aug={}-lr={}-bs={}-e={}-opt_level={}'\
-    #                   .format(args.activation, args.architecture, args.loss_type, args.p, args.q, args.detach, 
-    #                           args.dataset, args.resize, args.resize_size_h, args.resize_size_w,args.squeeze_excitation, args.augmentation, 
-    #                           args.learning_rate, args.batch_size, args.epochs, args.opt_level)
-    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}'\
-                      .format(args.activation, args.architecture,
-                              
-                              args.loss_type, args.p, args.q, args.detach, 
-                              args.dataset, args.resize, args.resize_size_h, args.resize_size_w,
-                              "-se=True" if args.squeeze_excitation else '',)
+    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}' \
+        .format(args.activation, args.architecture,
+
+                args.loss_type, args.p, args.q, args.detach,
+                args.dataset, args.resize, args.resize_size_h, args.resize_size_w,
+                "-se=True" if args.squeeze_excitation else '', )
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     args.trained_model_file = 'checkpoints/' + args.format_str

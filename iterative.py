@@ -2,31 +2,34 @@ from torch.autograd import Variable
 from typing import Any, List
 import torch
 
+
 def norm(score: int, mmin: int, mmax: int, metric_range=1):
-    return (score - mmin)*metric_range/(mmax-mmin)
+    return (score - mmin) * metric_range / (mmax - mmin)
+
 
 def get_score(y: List[Any], k: List[int], b: List[int]):
-    return y[-1]*k[0] + b[0]
+    return y[-1] * k[0] + b[0]
+
 
 def loss_fn(output, metric_range, k, b):
-    loss = 1 - (output[-1]*k[0] + b[0])/metric_range
+    loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
     return loss
 
 
 # iterative attack baseline (IFGSM attack)
 def attack_callback(
-    image,
-    model=None,
-    attack_type="IFGSM",
-    metric_range=100,
-    device="cpu",
-    eps=10 / 255,
-    iters=10,
-    alpha=1 / 255,
-    k=[1,1,1],
-    b=[0,0,0],
-    mmin=0,
-    mmax=100
+        image,
+        model=None,
+        attack_type="IFGSM",
+        metric_range=100,
+        device="cpu",
+        eps=10 / 255,
+        iters=10,
+        alpha=1 / 255,
+        k: List[int] = None,
+        b: List[int] = None,
+        mmin=0,
+        mmax=100
 ):
     """
     Attack function.
@@ -41,10 +44,12 @@ def attack_callback(
         torch.Tensor of shape [1,3,H,W]: adversarial image with same shape as image argument.
     """
     image = Variable(image.clone().to(device), requires_grad=True)
-    if attack_type=="IFGSM":
+    if attack_type == "IFGSM":
         additive = torch.zeros_like(image).to(device)
-    elif attack_type=="PGD":
+    elif attack_type == "PGD":
         additive = torch.rand_like(image).to(device)
+    else:
+        raise "No attack_type. Got {}. Expected IFGSM, PGD.".format(attack_type)
 
     additive = Variable(additive, requires_grad=True)
 
@@ -55,7 +60,7 @@ def attack_callback(
             y = model(img)
             # y[-1] = norm(get_score(y, k, b),mmin, mmax)
             loss = loss_fn(y, metric_range, k, b)
-        
+
             model.zero_grad()
             loss.backward()
             input_grad = img.grad.data
@@ -64,7 +69,6 @@ def attack_callback(
         additive.data -= alpha * gradient_sign
         additive.data.clamp_(-eps, eps)
 
-    res_image = image + additive
-    res_image = (res_image).data.clamp_(min=0, max=1)
+    res_image = (image + additive).data.clamp_(min=0, max=1)
 
     return res_image
