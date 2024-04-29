@@ -13,7 +13,7 @@ from typing import Dict
 from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from tqdm import tqdm
 from torch.nn.utils import prune
-from activ import PruneConv, l1_prune, pls_prune, ln_prune
+from pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from torch import nn
 
 
