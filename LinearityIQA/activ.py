@@ -372,3 +372,11 @@ def l1_prune(model: nn.Module, amount: float) -> Tuple:
     for module, name in prune_params:
         prune.remove(module, name)
     return prune_params
+
+
+def ln_prune(model: nn.Module, amount: float, n: int) -> Tuple:
+    prune_params = tuple(get_prune_features(model))
+    for module, name in prune_params:
+        prune.ln_structured(module, name, amount=amount, n=n, dim=-1)
+        prune.remove(module, name)
+    return prune_params

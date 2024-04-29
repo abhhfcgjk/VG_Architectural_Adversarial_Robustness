@@ -13,7 +13,7 @@ from typing import Dict
 from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from tqdm import tqdm
 from torch.nn.utils import prune
-from activ import PruneConv, l1_prune, pls_prune
+from activ import PruneConv, l1_prune, pls_prune, ln_prune
 from torch import nn
 
 
@@ -302,6 +302,8 @@ class Trainer:
         elif self.args.pruning_type == 'pls':
             prune_parameters = pls_prune(self.model, self.pruning,
                                          width=120, height=90, images_count=50)
+        elif self.args.pruning_type == 'l2':
+            prune_parameters = ln_prune(self.model, self.pruning, 2)
 
         IQAModel.print_sparcity(prune_parameters)
 

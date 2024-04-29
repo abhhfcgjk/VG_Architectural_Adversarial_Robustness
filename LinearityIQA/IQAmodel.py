@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torchvision import models
 import numpy as np
 
-from typing import List
+from typing import List, Tuple
 
 if __name__ == 'IQAmodel':
     from SE import SqueezeExcitation
@@ -102,7 +102,7 @@ def SPSP(x, P=1, method='avg'):
 
 class IQAModel(nn.Module):
     @staticmethod
-    def print_sparcity(prune_list: List):
+    def print_sparcity(prune_list: Tuple):
         """only for resnet"""
         print("SPARCITY")
         p_list = prune_list
