@@ -1,6 +1,7 @@
 from torch import nn
 from torch import Tensor
 
+import torch
 from torch.nn.utils.prune import BasePruningMethod, _validate_pruning_amount_init
 from torch.nn.utils import prune
 from torch.utils.data import Dataset
@@ -10,7 +11,7 @@ import numpy.typing as npt
 from sklearn.cross_decomposition import PLSRegression
 
 import os
-from typing import Tuple, List
+from typing import Tuple, List, Any
 
 from PIL import Image
 import h5py
@@ -52,7 +53,7 @@ class PruneDataLoader(Dataset):
     def __len__(self):
         return len(self.imgs_indexs)
 
-    def __getitem__(self, index) -> Any:
+    def __getitem__(self, index):
         im = self.ims[index]
         label = self.label[index]
         return im, label
@@ -297,6 +298,6 @@ def l1_prune(model: nn.Module, amount: float) -> Tuple:
 def ln_prune(model: nn.Module, amount: float, n: int) -> Tuple:
     prune_params = tuple(get_prune_features(model))
     for module, name in prune_params:
-        prune.ln_structured(module, name, amount=amount, n=n, dim=-1)
+        prune.ln_structured(module, name, amount=amount, n=n, dim=0)
         prune.remove(module, name)
     return prune_params

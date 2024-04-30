@@ -107,6 +107,8 @@ if __name__ == "__main__":
     parser.add_argument('-hp', '--hflip_p', default=0.5, type=float,
                         help='hfilp_p (default: 0.5)')
 
+
+
     parser.add_argument('-logd', "--log_dir", type=str, default="runs",
                         help="log directory for Tensorboard log output")
     parser.add_argument('-tdt', '--test_during_training', action='store_true',
@@ -123,6 +125,13 @@ if __name__ == "__main__":
     parser.add_argument('-prune', "--pruning", type=float,
                         help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
+
+    parser.add_argument("-mix","--mixup", type=str, default="debiased",
+                        help='Use augmentation for the training')
+    parser.add_argument('-gamma', "--mixup_gamma", type=float,
+                        help="Coefficient for mixup")
+
+
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 
     args = parser.parse_args()
@@ -166,12 +175,12 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}{}' \
+    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-mixup={}-gamma={}' \
         .format(args.activation, args.architecture,
 
                 args.loss_type, args.p, args.q, args.detach,
-                args.dataset, args.resize, args.resize_size_h, args.resize_size_w,
-                "-se=True" if args.squeeze_excitation else '', )
+                args.dataset, args.resize, args.resize_size_h, args.resize_size_w, args.mixup,
+                args.mixup_gamma)
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     args.trained_model_file = 'checkpoints/' + args.format_str

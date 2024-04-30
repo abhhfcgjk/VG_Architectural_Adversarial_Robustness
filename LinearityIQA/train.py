@@ -15,6 +15,7 @@ from tqdm import tqdm
 from torch.nn.utils import prune
 from pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from torch import nn
+from mixer import MixData
 
 
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
@@ -28,6 +29,7 @@ class Trainer:
     def __init__(self, device, args) -> None:
         # self.config = data
         self.args = args
+        self.device = device
         self.arch = self.args.architecture
         self.device = device
         self.epochs = self.args.epochs
@@ -41,11 +43,11 @@ class Trainer:
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, se=self.is_se,
                               pruning=self.pruning).to(self.device)
-
-        # if args.activation=='silu':
-        #     ReLU_to_SILU(self.model)
-        # elif args.activation=='relu_silu':
-        #     ReLU_to_ReLUSiLU(self.model)
+        
+        if args.mixup and args.mixup == 'debiased': 
+            self.mixer = MixData(args.gamma, self.device)
+        else:
+            self.mixer = None
 
         self.scaler = GradScaler()
         self.k = [1, 1, 1]
@@ -61,6 +63,11 @@ class Trainer:
         self._prepair_train()
         self._train_loop()
 
+    def unpack_data(self, inputs, label):
+        if self.mixer:
+            inputs, label = self.mixer(inputs, label)
+        return inputs, self.mixer.debiased_label
+
     def _prepair(self, train=True, val=True, test=True):
         # print(train,val,test)
         self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val,
@@ -69,6 +76,9 @@ class Trainer:
                                  p=self.args.p, q=self.args.q,
                                  monotonicity_regularization=self.args.monotonicity_regularization,
                                  gamma=self.args.gamma, detach=self.args.detach)
+        if self.mixer:
+            self.mixer.criterion = self.loss_func
+            self.loss_func = self.mixer.criterion
 
     def _prepair_train(self):
         self._prepair()
@@ -108,8 +118,8 @@ class Trainer:
             self.model.train()
             done_steps = self.current_epoch * train_data_len
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
+                inputs, label = self.unpack_data(inputs, label)
                 metrics = self._train_step(inputs, label, step)
-                # if self.gpu == 0:
                 dump_scalar_metrics(
                     metrics, self.writer, 'train', global_step=done_steps + step
                 )

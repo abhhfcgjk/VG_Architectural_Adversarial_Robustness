@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="sm3.8" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="sm3.8" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="$USER_HOME$/anaconda3" project-jdk-type="Python SDK" />
 </project>

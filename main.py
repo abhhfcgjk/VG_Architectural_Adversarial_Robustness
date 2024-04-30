@@ -74,22 +74,24 @@ if __name__ == "__main__":
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
-
+    parser.add_argument("-mix", "--mixup", type=str, default="debiased",
+                        help='Use augmentation for the training')
+    parser.add_argument('-gamma', "--mixup_gamma", type=float,
+                        help="Coefficient for mixup")
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)
 
-    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}{}'.format(
+    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}-mixup={}-gamma={}{}' \
+        .format(
         args.checkpoints_dir,
         args.activation,
         args.architecture,
-
         args.resize,
         args.resize_size_h,
-        args.resize_size_w,
-        "-se=True" if args.squeeze_excitation else '',
+        args.resize_size_w, args.mixup, args.mixup_gamma,
         f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
-        )
+    )
 
     print("Device: ", args.device)
     print(path)
