@@ -13,11 +13,14 @@ from typing import Dict
 from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from tqdm import tqdm
 from torch.nn.utils import prune
+import torch.nn.functional as F
+from torchvision.transforms.functional import to_tensor, normalize
 from pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from torch import nn
-from mixer import MixData
+# from mixer import MixData
+from style_transfer.adain import StyleTransfer
 
-
+from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
 # from dataclasses import dataclass
@@ -43,10 +46,15 @@ class Trainer:
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, se=self.is_se,
                               pruning=self.pruning).to(self.device)
-        
-        if args.mixup and args.mixup == 'debiased': 
-            self.mixer = MixData(args.gamma, self.device)
+        self.gamma = args.gamma
+        self.feature_model = args.feature_model
+        if args.feature_model:
+            self.schedule_for_model = [30,60,90]
+            self.style_transfer = StyleTransfer()
+            # self.mixer = MixData(args.gamma, self.device)
         else:
+            # self.feature_model = None
+            self.style_transfer = None
             self.mixer = None
 
         self.scaler = GradScaler()
@@ -63,10 +71,50 @@ class Trainer:
         self._prepair_train()
         self._train_loop()
 
-    def unpack_data(self, inputs, label):
-        if self.mixer:
-            inputs, label = self.mixer(inputs, label)
-        return inputs, self.mixer.debiased_label
+    def compute_output(self, inputs):
+        if self.style_transfer:
+            output1 = self.model(inputs[0])
+            output2 = self.model(inputs[1])
+            output = torch.cat([output1, output2])
+            ic(output)
+            ic(output.shape)
+            return output
+        return self.model(inputs)
+
+    def unpack_data(self, inputs, label, step):
+        if self.style_transfer:
+            # inputs, label = self.mixer(inputs, label)
+            img_size = self.img_size_scheduler(step, self.epochs, self.schedule_for_model)
+            resized_inputs = F.interpolate(inputs, size=img_size)
+            input_aux, target_aux = self.style_transfer(resized_inputs, label, 1-self.gamma)
+            inputs = (inputs, input_aux)
+            assert len(target_aux)==3
+            batch_size = label.size(0)
+            if self.feature_model=='shape':
+                label = torch.cat([label, self.style_transfer.shape_label])
+            elif self.feature_model=='texture':
+                label = torch.cat([
+                    torch.zeros(batch_size, dtype=torch.long).to(self.device),
+                    self.style_transfer.texture_label])
+            elif self.feature_model=='debiased':
+                label = torch.cat([
+                    torch.zeros(batch_size, dtype=torch.float).to(self.device),
+                    self.style_transfer.texture_label
+                ])
+            else:
+                raise ModuleNotFoundError('')
+            # label = (
+            #     torch.cat([label, target_aux[0]]),
+            #     torch.cat([torch.zeros(batch_size, dtype=torch.long).to(self.device), target_aux[1]]),
+            #     torch.cat([torch.zeros(batch_size, dtype=torch.float).to(self.device), target_aux[2]])
+            # )
+
+            inputs = (
+                normalize(inputs[0], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+                normalize(inputs[1], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
+            )
+            ic(to_tensor(inputs).shape)
+        return inputs, label
 
     def _prepair(self, train=True, val=True, test=True):
         # print(train,val,test)
@@ -118,7 +166,9 @@ class Trainer:
             self.model.train()
             done_steps = self.current_epoch * train_data_len
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
-                inputs, label = self.unpack_data(inputs, label)
+                # inputs, label = self.unpack_data(inputs, label, step)
+
+
                 metrics = self._train_step(inputs, label, step)
                 dump_scalar_metrics(
                     metrics, self.writer, 'train', global_step=done_steps + step
@@ -205,12 +255,12 @@ class Trainer:
         torch.save(checkpoint, self.args.trained_model_file)
 
     def _train_step(self, inputs, label, step):
-        # inputs = inputs.cuda(self.gpu, non_blocking=True)
-        inputs = inputs.to(self.device)
-        # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
-        label = [k.to(self.device) for k in label]
+        inputs, label = self.unpack_data(inputs, label, step)
+        # inputs = inputs.to(self.device)
+        # label = [k.to(self.device) for k in label]
         self.optimizer.zero_grad(set_to_none=True)
-        output = self.model(inputs)
+        output = self.compute_output(inputs)
+        # output = self.model(inputs)
         loss = self.loss_func(output, label) / self.args.accumulation_steps
         with autocast(enabled=True):
             self.scaler.scale(loss).backward()
@@ -316,6 +366,24 @@ class Trainer:
             prune_parameters = ln_prune(self.model, self.pruning, 2)
 
         IQAModel.print_sparcity(prune_parameters)
+
+    def img_size_scheduler(self, batch_idx, epoch, schedule):
+        min_size = 260
+
+        ret_size = 224.0
+        if batch_idx % 2 == 0:
+            ret_size /= 2 ** 0.5
+        schedule = [0] + schedule + [self.epochs]
+        for i in range(len(schedule) - 1):
+            if schedule[i] <= epoch < schedule[i + 1]:
+                if epoch < (schedule[i] + schedule[i + 1]) / 2:
+                    ret_size /= 2 ** 0.5
+                    ri = i
+                break
+        ret_size = max(int(ret_size + 0.5), min_size)
+        if batch_idx == 0:
+            print("img size is ", ret_size)
+        return ret_size, ret_size
 
     @classmethod
     def run(cls, args):
