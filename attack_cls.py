@@ -181,8 +181,8 @@ class Attack:
         cols = [f'eps {e}' for e in self.gains.keys()]
         cols = ['arch', 'activation', 'attack', 'iterations', 'degree'] + cols + ['SROCC']
         if csv_results_dir is not None:
-            csv_path = os.path.join(csv_results_dir, "6results.csv".format(self.activation))
-            if "6results.csv" not in os.listdir(csv_results_dir):
+            csv_path = os.path.join(csv_results_dir, "results.csv".format(self.activation))
+            if "results.csv" not in os.listdir(csv_results_dir):
 
                 tmp = pd.DataFrame(columns=cols)
                 tmp.style.hide(axis='index')

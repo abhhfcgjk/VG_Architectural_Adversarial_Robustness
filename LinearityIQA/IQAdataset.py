@@ -7,13 +7,15 @@ import numpy as np
 import random
 from tqdm import tqdm
 
+from icecream import ic # for debug info
 
 def default_loader(path):
     return Image.open(path).convert('RGB')  #
 
 
 class IQADataset(Dataset):
-    def __init__(self, args, status='train', loader=default_loader):
+    def __init__(self, args, status='train', loader=default_loader, use_normalize=True):
+        self.use_normalize = use_normalize
         self.status = status
 
         self.augment = args.augmentation
@@ -79,11 +81,12 @@ class IQADataset(Dataset):
                 im = hflip(im)
             im = crop(im, i, j, self.crop_size_h, self.crop_size_w)
         im = to_tensor(im)
-        im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
+        if self.use_normalize:
+            im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
         return im
 
 
-def get_data_loaders(args, train=True, val=True, test=True):
+def get_data_loaders(args, train=True, val=True, test=True, use_normalize=True):
     """ Prepare the train-val-test data
     :param args: related arguments
     :return: train_loader, val_loader, test_loader
@@ -91,11 +94,12 @@ def get_data_loaders(args, train=True, val=True, test=True):
     train_loader, val_loader, test_loader = None, None, None
     # print(train, val, test)
     if train:
-        train_dataset = IQADataset(args, 'train')
+        train_dataset = IQADataset(args, 'train', use_normalize=use_normalize)
         batch_size = args.batch_size
         if args.debug:
             num_samples = 5 * batch_size
             print("Debug mode: reduced training dataset to the first {} samples".format(num_samples))
+            ic(num_samples)
             train_dataset = Subset(train_dataset, list(range(num_samples)))
 
         train_loader = DataLoader(train_dataset,
@@ -105,11 +109,12 @@ def get_data_loaders(args, train=True, val=True, test=True):
                                 pin_memory=True)  # If the last batch only contains 1 sample, you need drop_last=True.
     
     if val and test:
-        val_dataset = IQADataset(args, 'val')
-        test_dataset = IQADataset(args, 'test')
+        val_dataset = IQADataset(args, 'val', use_normalize=use_normalize)
+        test_dataset = IQADataset(args, 'test', use_normalize=use_normalize)
         if args.debug:
             num_samples = 5
             print("Debug mode: reduced validation/test datasets to the first {} samples".format(num_samples))
+            ic(num_samples)
             val_dataset = Subset(val_dataset, list(range(num_samples)))
             test_dataset = Subset(test_dataset, list(range(num_samples)))
 

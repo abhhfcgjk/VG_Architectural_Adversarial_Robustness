@@ -14,6 +14,15 @@ def writer_add_scalar(writer, status, dataset, scalars, iter):
     for metric_print in metrics_printed:
         writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
 
+def get_format_string(args) -> str:
+    format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}' \
+        .format(args.activation, args.architecture,
+            args.loss_type, args.p, args.q, args.detach,
+            args.dataset, args.resize, args.resize_size_h, args.resize_size_w)
+    if args.feature_model:
+        assert args.mgamma
+        format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
+    return format_str
 
 def run(args):
     Trainer.run(args)
@@ -126,11 +135,10 @@ if __name__ == "__main__":
                         help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
 
-    parser.add_argument("-mix","--mixup", type=str, default="debiased",
+    parser.add_argument("-fm", "--feature_model", type=str, default="debiased",
                         help='Use augmentation for the training')
-    parser.add_argument('-gamma', "--mixup_gamma", type=float,
+    parser.add_argument("-mg", "--mgamma", type=float, default=0.1,
                         help="Coefficient for mixup")
-
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 
@@ -175,12 +183,8 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-    args.format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}-mixup={}-gamma={}' \
-        .format(args.activation, args.architecture,
+    args.format_str = get_format_string(args)
 
-                args.loss_type, args.p, args.q, args.detach,
-                args.dataset, args.resize, args.resize_size_h, args.resize_size_w, args.mixup,
-                args.mixup_gamma)
     if not os.path.exists('checkpoints'):
         os.makedirs('checkpoints')
     args.trained_model_file = 'checkpoints/' + args.format_str

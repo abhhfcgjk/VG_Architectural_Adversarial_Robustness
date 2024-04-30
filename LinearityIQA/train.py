@@ -46,7 +46,7 @@ class Trainer:
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, se=self.is_se,
                               pruning=self.pruning).to(self.device)
-        self.gamma = args.gamma
+        self.mgamma = args.mgamma
         self.feature_model = args.feature_model
         if args.feature_model:
             self.schedule_for_model = [30,60,90]
@@ -71,76 +71,71 @@ class Trainer:
         self._prepair_train()
         self._train_loop()
 
-    def compute_output(self, inputs):
+    def compute_output(self, inputs, label):
         if self.style_transfer:
             output1 = self.model(inputs[0])
             output2 = self.model(inputs[1])
-            output = torch.cat([output1, output2])
-            ic(output)
-            ic(output.shape)
+            output = [torch.cat([o1, o2], dim=0) for o1, o2 in zip(output1, output2)]
+            label = torch.cat([
+                torch.tensor([k.tolist() for k in label[0]]),
+                torch.tensor([k.tolist() for k in label[1]])
+            ], dim=1).to(self.device)
             return output
         return self.model(inputs)
 
     def unpack_data(self, inputs, label, step):
         if self.style_transfer:
-            # inputs, label = self.mixer(inputs, label)
+            label = torch.tensor([k.tolist() for k in label]).to(self.device)
             img_size = self.img_size_scheduler(step, self.epochs, self.schedule_for_model)
             resized_inputs = F.interpolate(inputs, size=img_size)
-            input_aux, target_aux = self.style_transfer(resized_inputs, label, 1-self.gamma)
+            input_aux, _ = self.style_transfer(resized_inputs, label, 1-self.mgamma)
             inputs = (inputs, input_aux)
-            assert len(target_aux)==3
-            batch_size = label.size(0)
-            if self.feature_model=='shape':
-                label = torch.cat([label, self.style_transfer.shape_label])
-            elif self.feature_model=='texture':
-                label = torch.cat([
-                    torch.zeros(batch_size, dtype=torch.long).to(self.device),
-                    self.style_transfer.texture_label])
-            elif self.feature_model=='debiased':
-                label = torch.cat([
-                    torch.zeros(batch_size, dtype=torch.float).to(self.device),
+            # assert len(target_aux) == 3
+            batch_size = label[0].size(0)
+            if self.feature_model == 'shape':
+                label = (
+                    label, 
+                    self.style_transfer.shape_label
+                )
+            elif self.feature_model == 'texture':
+                label = (
+                    torch.zeros_like(label, dtype=torch.long).to(self.device),
                     self.style_transfer.texture_label
-                ])
+                )
+            elif self.feature_model == 'debiased':
+                label = (
+                    torch.zeros_like(label, dtype=torch.float).to(self.device),
+                    self.style_transfer.texture_label
+                )
             else:
                 raise ModuleNotFoundError('')
-            # label = (
-            #     torch.cat([label, target_aux[0]]),
-            #     torch.cat([torch.zeros(batch_size, dtype=torch.long).to(self.device), target_aux[1]]),
-            #     torch.cat([torch.zeros(batch_size, dtype=torch.float).to(self.device), target_aux[2]])
-            # )
 
             inputs = (
                 normalize(inputs[0], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 normalize(inputs[1], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
             )
-            ic(to_tensor(inputs).shape)
+
         return inputs, label
 
-    def _prepair(self, train=True, val=True, test=True):
+    def _prepair(self, train=True, val=True, test=True, use_normalize=True):
         # print(train,val,test)
         self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val,
-                                                                                test=test)
+                                                                                test=test, use_normalize=use_normalize)
         self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
                                  p=self.args.p, q=self.args.q,
                                  monotonicity_regularization=self.args.monotonicity_regularization,
                                  gamma=self.args.gamma, detach=self.args.detach)
-        if self.mixer:
-            self.mixer.criterion = self.loss_func
-            self.loss_func = self.mixer.criterion
+
 
     def _prepair_train(self):
-        self._prepair()
+        self._prepair(use_normalize=(self.feature_model is None))
         if self.args.ft_lr_ratio == .0:
             for param in self.model.features.parameters():
                 param.requires_grad = False
-        # self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args)
 
         self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step,
                                              gamma=self.args.lr_decay)
-        # self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta, 
-        #                     p=self.args.p, q=self.args.q, 
-        #                     monotonicity_regularization=self.args.monotonicity_regularization, 
-        #                     gamma=self.args.gamma, detach=self.args.detach)
+
         self.scaler = GradScaler()
 
         self.metric_computer = IQAPerformance('val', k=[1, 1, 1], b=[0, 0, 0], mapping=True)
@@ -166,8 +161,6 @@ class Trainer:
             self.model.train()
             done_steps = self.current_epoch * train_data_len
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
-                # inputs, label = self.unpack_data(inputs, label, step)
-
 
                 metrics = self._train_step(inputs, label, step)
                 dump_scalar_metrics(
@@ -255,11 +248,12 @@ class Trainer:
         torch.save(checkpoint, self.args.trained_model_file)
 
     def _train_step(self, inputs, label, step):
+        inputs = inputs.to(self.device)
+
         inputs, label = self.unpack_data(inputs, label, step)
-        # inputs = inputs.to(self.device)
-        # label = [k.to(self.device) for k in label]
+
         self.optimizer.zero_grad(set_to_none=True)
-        output = self.compute_output(inputs)
+        output = self.compute_output(inputs, label)
         # output = self.model(inputs)
         loss = self.loss_func(output, label) / self.args.accumulation_steps
         with autocast(enabled=True):
