@@ -39,7 +39,7 @@ class Attack:
         # self.max_train = self.checkpoint['max']
         self.dataset_path = '.'
         self.resize = False
-        self.metric_range_train = self.checkpoint['max'] - self.checkpoint['min']
+        # self.metric_range_train = self.checkpoint['max'] - self.checkpoint['min']
         print(self.checkpoint.keys())
 
     def set_load_conf(self, dataset_path, resize_size_h, resize_size_w):
@@ -79,6 +79,7 @@ class Attack:
                     break
             ##########
         self.min_test, self.max_test = min(self.clear_vals), max(self.clear_vals)
+        self.metric_range_test = self.max_test - self.min_test
 
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
         self._get_info_max_min_from_testset(debug)
@@ -111,7 +112,7 @@ class Attack:
             for _, eps in enumerate(self.epsilons):
                 im_attacked = iterative.attack_callback(
                     ###############
-                    im, model=self.model, attack_type=attack_type, metric_range=self.metric_range_train,
+                    im, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
                     device=self.device,
                     #################
                     eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b,
@@ -180,8 +181,8 @@ class Attack:
         cols = [f'eps {e}' for e in self.gains.keys()]
         cols = ['arch', 'activation', 'attack', 'iterations', 'degree'] + cols + ['SROCC']
         if csv_results_dir is not None:
-            csv_path = os.path.join(csv_results_dir, "results.csv".format(self.activation))
-            if "results.csv" not in os.listdir(csv_results_dir):
+            csv_path = os.path.join(csv_results_dir, "6results.csv".format(self.activation))
+            if "6results.csv" not in os.listdir(csv_results_dir):
 
                 tmp = pd.DataFrame(columns=cols)
                 tmp.style.hide(axis='index')

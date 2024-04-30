@@ -82,14 +82,14 @@ if __name__ == "__main__":
 
     print(args.architecture, args.pruning)
 
-    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}-mixup={}-gamma={}{}' \
+    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}' \
         .format(
         args.checkpoints_dir,
         args.activation,
         args.architecture,
         args.resize,
         args.resize_size_h,
-        args.resize_size_w, args.mixup, args.mixup_gamma,
+        args.resize_size_w, #args.mixup, args.mixup_gamma,
         f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
     )
 
