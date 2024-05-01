@@ -60,7 +60,7 @@ class StyleTransfer:
         feat = feat * alpha + content_f * (1 - alpha)
         return self.decoder(feat)
 
-    def __call__(self, image, label, alpha, replace=True, label_mix_alpha=0):
+    def __call__(self, image, label, alpha, label_mix_alpha=0):
         n, c, h, w = image.shape
         content = image.cuda()
         random_index = torch.randperm(n)
@@ -81,12 +81,12 @@ class StyleTransfer:
         self.shape_label = label
         self.texture_label = label_style
         self.debiased_label = torch.ones_like(label).cuda() * label_mix_alpha
-        if replace:
-            return stylized_image, (self.shape_label, self.texture_label, self.debiased_label)
-        else:
-            label1 = torch.cat([label, label], dim=1)
-            label2 = torch.cat([label_style, label_style], dim=1)
-            label_weight = torch.cat([torch.zeros(n), torch.ones(n) * label_mix_alpha], dim=1).cuda()
-            ret_label = (label1, label2, label_weight)
-            return torch.cat([image, stylized_image]), ret_label
+        # if replace:
+        #     return stylized_image, (self.shape_label, self.texture_label, self.debiased_label)
+        # else:
+        label1 = torch.cat([label, label], dim=1).cuda()
+        label2 = torch.cat([torch.zeros_like(label), label_style], dim=1).cuda()
+        label_weight = torch.cat([torch.zeros_like(label), torch.ones_like(label) * label_mix_alpha], dim=1).cuda()
+        ret_label = (label1, label2, label_weight)
+        return stylized_image, ret_label
 

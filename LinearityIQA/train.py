@@ -19,6 +19,7 @@ from pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from torch import nn
 # from mixer import MixData
 from style_transfer.adain import StyleTransfer
+from style_transfer.mixer import MixData
 
 from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
@@ -51,11 +52,11 @@ class Trainer:
         if args.feature_model:
             self.schedule_for_model = [30,60,90]
             self.style_transfer = StyleTransfer()
-            # self.mixer = MixData(args.gamma, self.device)
+            self.mixup = MixData(args.gamma, self.device)
         else:
             # self.feature_model = None
             self.style_transfer = None
-            self.mixer = None
+            self.mixup = None
 
         self.scaler = GradScaler()
         self.k = [1, 1, 1]
@@ -76,10 +77,11 @@ class Trainer:
             output1 = self.model(inputs[0])
             output2 = self.model(inputs[1])
             output = [torch.cat([o1, o2], dim=0) for o1, o2 in zip(output1, output2)]
-            label = torch.cat([
-                torch.tensor([k.tolist() for k in label[0]]),
-                torch.tensor([k.tolist() for k in label[1]])
-            ], dim=1).to(self.device)
+            # label = torch.cat([
+            #     torch.tensor([k.tolist() for k in label[0]]),
+            #     torch.tensor([k.tolist() for k in label[1]])
+            # ], dim=1).to(self.device)
+            # label = ()
             return output
         return self.model(inputs)
 
@@ -88,10 +90,11 @@ class Trainer:
             label = torch.tensor([k.tolist() for k in label]).to(self.device)
             img_size = self.img_size_scheduler(step, self.epochs, self.schedule_for_model)
             resized_inputs = F.interpolate(inputs, size=img_size)
-            input_aux, _ = self.style_transfer(resized_inputs, label, 1-self.mgamma)
+            input_aux, targets = self.style_transfer(resized_inputs, label, 1-self.mgamma)
             inputs = (inputs, input_aux)
             # assert len(target_aux) == 3
-            batch_size = label[0].size(0)
+            # batch_size = label[0].size(0)
+            inputs, targets = self.mixup(inputs, targets)
             if self.feature_model == 'shape':
                 label = (
                     label, 
@@ -109,7 +112,7 @@ class Trainer:
                 )
             else:
                 raise ModuleNotFoundError('')
-
+            label = targets
             inputs = (
                 normalize(inputs[0], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 normalize(inputs[1], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
@@ -125,6 +128,9 @@ class Trainer:
                                  p=self.args.p, q=self.args.q,
                                  monotonicity_regularization=self.args.monotonicity_regularization,
                                  gamma=self.args.gamma, detach=self.args.detach)
+        if self.mixup:
+            self.mixup.critetion = self.loss_func
+            self.loss_func = self.mixup.calculate_loss
 
 
     def _prepair_train(self):
@@ -361,9 +367,7 @@ class Trainer:
 
         IQAModel.print_sparcity(prune_parameters)
 
-    def img_size_scheduler(self, batch_idx, epoch, schedule):
-        min_size = 260
-
+    def img_size_scheduler(self, batch_idx, epoch, schedule, min_size=260):
         ret_size = 224.0
         if batch_idx % 2 == 0:
             ret_size /= 2 ** 0.5
