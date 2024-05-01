@@ -94,25 +94,16 @@ class Trainer:
             inputs = (inputs, input_aux)
             # assert len(target_aux) == 3
             # batch_size = label[0].size(0)
-            inputs, targets = self.mixup(inputs, targets)
+            inputs, label = self.mixup(inputs, targets)
             if self.feature_model == 'shape':
-                label = (
-                    label, 
-                    self.style_transfer.shape_label
-                )
+                label[2] = 0.
             elif self.feature_model == 'texture':
-                label = (
-                    torch.zeros_like(label, dtype=torch.long).to(self.device),
-                    self.style_transfer.texture_label
-                )
+                label[2] = 1.
             elif self.feature_model == 'debiased':
-                label = (
-                    torch.zeros_like(label, dtype=torch.float).to(self.device),
-                    self.style_transfer.texture_label
-                )
+                pass
             else:
                 raise ModuleNotFoundError('')
-            label = targets
+            # label = targets
             inputs = (
                 normalize(inputs[0], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
                 normalize(inputs[1], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
