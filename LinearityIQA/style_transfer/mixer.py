@@ -13,14 +13,12 @@ class MixData:
         self.shape_label: torch.Tensor
         self.texture_label: torch.Tensor
         self.debiased_label: torch.Tensor
-        self.__criterion = None
+        self.criterion = None
 
     def calculate_loss(self, prediction, label):
-        ic(label)
-        ic(type(prediction))
-        assert self.__criterion
-        self.loss_vector = (1. - label[2])*self.__criterion(prediction, label[0]) \
-              + label[2]*self.__criterion(prediction, label[1])
+        assert self.criterion is not None
+        self.loss_vector = (1. - label[2])*self.criterion(prediction, label[0]) \
+              + label[2]*self.criterion(prediction, label[1])
         return self.loss_vector.mean()
 
     def __call__(self, x: Tuple[torch.Tensor], y: Tuple[torch.Tensor]):
@@ -30,11 +28,3 @@ class MixData:
         y[1][:batch_size] = y[0][:batch_size]
         y[2][:batch_size] = self.__lam
         return x, y
-
-    @property
-    def criterion(self):
-        return self.__criterion
-    
-    @criterion.setter
-    def criterion(self, value):
-        self.__criterion = value

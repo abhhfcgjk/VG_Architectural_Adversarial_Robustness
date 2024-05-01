@@ -128,8 +128,8 @@ class Trainer:
                                  p=self.args.p, q=self.args.q,
                                  monotonicity_regularization=self.args.monotonicity_regularization,
                                  gamma=self.args.gamma, detach=self.args.detach)
-        if self.mixup:
-            self.mixup.critetion = self.loss_func
+        if self.mixup is not None:
+            self.mixup.criterion = self.loss_func
             self.loss_func = self.mixup.calculate_loss
 
 
