@@ -63,6 +63,7 @@ CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -l
 ```
 python main.py --dataset_path ./NIPS_test/ --resize -arch resnet34 --activation silu --device cpu --csv_results_dir rs -iter 10
 python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 -prune 0.1 -t_prune pls
+python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 --feature_model debiased -mg 0.1
 ```
 
 ## Visualization

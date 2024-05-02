@@ -6,6 +6,22 @@ from attack_cls import Attack
 
 EPS = 1e-6
 
+def get_format_string(args):
+    format_str = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
+        .format(
+        args.checkpoints_dir,
+        args.activation,
+        args.architecture,
+        args.resize,
+        args.resize_size_h,
+        args.resize_size_w, #args.mixup, args.mixup_gamma,
+        
+    )
+    if args.feature_model:
+        assert args.mgamma
+        format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
+    format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
+    return format_str
 
 def run(args):
     exec_: Attack = Attack(LinearityIQA.IQAModel,
@@ -74,24 +90,15 @@ if __name__ == "__main__":
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
-    parser.add_argument("-mix", "--mixup", type=str, default="debiased",
+    parser.add_argument("-fm", "--feature_model", type=str, 
                         help='Use augmentation for the training')
-    parser.add_argument('-gamma', "--mixup_gamma", type=float,
+    parser.add_argument("-mg", "--mgamma", type=float, default=0.1,
                         help="Coefficient for mixup")
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)
 
-    path = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}{}' \
-        .format(
-        args.checkpoints_dir,
-        args.activation,
-        args.architecture,
-        args.resize,
-        args.resize_size_h,
-        args.resize_size_w, #args.mixup, args.mixup_gamma,
-        f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
-    )
+    path = get_format_string(args)
 
     print("Device: ", args.device)
     print(path)

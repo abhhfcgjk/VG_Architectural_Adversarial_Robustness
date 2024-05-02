@@ -25,8 +25,6 @@ class MixData:
         batch_size = x[0].size()[0]
         indexs = torch.randperm(batch_size).to(self.device)
         x[0][:] = (1-self.__lam)*x[0][:] + self.__lam*x[0][indexs, :]
-        ic(y[1])
         y[1][:,:batch_size] = y[0][:,:batch_size]
-        ic(y[1])
         y[2][:,:batch_size] = self.__lam
         return x, y
