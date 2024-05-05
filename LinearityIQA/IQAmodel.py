@@ -127,6 +127,15 @@ class IQAModel(nn.Module):
                 sd.pop(key)
             # quit()
         return sd
+    
+    @staticmethod
+    def extract_shapa_texture_debiased_state_dict(path: str):
+        sd = torch.load(path)["state_dict"]
+
+        for key in list(sd.keys()):
+            if 'module' in key:
+                sd[key.replace('module.', '')] = sd.pop(key)
+        return sd
 
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False,
                  pruning=0.0):
@@ -161,6 +170,39 @@ class IQAModel(nn.Module):
 
             adversarial_resnet.load_state_dict(adversarial_state_dict)
             features = list(adversarial_resnet.children())[:-2]
+        # elif arch == "debiasedresnet50":
+        #     debiased_path = './style_transfer_checkpoints/res50-debiased.pth'
+        #     resnet_model = models.__dict__["resnet50"]()
+
+        #     debiased_state_dict = self.extract_shapa_texture_debiased_state_dict(debiased_path)
+        #     resnet_model.load_state_dict(debiased_state_dict, strict=False)
+
+        #     features = list(resnet_model.children())[:-2]
+        # elif arch == "shaperesnet50":
+        #     debiased_path = './LinearityIQA/style_transfer_checkpoints/res50-shape-biased.pth'
+        #     resnet_model = models.__dict__[arch](pretrained=True)
+
+        #     features = list(resnet_model.children())[:-2]
+        # elif arch == "textureresnet50":
+        #     debiased_path = './LinearityIQA/style_transfer_checkpoints/res50-texture-biased.pth'
+        #     resnet_model = models.__dict__[arch](pretrained=True)
+
+        #     features = list(resnet_model.children())[:-2]
+        elif ("debiased" in arch) or ("shape" in arch) or ("texture" in arch):
+            assert "resnet50" in arch
+            model_type = arch.replace("resnet50", "")
+            if model_type == "shape" or model_type == "texture":
+                _path = f'./style_transfer_checkpoints/res50-{model_type}-biased.pth'
+            elif model_type == "debiased":
+                _path = f'./style_transfer_checkpoints/res50-{model_type}.pth'
+            else:
+                raise TypeError(f"No model type {model_type}.")
+            
+            resnet_model = models.__dict__["resnet50"]()
+            _state_dict = self.extract_shapa_texture_debiased_state_dict(_path)
+            resnet_model.load_state_dict(_state_dict, strict=False)
+
+            features = list(resnet_model.children())[:-2]
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
 

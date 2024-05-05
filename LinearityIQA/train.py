@@ -18,8 +18,8 @@ from torchvision.transforms.functional import to_tensor, normalize
 from pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from torch import nn
 # from mixer import MixData
-from style_transfer.adain import StyleTransfer
-from style_transfer.mixer import MixData
+# from style_transfer.adain import StyleTransfer
+# from style_transfer.mixer import MixData
 
 from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
@@ -47,16 +47,16 @@ class Trainer:
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, se=self.is_se,
                               pruning=self.pruning).to(self.device)
-        self.mgamma = args.mgamma
-        self.feature_model = args.feature_model
-        if args.feature_model:
-            self.schedule_for_model = [30,60,90]
-            self.style_transfer = StyleTransfer()
-            self.mixup = MixData(args.gamma, self.device)
-        else:
-            # self.feature_model = None
-            self.style_transfer = None
-            self.mixup = None
+        # self.mgamma = args.mgamma
+        # self.feature_model = args.feature_model
+        # if args.feature_model:
+        #     self.schedule_for_model = [30,60,90]
+        #     self.style_transfer = StyleTransfer()
+        #     self.mixup = MixData(args.gamma, self.device)
+        # else:
+        #     # self.feature_model = None
+        #     self.style_transfer = None
+        #     self.mixup = None
 
         self.scaler = GradScaler()
         self.k = [1, 1, 1]
@@ -73,41 +73,36 @@ class Trainer:
         self._train_loop()
 
     def compute_output(self, inputs, label):
-        if self.style_transfer:
-            output1 = self.model(inputs[0])
-            output2 = self.model(inputs[1])
-            output = [torch.cat([o1, o2], dim=0) for o1, o2 in zip(output1, output2)]
-            # label = torch.cat([
-            #     torch.tensor([k.tolist() for k in label[0]]),
-            #     torch.tensor([k.tolist() for k in label[1]])
-            # ], dim=1).to(self.device)
-            # label = ()
-            return output
+        # if self.style_transfer:
+        #     output1 = self.model(inputs[0])
+        #     output2 = self.model(inputs[1])
+        #     output = [torch.cat([o1, o2], dim=0) for o1, o2 in zip(output1, output2)]
+        #     return output
         return self.model(inputs)
 
     def unpack_data(self, inputs, label, step):
-        if self.style_transfer:
-            label = torch.tensor([k.tolist() for k in label]).to(self.device)
-            img_size = self.img_size_scheduler(step, self.epochs, self.schedule_for_model)
-            resized_inputs = F.interpolate(inputs, size=img_size)
-            input_aux, targets = self.style_transfer(resized_inputs, label, 1-self.mgamma)
-            inputs = (inputs, input_aux)
-            # assert len(target_aux) == 3
-            # batch_size = label[0].size(0)
-            inputs, label = self.mixup(inputs, targets)
-            if self.feature_model == 'shape':
-                label[2] = 0.
-            elif self.feature_model == 'texture':
-                label[2] = 1.
-            elif self.feature_model == 'debiased':
-                pass
-            else:
-                raise ModuleNotFoundError('')
-            # label = targets
-            inputs = (
-                normalize(inputs[0], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-                normalize(inputs[1], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
-            )
+        # if self.style_transfer:
+        #     label = torch.tensor([k.tolist() for k in label]).to(self.device)
+        #     img_size = self.img_size_scheduler(step, self.epochs, self.schedule_for_model)
+        #     resized_inputs = F.interpolate(inputs, size=img_size)
+        #     input_aux, targets = self.style_transfer(resized_inputs, label, 1-self.mgamma)
+        #     inputs = (inputs, input_aux)
+        #     # assert len(target_aux) == 3
+        #     # batch_size = label[0].size(0)
+        #     inputs, label = self.mixup(inputs, targets)
+        #     if self.feature_model == 'shape':
+        #         label[2] = 0.
+        #     elif self.feature_model == 'texture':
+        #         label[2] = 1.
+        #     elif self.feature_model == 'debiased':
+        #         pass
+        #     else:
+        #         raise ModuleNotFoundError('')
+        #     # label = targets
+        #     inputs = (
+        #         normalize(inputs[0], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        #         normalize(inputs[1], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
+        #     )
 
         return inputs, label
 
@@ -119,13 +114,14 @@ class Trainer:
                                  p=self.args.p, q=self.args.q,
                                  monotonicity_regularization=self.args.monotonicity_regularization,
                                  gamma=self.args.gamma, detach=self.args.detach)
-        if self.mixup is not None:
-            self.mixup.criterion = self.loss_func
-            self.loss_func = self.mixup.calculate_loss
+        # if self.mixup is not None:
+        #     self.mixup.criterion = self.loss_func
+        #     self.loss_func = self.mixup.calculate_loss
 
 
     def _prepair_train(self):
-        self._prepair(use_normalize=(self.feature_model is None))
+        # self._prepair(use_normalize=(self.feature_model is None))
+        self._prepair()
         if self.args.ft_lr_ratio == .0:
             for param in self.model.features.parameters():
                 param.requires_grad = False
@@ -158,6 +154,8 @@ class Trainer:
             self.model.train()
             done_steps = self.current_epoch * train_data_len
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
+                label = [k.cuda() for k in label]
+                inputs = inputs.cuda()
 
                 metrics = self._train_step(inputs, label, step)
                 dump_scalar_metrics(
@@ -252,6 +250,7 @@ class Trainer:
         self.optimizer.zero_grad(set_to_none=True)
         output = self.compute_output(inputs, label)
         # output = self.model(inputs)
+        # ic(output, label)
         loss = self.loss_func(output, label) / self.args.accumulation_steps
         with autocast(enabled=True):
             self.scaler.scale(loss).backward()

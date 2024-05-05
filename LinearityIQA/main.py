@@ -19,9 +19,9 @@ def get_format_string(args) -> str:
         .format(args.activation, args.architecture,
             args.loss_type, args.p, args.q, args.detach,
             args.dataset, args.resize, args.resize_size_h, args.resize_size_w)
-    if args.feature_model:
-        assert args.mgamma
-        format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
+    # if args.feature_model:
+    #     assert args.mgamma
+    #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
     return format_str
 
 def run(args):
@@ -135,10 +135,10 @@ if __name__ == "__main__":
                         help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
 
-    parser.add_argument("-fm", "--feature_model", type=str, default="debiased",
-                        help='Use augmentation for the training')
-    parser.add_argument("-mg", "--mgamma", type=float, default=0.1,
-                        help="Coefficient for mixup")
+    # parser.add_argument("-fm", "--feature_model", type=str, default="debiased",
+    #                     help='Use augmentation for the training')
+    # parser.add_argument("-mg", "--mgamma", type=float, default=0.1,
+    #                     help="Coefficient for mixup")
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 
