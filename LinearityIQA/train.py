@@ -41,7 +41,7 @@ class Trainer:
         self.gpu = 0
         self.is_se = args.squeeze_excitation
         self.pruning = args.pruning
-        self.model = IQAModel(arch=self.args.architecture,
+        self.model = IQAModel(args.model, arch=self.args.architecture,
                               pool=self.args.pool,
                               use_bn_end=self.args.use_bn_end,
                               P6=self.args.P6, P7=self.args.P7,

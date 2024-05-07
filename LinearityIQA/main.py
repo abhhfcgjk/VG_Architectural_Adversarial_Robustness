@@ -140,6 +140,8 @@ if __name__ == "__main__":
     # parser.add_argument("-mg", "--mgamma", type=float, default=0.1,
     #                     help="Coefficient for mixup")
 
+    parser.add_argument('--model', default='Linearity', type=str)
+
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 
     args = parser.parse_args()
