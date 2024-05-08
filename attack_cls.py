@@ -11,20 +11,23 @@ import iterative
 
 # from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
+# from icecream import ic
+# ic.enable()
 
 class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
-    def __init__(self, model, arch, pool, use_bn_end, P6, P7, se, pruning, activation, device='cpu') -> None:
+    def __init__(self, model, base_model, arch, pool, use_bn_end, P6, P7, se, pruning, activation, device='cpu') -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
         self.arch = arch
         self.se = se
+        self.base_model = base_model
         self.prune = pruning
         self.activation = activation
         # self.prune 
-        self.model = model("Linearity",arch=arch, pool=pool,
+        self.model = model(base_model,arch=arch, pool=pool,
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, se=se, pruning=None).to(self.device)
         self.model.eval()
@@ -48,6 +51,13 @@ class Attack:
         self.resize_size_h: int = resize_size_h
         self.resize_size_w: int = resize_size_w
 
+    def _get_prediction(self, val):
+        if self.base_model == "Linearity":
+            return val[-1].item() * self.k[0] + self.b[0]
+        elif self.base_model == "KonCept":
+            return val
+        raise NameError(f"No {self.base_model} model.")
+
     def _get_info_max_min_from_testset(self, debug=False):
         self.clear_vals = []
         count = 5
@@ -68,7 +78,7 @@ class Attack:
 
             with torch.no_grad():
                 clear_val = self.model(im)
-                clear_val = clear_val[-1].item() * self.k[0] + self.b[0]
+                clear_val = self._get_prediction(clear_val)
                 self.clear_vals.append(clear_val)
 
             ###########debug
@@ -115,7 +125,7 @@ class Attack:
                     im, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
                     device=self.device,
                     #################
-                    eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b,
+                    eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b, model_name=self.base_model,
                     mmin=self.min_test, mmax=self.max_test
                 )
 
@@ -126,10 +136,10 @@ class Attack:
                     im_attacked = im + diff
 
                     attacked_val = self.model(im_attacked)
-                    attacked_val = attacked_val[-1].item() * self.k[0] + self.b[0]
+                    attacked_val = self._get_prediction(attacked_val)
                     attacked_val = iterative.norm(attacked_val, self.min_test, self.max_test)
                     gain = attacked_val - clear_val
-                    self.gains[int(eps * 255)].append(gain)
+                    self.gains[int(eps * 255)].append(gain.item())
             self.attacked_vals.append(attacked_val)  # with eps 10/255
             image_num += 1
 
@@ -167,6 +177,9 @@ class Attack:
                 'iterations': self.iterations,
                 'degree': f'10^{degree}'}
         for int_eps in self.gains.keys():
+            
+            # ic(self.gains[int_eps])
+            # quit()
             self.results.append(np.array(self.gains[int_eps]).mean())
             print(
                 f"eps={int_eps}/255 :",

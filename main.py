@@ -7,24 +7,25 @@ from attack_cls import Attack
 EPS = 1e-6
 
 def get_format_string(args):
-    format_str = '{}/activation={}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
+    format_str = '{}/activation={}-{}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
         .format(
         args.checkpoints_dir,
         args.activation,
+        args.model,
         args.architecture,
         args.resize,
         args.resize_size_h,
         args.resize_size_w, #args.mixup, args.mixup_gamma,
         
     )
-    if args.feature_model:
-        assert args.mgamma
-        format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
+    # if args.feature_model:
+    #     assert args.mgamma
+    #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
     format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
     return format_str
 
 def run(args):
-    exec_: Attack = Attack(LinearityIQA.IQAModel,
+    exec_: Attack = Attack(LinearityIQA.IQAModel, base_model=args.model,
                            arch=args.architecture, pool=args.pool,
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
                            activation=args.activation, se=args.squeeze_excitation,
@@ -90,10 +91,9 @@ if __name__ == "__main__":
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
-    parser.add_argument("-fm", "--feature_model", type=str, 
-                        help='Use augmentation for the training')
-    parser.add_argument("-mg", "--mgamma", type=float, default=0.1,
-                        help="Coefficient for mixup")
+
+    parser.add_argument('--model', default='Linearity', type=str)
+
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)

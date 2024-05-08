@@ -7,12 +7,15 @@ def norm(score: int, mmin: int, mmax: int, metric_range=1):
     return (score - mmin) * metric_range / (mmax - mmin)
 
 
-def get_score(y: List[Any], k: List[int], b: List[int]):
-    return y[-1] * k[0] + b[0]
+def get_score(y: List[Any], k: List[int], b: List[int], model_name):
+    if model_name=="Linearity":
+        return y[-1] * k[0] + b[0]
+    elif model_name=="KonCept":
+        return y
+    raise NameError(f"No {model_name} model.")
 
-
-def loss_fn(output, metric_range, k, b):
-    loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
+def loss_fn(output, metric_range, k, b, model_name):
+    loss = 1 - (get_score(output, k, b, model_name)) / metric_range
     return loss
 
 
@@ -28,6 +31,7 @@ def attack_callback(
         alpha=1 / 255,
         k: List[int] = None,
         b: List[int] = None,
+        model_name="Linearity",
         mmin=0,
         mmax=100
 ):
@@ -59,7 +63,7 @@ def attack_callback(
             img.data.clamp_(0.0, 1.0)
             y = model(img)
             # y[-1] = norm(get_score(y, k, b),mmin, mmax)
-            loss = loss_fn(y, metric_range, k, b)
+            loss = loss_fn(y, metric_range, k, b, model_name)
 
             model.zero_grad()
             loss.backward()
