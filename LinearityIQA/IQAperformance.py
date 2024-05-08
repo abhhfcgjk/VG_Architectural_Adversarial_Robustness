@@ -2,16 +2,57 @@
 import numpy as np
 from scipy import stats
 
+from icecream import ic
+
+class IQAPerfomanceKonCept:
+    def __init__(self, status, *args, **kwargs):
+        self.status = status
+
+    def reset(self):
+        self._y_pred  = []
+        self._y       = []
+        self._y_std   = []
+
+    def update(self, output):
+        y_pred, y = output
+        
+        # ic(y_pred, y)
+        self._y.extend([t.item() for t in y[0]])
+        self._y_std.extend([t.item() for t in y[1]])
+        self._y_pred.extend([t.item() for t in y_pred])
+        # ic(self._y)
+        # ic(self._y_pred)
+
+    def compute(self):
+        sq = np.reshape(np.asarray(self._y), (-1,))
+        sq_std = np.reshape(np.asarray(self._y_std), (-1,))
+        # ic(self._y)
+        # ic(self._y_pred)
+        self.preds = np.reshape(np.asarray(self._y_pred), (-1,))
+
+        ic(sq)
+        ic(self.preds)
+        self.SROCC = stats.spearmanr(sq, self.preds)[0]
+        self.PLCC = stats.pearsonr(sq, self.preds)[0]
+        self.RMSE = np.sqrt(((sq - self.preds) ** 2).mean())
+        
+        if self.status=='train':
+            return {'k': None, 'b': None}
+
+        return {'SROCC': self.SROCC,
+                'PLCC': self.PLCC,
+                'RMSE': self.RMSE,
+                }
 
 
-class IQAPerformance:
+class IQAPerformanceLinearity:
     """
     Evaluation of VQA methods using SROCC, PLCC, RMSE.
 
     `update` must receive output of the form (y_pred, y).
     """
     def __init__(self, status='train', k=[1,1,1], b=[0,0,0], mapping=True):
-        super(IQAPerformance, self).__init__()
+        # super(IQAPerformanceLinearity, self).__init__()
         self.k = k
         self.b = b
         self.status = status
@@ -27,6 +68,8 @@ class IQAPerformance:
 
     def update(self, output):
         y_pred, y = output
+        from icecream import ic
+        ic(y_pred, y)
         self._y.extend([t.item() for t in y[0]])
         self._y_std.extend([t.item() for t in y[1]])
         self._y_pred.extend([t.item() for t in y_pred[-1]])
@@ -45,8 +88,6 @@ class IQAPerformance:
         
         if self.status=='train':
             return {'k': self.k, 'b': self.b}
-
-        
 
         return {'SROCC': self.SROCC,
                 'PLCC': self.PLCC,

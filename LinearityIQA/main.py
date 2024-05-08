@@ -15,8 +15,8 @@ def writer_add_scalar(writer, status, dataset, scalars, iter):
         writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
 
 def get_format_string(args) -> str:
-    format_str = 'activation={}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}' \
-        .format(args.activation, args.architecture,
+    format_str = 'activation={}-{}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}' \
+        .format(args.activation, args.model, args.architecture,
             args.loss_type, args.p, args.q, args.detach,
             args.dataset, args.resize, args.resize_size_h, args.resize_size_w)
     # if args.feature_model:

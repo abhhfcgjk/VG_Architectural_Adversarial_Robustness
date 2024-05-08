@@ -10,6 +10,8 @@ from torchvision import models
 
 __all__ = ['InceptionResNetV2', 'inceptionresnetv2']
 
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 pretrained_settings = {
     'inceptionresnetv2': {
         'imagenet': {
@@ -385,18 +387,28 @@ def inceptionresnetv2(num_classes=1000, pretrained='imagenet'):
 
 _BASE_MODELS = Literal["resnet", "inceptionresnet"]
 
+from icecream import ic
+ic.disable()
+
 class KonCept(nn.Module):
     @staticmethod
     def get_base_model(base_model_name: _BASE_MODELS):
-        if base_model_name=="inceptionresnet":
+        if "inceptionresnet" in base_model_name:
             base_model = inceptionresnetv2(num_classes=1000, pretrained='imagenet')
-        elif base_model_name=="resnet":
-            base_model = models.__dict__["resnet50"]()
+        elif "resnet" in base_model_name:
+            base_model = models.__dict__["resnet50"](pretrained=True)
+        else:
+            raise NameError(f"No base model {base_model_name}")
         return base_model
     def __init__(self,base_model_name: _BASE_MODELS,num_classes=1,**kwargs):
+        ic("KONCEPT")
         super(KonCept,self).__init__()
+        self.base_model_name = base_model_name
         base_model = self.get_base_model(base_model_name)
+        ic(list(base_model.children())[:-1])
+        # print(base_model.children())
         self.base= nn.Sequential(*list(base_model.children())[:-1])
+        self.adapter = BasicConv2d(2048, 1536, kernel_size=1, stride=1)
         self.fc = nn.Sequential(
             nn.Linear(1536, 2048),
             nn.ReLU(inplace=True),
@@ -413,9 +425,18 @@ class KonCept(nn.Module):
             nn.Linear(256, num_classes),
         )
 
+    def resnet_adapter(self, x):
+        return self.adapter(x)
+
     def forward(self,x):
+        ic(x.shape)
         x = self.base(x)
+        ic(x.shape)
+        if self.base_model_name:
+            x = self.resnet_adapter(x)
+        ic(x.shape)
         x = x.view(x.size(0), -1)
+        ic(x.shape)
         x = self.fc(x)
 
         return x 

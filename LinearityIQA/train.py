@@ -5,7 +5,7 @@ from torch.cuda.amp.autocast_mode import autocast
 from IQAdataset import get_data_loaders
 from IQAmodel import IQAModel
 from IQAloss import IQALoss
-from IQAperformance import IQAPerformance
+from IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
 from tensorboardX import SummaryWriter
 import datetime
 import numpy as np
@@ -32,7 +32,12 @@ class Trainer:
 
     def __init__(self, device, args) -> None:
         # self.config = data
+        if args.debug:
+            ic.enable()
+        else:
+            ic.disable()
         self.args = args
+        self.base_model_name = args.model
         self.device = device
         self.arch = self.args.architecture
         self.device = device
@@ -110,10 +115,13 @@ class Trainer:
         # print(train,val,test)
         self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val,
                                                                                 test=test, use_normalize=use_normalize)
-        self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
-                                 p=self.args.p, q=self.args.q,
-                                 monotonicity_regularization=self.args.monotonicity_regularization,
-                                 gamma=self.args.gamma, detach=self.args.detach)
+        if self.base_model_name == "Linearity":
+            self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
+                                    p=self.args.p, q=self.args.q,
+                                    monotonicity_regularization=self.args.monotonicity_regularization,
+                                    gamma=self.args.gamma, detach=self.args.detach)
+        elif self.base_model_name == "KonCept":
+            self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
         # if self.mixup is not None:
         #     self.mixup.criterion = self.loss_func
         #     self.loss_func = self.mixup.calculate_loss
@@ -131,22 +139,27 @@ class Trainer:
 
         self.scaler = GradScaler()
 
-        self.metric_computer = IQAPerformance('val', k=[1, 1, 1], b=[0, 0, 0], mapping=True)
+        self.metric_computer = self._get_perfomance('val', k=[1, 1, 1], b=[0, 0, 0], mapping=True)
         self.best_val_criterion, self.best_epoch = -100, -1
 
         self._optimizer()
 
     def _optimizer(self):
-        self.optimizer = Adam([{'params': self.model.regression.parameters()},
-                               # The most important parameters. Maybe we need three levels of lrs
-                               {'params': self.model.dr6.parameters()},
-                               {'params': self.model.dr7.parameters()},
-                               {'params': self.model.regr6.parameters()},
-                               {'params': self.model.regr7.parameters()},
-                               {'params': self.model.features.parameters(),
-                                'lr': self.args.learning_rate * self.args.ft_lr_ratio}],
-                              lr=self.args.learning_rate,
-                              weight_decay=self.args.weight_decay)  # Adam can be changed to other optimizers, such as SGD, Adadelta.
+        if self.base_model_name=="Linearity":
+            self.optimizer = Adam([{'params': self.model.regression.parameters()},
+                                # The most important parameters. Maybe we need three levels of lrs
+                                {'params': self.model.dr6.parameters()},
+                                {'params': self.model.dr7.parameters()},
+                                {'params': self.model.regr6.parameters()},
+                                {'params': self.model.regr7.parameters()},
+                                {'params': self.model.features.parameters(),
+                                    'lr': self.args.learning_rate * self.args.ft_lr_ratio}],
+                                lr=self.args.learning_rate,
+                                weight_decay=self.args.weight_decay)  # Adam can be changed to other optimizers, such as SGD, Adadelta.
+        elif self.base_model_name=="KonCept":
+            self.optimizer = Adam(self.model.parameters(), lr=self.args.learning_rate)
+        else:
+            raise NameError(f"No {self.base_model_name} model.")
 
     def _train_loop(self):
         train_data_len = len(self.train_loader)
@@ -202,7 +215,7 @@ class Trainer:
                           {val_criterion:.3f} @epoch: {self.current_epoch}'
                 )
 
-        self.metric_computer = IQAPerformance(
+        self.metric_computer = self._get_perfomance(
             'train', k=[1, 1, 1], b=[0, 0, 0], mapping=True
         )
 
@@ -251,6 +264,8 @@ class Trainer:
         output = self.compute_output(inputs, label)
         # output = self.model(inputs)
         # ic(output, label)
+        ic(output)
+        ic(label[0].unsqueeze(1))
         loss = self.loss_func(output, label) / self.args.accumulation_steps
         with autocast(enabled=True):
             self.scaler.scale(loss).backward()
@@ -269,6 +284,8 @@ class Trainer:
         label = [k.to(self.device) for k in label]
 
         output = self.model(inputs)
+        ic(output)
+        ic(label)
         self.metric_computer.update((output, label))
 
     def eval(self):
@@ -281,7 +298,7 @@ class Trainer:
         self.model.load_state_dict(checkpoint['model'])
         self.k = checkpoint['k']
         self.b = checkpoint['b']
-        self.metric_computer = IQAPerformance('test', k=self.k, b=self.b, mapping=True)
+        self.metric_computer = self._get_perfomance('test', k=self.k, b=self.b, mapping=True)
         metric_range = checkpoint['max'] - checkpoint['min']
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric_range:', metric_range)
@@ -344,6 +361,13 @@ class Trainer:
         ######################
 
         IQAModel.print_sparcity(prune_parameters)
+
+    def _get_perfomance(self, *args, **kwargs):
+        if self.base_model_name=="Linearity":
+            return IQAPerformanceLinearity(*args, **kwargs)
+        elif self.base_model_name=="KonCept":
+            return IQAPerfomanceKonCept(*args, **kwargs)
+        raise NameError(f"No {self.base_model_name} model.")
 
     def prune(self):
         prune_parameters: tuple

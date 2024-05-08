@@ -4,9 +4,9 @@ import torch.nn.functional as F
 from torchvision import models
 import numpy as np
 
-from typing import List, Tuple, Any
+from typing import List, Tuple, Any, Union
 
-if __name__ == 'IQAmodel':
+if __name__ == 'Linearity':
     from SE import SqueezeExcitation
     from VOneNet import get_model
 else:
@@ -218,7 +218,7 @@ class IQAModel(nn.Module):
             self.regr7 = nn.Linear(64, 1)
             self.regression = nn.Linear(64 * 2, 1)
 
-    def get_features(self, features) -> Tuple[List[int, int], nn.Module]:
+    def get_features(self, features) -> Tuple[List[Union[int, int]], nn.Module]:
         if self.arch == 'alexnet':
             in_features = [256, 256]
             self.id1 = 9
