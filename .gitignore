@@ -1,18 +1,20 @@
 # NIPS_test/
 
-LinearityIQA/KonIQ-10k
+models_train/KonIQ-10k
 
 
 __pycache__/
 
-LinearityIQA/results
-LinearityIQA/checkpoints/*
+models_train/results
+models_train/checkpoints/*
 *.pth
-LinearityIQA/results_in_the_paper/*.pdf
+models_train/results_in_the_paper/*.pdf
 *.pdf
 graph_data
 runs/
 *.log
 /KonIQ-10k
 /prune
-/LinearityIQA/adversarial_trained
+/models_train/adversarial_trained
+/checkpoints
+/NIPS_test

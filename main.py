@@ -1,6 +1,6 @@
 import numpy as np
 import argparse
-import LinearityIQA
+import models_train
 from torchvision.transforms.functional import resize, to_tensor, normalize
 from attack_cls import Attack
 
@@ -24,7 +24,7 @@ def get_format_string(args):
     return format_str
 
 def run(args):
-    exec_: Attack = Attack(LinearityIQA.IQAModel,
+    exec_: Attack = Attack(models_train.IQAModel,
                            arch=args.architecture, pool=args.pool,
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
                            activation=args.activation, se=args.squeeze_excitation,

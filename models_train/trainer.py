@@ -3,7 +3,7 @@ from torch.optim import Adam, SGD, Adadelta, lr_scheduler
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.cuda.amp.autocast_mode import autocast
 from IQAdataset import get_data_loaders
-from IQAmodel import IQAModel
+from models_train.IQAmodel import IQAModel
 from IQAloss import IQALoss
 from IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
 from tensorboardX import SummaryWriter
@@ -121,7 +121,8 @@ class Trainer:
                                     monotonicity_regularization=self.args.monotonicity_regularization,
                                     gamma=self.args.gamma, detach=self.args.detach)
         elif self.base_model_name == "KonCept":
-            self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
+            # self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
+            self.loss_func = lambda output, label: nn.CrossEntropyLoss()(output, label[0].unsqueeze(1))
         # if self.mixup is not None:
         #     self.mixup.criterion = self.loss_func
         #     self.loss_func = self.mixup.calculate_loss

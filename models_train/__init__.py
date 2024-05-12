@@ -1,6 +1,6 @@
 # from activ import *
 # from .IQAmodel import *
-from LinearityIQA.IQAmodel import (
+from models_train.IQAmodel import (
                                 IQAModel
                                 )
 
