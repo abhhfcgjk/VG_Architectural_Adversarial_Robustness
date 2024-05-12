@@ -63,8 +63,6 @@ class Linearity(IQA):
         super(Linearity, self).__init__(arch)
         
         self.pruning = pruning
-        # self.is_se = se
-        self.layers = []
         self.pool = pool
         self.use_bn_end = use_bn_end
         # self.arch = arch

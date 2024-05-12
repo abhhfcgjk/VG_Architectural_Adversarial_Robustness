@@ -1,21 +1,21 @@
 import models_train.Linearity as Linearity
 import models_train.KonCept512 as KonCept512
-
+from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
 from models_train.VOneNet import get_model
 
 from torch import nn
 import torch
 from torchvision import models
 
-
-from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
-
 from typing import Tuple, Union, List, Literal
 
 from icecream import ic
 
+import yaml
+
 _MODELS = Literal["Linearity", "KonCept"]
 
+YAML_PATH = './path_config.yaml'
 
 class Identity(nn.Module):
     def forward(self, x):
@@ -99,7 +99,11 @@ class IQA(nn.Module):
             # features[0][-1].avgpool = Identity()
             # features[0][-1].fc = Identity()
         elif arch == "advresnet50":
-            adversarial_path = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
+            # adversarial_path = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
+            with open(YAML_PATH, 'r') as file:
+                yaml_file = yaml.safe_load(file)
+            adversarial_path = yaml_file['checkpoints']['adversarial']
+            # adversarial_path = yaml.dump()
             adversarial_resnet = models.__dict__[arch.replace('adv', '')]()
 
             adversarial_state_dict = self.extract_adversarial_state_dict(adversarial_path)
@@ -108,13 +112,16 @@ class IQA(nn.Module):
             features = list(adversarial_resnet.children())
         elif ("debiased" in arch) or ("shape" in arch) or ("texture" in arch):
             assert "resnet50" in arch
+            with open(YAML_PATH, 'r') as file:
+                yaml_file = yaml.safe_load(file)
             model_type = arch.replace("resnet50", "")
-            if model_type == "shape" or model_type == "texture":
-                _path = f'./style_transfer_checkpoints/res50-{model_type}-biased.pth'
-            elif model_type == "debiased":
-                _path = f'./style_transfer_checkpoints/res50-{model_type}.pth'
-            else:
-                raise TypeError(f"No model type {model_type}.")
+            # if model_type == "shape" or model_type == "texture":
+            #     _path = f'./style_transfer_checkpoints/res50-{model_type}-biased.pth'
+            # elif model_type == "debiased":
+            #     _path = f'./style_transfer_checkpoints/res50-{model_type}.pth'
+            # else:
+            #     raise TypeError(f"No model type {model_type}.")
+            _path = yaml_file['checkpoints'][model_type]
             
             resnet_model = models.__dict__["resnet50"]()
             _state_dict = self.extract_shapa_texture_debiased_state_dict(_path)
@@ -129,9 +136,8 @@ class IQA(nn.Module):
         self._base_model_features = features
 
     def get_features(self, features) -> Tuple[List[Union[int, int]], nn.Module]:
+        assert self.__class__.__name__ in _MODELS
         if self.arch != "vonenet50":
-            assert self.__class__.__name__ in _MODELS
-
             if self.__class__.__name__ == "Linearity":
                 features = features[:-2]
             elif self.__class__.__name__ == "KonCept":

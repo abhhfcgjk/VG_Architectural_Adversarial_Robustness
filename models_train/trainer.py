@@ -361,7 +361,7 @@ class Trainer:
             prune_parameters.append((convs[i], 'weight'))
         ######################
 
-        IQAModel.print_sparcity(prune_parameters)
+        self.model.print_sparcity(prune_parameters)
 
     def _get_perfomance(self, *args, **kwargs):
         if self.base_model_name=="Linearity":
@@ -380,7 +380,7 @@ class Trainer:
         elif self.args.pruning_type == 'l2':
             prune_parameters = ln_prune(self.model, self.pruning, 2)
 
-        IQAModel.print_sparcity(prune_parameters)
+        self.model.print_sparcity(prune_parameters)
 
     def img_size_scheduler(self, batch_idx, epoch, schedule, min_size=260):
         ret_size = 224.0

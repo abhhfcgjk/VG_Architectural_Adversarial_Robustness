@@ -4,8 +4,9 @@ import os
 import numpy as np
 import random
 from argparse import ArgumentParser
+import yaml
 
-from train import Trainer
+from trainer import Trainer
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
@@ -164,14 +165,17 @@ if __name__ == "__main__":
         args.val_criterion = 'SROCC2'
 
     COLAB_dir = "./drive/MyDrive/KonIQ-10k"
-    default_dir = "KonIQ-10k"
+    YAML_PATH = './path_config.yaml'
+    with open(YAML_PATH, 'r') as file:
+        yaml_file = yaml.safe_load(file)
+    default_dir = yaml_file['dataset']['data']['KonIQ']
 
     args.im_dirs = {'KonIQ-10k': COLAB_dir if args.colab else default_dir,
                     'CLIVE': 'CLIVE'
                     }  # ln -s database_path xxx
 
     COLAB_path = "./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat"
-    default_path = "./data/KonIQ-10kinfo.mat"
+    default_path = yaml_file['dataset']['labels']['KonIQ']
     args.data_info = {'KonIQ-10k': COLAB_path if args.colab else default_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
     # args.pruning = None
@@ -187,9 +191,9 @@ if __name__ == "__main__":
 
     args.format_str = get_format_string(args)
 
-    if not os.path.exists('checkpoints'):
-        os.makedirs('checkpoints')
-    args.trained_model_file = 'checkpoints/' + args.format_str
+    if not os.path.exists('weights'):
+        os.makedirs('weights')
+    args.trained_model_file = 'weights/' + args.format_str
     if not os.path.exists('results'):
         os.makedirs('results')
     args.save_result_file = 'results/' + args.format_str
