@@ -10,7 +10,7 @@ from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
 from models_train.SE import SqueezeExcitation
 from models_train.VOneNet import get_model
 
-from models_train.IQAmodel import IQA
+from models_train.baseIQAmodel import IQA
 
 
 def SPSP(x, P=1, method='avg'):

@@ -18,3 +18,4 @@ runs/
 /models_train/adversarial_trained
 /checkpoints
 /NIPS_test
+/weights

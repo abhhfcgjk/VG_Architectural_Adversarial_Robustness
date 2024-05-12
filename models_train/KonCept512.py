@@ -8,7 +8,7 @@ import sys
 from typing import Literal
 from torchvision import models
 
-from models_train.IQAmodel import IQA
+from models_train.baseIQAmodel import IQA
 
 __all__ = ['InceptionResNetV2', 'inceptionresnetv2']
 
@@ -402,7 +402,7 @@ class KonCept(IQA):
     #     else:
     #         raise NameError(f"No base model {base_model_name}")
     #     return base_model
-    def __init__(self,arch="resnet50", activation="relu",**kwargs):
+    def __init__(self, arch="resnet50", activation="relu",**kwargs):
         ic("KONCEPT")
         super(KonCept, self).__init__(arch)
         num_classes=1
@@ -412,8 +412,9 @@ class KonCept(IQA):
         # print(base_model.children())
         # self.base= nn.Sequential(*list(base_model.children())[:-1])
         in_features, self.features = self.get_features(self._base_model_features)
-        ic(list(self.features.children()))
+        
         Activ = self.get_activation_module(activation)
+        ic(list(self.features.children()))
         self.adapter = BasicConv2d(in_features[1], 1536, kernel_size=1, stride=1)
         self.fc = nn.Sequential(
             nn.Linear(1536, 2048),

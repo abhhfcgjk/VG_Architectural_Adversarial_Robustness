@@ -2,20 +2,19 @@ import torch
 from torch.optim import Adam, SGD, Adadelta, lr_scheduler
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.cuda.amp.autocast_mode import autocast
-from IQAdataset import get_data_loaders
+from models_train.IQAdataset import get_data_loaders
 from models_train.IQAmodel import IQAModel
-from IQAloss import IQALoss
-from IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
+from models_train.IQAloss import IQALoss
+from models_train.IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
+from models_train.pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from tensorboardX import SummaryWriter
 import datetime
 import numpy as np
 from typing import Dict
-from activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from tqdm import tqdm
 from torch.nn.utils import prune
 import torch.nn.functional as F
 from torchvision.transforms.functional import to_tensor, normalize
-from pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from torch import nn
 # from mixer import MixData
 # from style_transfer.adain import StyleTransfer
@@ -122,7 +121,7 @@ class Trainer:
                                     gamma=self.args.gamma, detach=self.args.detach)
         elif self.base_model_name == "KonCept":
             # self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
-            self.loss_func = lambda output, label: nn.CrossEntropyLoss()(output, label[0].unsqueeze(1))
+            self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
         # if self.mixup is not None:
         #     self.mixup.criterion = self.loss_func
         #     self.loss_func = self.mixup.calculate_loss

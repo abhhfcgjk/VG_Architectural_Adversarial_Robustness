@@ -1,15 +1,15 @@
 import torch
-from IQAdataset import get_data_loaders
+from models_train.IQAdataset import get_data_loaders
 import os
 import numpy as np
 import random
 from argparse import ArgumentParser
 import yaml
 
-from trainer import Trainer
+from models_train.trainer import Trainer
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
-
+YAML_PATH = './path_config.yaml'
 
 def writer_add_scalar(writer, status, dataset, scalars, iter):
     for metric_print in metrics_printed:
@@ -136,11 +136,6 @@ if __name__ == "__main__":
                         help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
 
-    # parser.add_argument("-fm", "--feature_model", type=str, default="debiased",
-    #                     help='Use augmentation for the training')
-    # parser.add_argument("-mg", "--mgamma", type=float, default=0.1,
-    #                     help="Coefficient for mixup")
-
     parser.add_argument('--model', default='Linearity', type=str)
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
@@ -165,7 +160,7 @@ if __name__ == "__main__":
         args.val_criterion = 'SROCC2'
 
     COLAB_dir = "./drive/MyDrive/KonIQ-10k"
-    YAML_PATH = './path_config.yaml'
+    
     with open(YAML_PATH, 'r') as file:
         yaml_file = yaml.safe_load(file)
     default_dir = yaml_file['dataset']['data']['KonIQ']
