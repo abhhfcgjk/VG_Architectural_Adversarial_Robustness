@@ -11,13 +11,13 @@ def get_score(y: List[Any], k: List[int], b: List[int]):
     return y[-1] * k[0] + b[0]
 
 
-# def loss_fn(output, metric_range, k, b):
-#     loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
-#     return loss
-
 def loss_fn(output, metric_range, k, b):
-    loss = 1 - (output) / metric_range
+    loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
     return loss
+
+# def loss_fn(output, metric_range, k, b):
+#     loss = 1 - (output) / metric_range
+#     return loss
 
 # iterative attack baseline (IFGSM attack)
 def attack_callback(
