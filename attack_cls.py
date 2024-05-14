@@ -7,7 +7,7 @@ from pathlib import Path
 from tqdm import tqdm
 from torchvision.transforms.functional import resize, to_tensor, normalize
 import iterative
-
+from models_train.IQAmodel import IQAModel
 
 # from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
@@ -21,14 +21,22 @@ class Attack:
         self.device = device
         self.arch = arch
         self.se = se
+        self.model_name = model
         self.prune = pruning
         self.activation = activation
         # self.prune 
-        self.model = model("Linearity",arch=arch, pool=pool,
+        self.model = IQAModel(model,arch=arch, pool=pool,
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, se=se, pruning=None).to(self.device)
         self.model.eval()
         # print(self.model)
+
+    def compute_output(self, x):
+        if self.model_name == "Linearity":
+            return self.model(x)[-1].item() * self.k[0] + self.b[0]
+        elif self.model_name == "KonCept":
+            return self.model(x).item()
+        raise NameError(f"No model {self.model_name}.")
 
     def load_checkpoints(self, checkpoints_path="LinearityIQA/checkpoints/p1q2.pth"):
         self.checkpoint = torch.load(checkpoints_path, map_location=self.device)
@@ -67,8 +75,8 @@ class Attack:
             im = im.unsqueeze(0)
 
             with torch.no_grad():
-                clear_val = self.model(im)
-                clear_val = clear_val[-1].item() * self.k[0] + self.b[0]
+                clear_val = self.compute_output(im)
+                # clear_val = clear_val[-1].item() * self.k[0] + self.b[0]
                 self.clear_vals.append(clear_val)
 
             ###########debug
@@ -125,8 +133,8 @@ class Attack:
                     # print("DIFF:", torch.sum(diff))
                     im_attacked = im + diff
 
-                    attacked_val = self.model(im_attacked)
-                    attacked_val = attacked_val[-1].item() * self.k[0] + self.b[0]
+                    attacked_val = self.compute_output(im_attacked)
+                    # attacked_val = attacked_val[-1].item() * self.k[0] + self.b[0]
                     attacked_val = iterative.norm(attacked_val, self.min_test, self.max_test)
                     gain = attacked_val - clear_val
                     self.gains[int(eps * 255)].append(gain)
@@ -161,12 +169,13 @@ class Attack:
         degree = 0
         se_status = "+se" if self.se else ""
         prune_status = f"+prune={self.prune}" if self.prune is not None and self.prune > 0 else ""
-        mdif = {'arch': self.arch + se_status + prune_status,
+        mdif = {'arch': self.arch + '-' + self.model_name + se_status + prune_status,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations,
                 'degree': f'10^{degree}'}
         for int_eps in self.gains.keys():
+
             self.results.append(np.array(self.gains[int_eps]).mean())
             print(
                 f"eps={int_eps}/255 :",
