@@ -9,6 +9,8 @@ from torchvision.transforms.functional import resize, to_tensor, normalize
 import iterative
 from models_train.IQAmodel import IQAModel
 
+from torchvision.utils import save_image
+from random import random
 # from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 
 
@@ -109,8 +111,10 @@ class Attack:
                 im = resize(im, (self.resize_size_h, self.resize_size_w))  #
             im = to_tensor(im).to(self.device)
 
-            im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            # im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            
             im = im.unsqueeze(0)
+            # save_image(im, f'debug_img/clear{image_num}_.png')
             # print(clear_vals[image_num], min_pred, max_pred)
             clear_val = iterative.norm(self.clear_vals[image_num],
                                        mmin=self.min_test, mmax=self.max_test)
@@ -126,7 +130,7 @@ class Attack:
                     eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b,
                     mmin=self.min_test, mmax=self.max_test
                 )
-
+                # save_image(im_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
                 with torch.no_grad():
                     diff = im_attacked - im
                     diff = torch.clamp(diff, min=-10 / 255, max=10 / 255)
@@ -140,7 +144,7 @@ class Attack:
                     self.gains[int(eps * 255)].append(gain)
             self.attacked_vals.append(attacked_val)  # with eps 10/255
             image_num += 1
-
+            
             ###########debug
             if debug:
                 # print(self.attacked_vals, self.clear_vals)

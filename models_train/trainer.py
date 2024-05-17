@@ -264,8 +264,9 @@ class Trainer:
         output = self.compute_output(inputs, label)
         # output = self.model(inputs)
         # ic(output, label)
+        ic(inputs.shape)
         ic(output)
-        ic(label[0].unsqueeze(1))
+        ic(label)
         loss = self.loss_func(output, label) / self.args.accumulation_steps
         with autocast(enabled=True):
             self.scaler.scale(loss).backward()

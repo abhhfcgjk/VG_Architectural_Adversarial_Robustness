@@ -30,6 +30,7 @@ class IQAPerfomanceKonCept:
         # ic(self._y_pred)
         self.preds = np.reshape(np.asarray(self._y_pred), (-1,))
 
+        # ic(sq)
         ic(sq)
         ic(self.preds)
         self.SROCC = stats.spearmanr(sq, self.preds)[0]
@@ -44,6 +45,7 @@ class IQAPerfomanceKonCept:
                 'RMSE': self.RMSE,
                 }
 
+from icecream import ic
 
 class IQAPerformanceLinearity:
     """
@@ -68,8 +70,7 @@ class IQAPerformanceLinearity:
 
     def update(self, output):
         y_pred, y = output
-        from icecream import ic
-        ic(y_pred, y)
+        
         self._y.extend([t.item() for t in y[0]])
         self._y_std.extend([t.item() for t in y[1]])
         self._y_pred.extend([t.item() for t in y_pred[-1]])
@@ -82,6 +83,8 @@ class IQAPerformanceLinearity:
 
         pq_before = np.reshape(np.asarray(self._y_pred), (-1, 1))
         self.preds = self.linear_mapping(pq_before, sq, i=0)
+        ic(sq)
+        ic(self.preds)
         self.SROCC = stats.spearmanr(sq, self.preds)[0]
         self.PLCC = stats.pearsonr(sq, self.preds)[0]
         self.RMSE = np.sqrt(((sq - self.preds) ** 2).mean())

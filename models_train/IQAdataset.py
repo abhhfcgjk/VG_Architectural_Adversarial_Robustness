@@ -82,7 +82,8 @@ class IQADataset(Dataset):
             im = crop(im, i, j, self.crop_size_h, self.crop_size_w)
         im = to_tensor(im)
         if self.use_normalize:
-            im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
+            im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            # im = normalize(im, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         return im
 
 

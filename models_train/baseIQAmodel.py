@@ -1,5 +1,6 @@
 from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
 from models_train.VOneNet import get_model
+from models_train.inceptionresnet import inceptionresnetv2
 
 from torch import nn
 import torch
@@ -89,6 +90,9 @@ class IQA(nn.Module):
         super(IQA, self).__init__()
         self.features = None
         self.arch = arch
+        # if arch == "inceptionresnet":
+        #     return
+
         if arch == 'wideresnet50':
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())
         elif arch == 'vonenet50':
@@ -126,6 +130,8 @@ class IQA(nn.Module):
             resnet_model.load_state_dict(_state_dict, strict=False)
 
             features = list(resnet_model.children())
+        elif arch == "inceptionresnet":
+            features = list(inceptionresnetv2(num_classes=1000, pretrained='imagenet').children())
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
 
@@ -134,7 +140,10 @@ class IQA(nn.Module):
         self._base_model_features = features
 
     def get_features(self, features) -> Tuple[List[Union[int, int]], nn.Module]:
+
         assert self.__class__.__name__ in _MODELS
+        # if self.arch == "inceptionresnet":
+        #     features = features[:-1]
         if self.arch != "vonenet50":
             if self.__class__.__name__ == "Linearity":
                 features = features[:-2]
@@ -146,17 +155,17 @@ class IQA(nn.Module):
                 features[0][-1].avgpool = Identity()
             features[0][-1].fc = Identity()
         
-        if self.arch == 'alexnet':
-            in_features = [256, 256]
-            self.id1 = 9
-            self.id2 = 12
-            features = features[0]
-        elif self.arch == 'vgg16':
-            in_features = [512, 512]
-            self.id1 = 23
-            self.id2 = 30
-            features = features[0]
-        elif self.arch == 'vonenet50':
+        # if self.arch == 'alexnet':
+        #     in_features = [256, 256]
+        #     self.id1 = 9
+        #     self.id2 = 12
+        #     features = features[0]
+        # elif self.arch == 'vgg16':
+        #     in_features = [512, 512]
+        #     self.id1 = 23
+        #     self.id2 = 30
+        #     features = features[0]
+        if self.arch == 'vonenet50':
             self.id1 = 4
             self.id2 = 5
             in_features = [1024, 2048]
@@ -167,6 +176,8 @@ class IQA(nn.Module):
                 in_features = [256, 512]
             else:
                 in_features = [1024, 2048]
+        elif self.arch == "inceptionresnet":
+            in_features = [1024, 3072]
         else:
             raise NotImplementedError(f'The arch {self.arch} is not implemented!')
         

@@ -1,7 +1,7 @@
 from torch.autograd import Variable
 from typing import Any, List
 import torch
-
+from icecream import ic
 
 def norm(score: int, mmin: int, mmax: int, metric_range=1):
     return (score - mmin) * metric_range / (mmax - mmin)
@@ -25,7 +25,7 @@ def attack_callback(
         model=None,
         attack_type="IFGSM",
         metric_range=100,
-        device="cpu",
+        device="cuda",
         eps=10 / 255,
         iters=10,
         alpha=1 / 255,
@@ -46,6 +46,7 @@ def attack_callback(
     Returns:
         torch.Tensor of shape [1,3,H,W]: adversarial image with same shape as image argument.
     """
+    ic.enable()
     image = Variable(image.clone().to(device), requires_grad=True)
     if attack_type == "IFGSM":
         additive = torch.zeros_like(image).to(device)
@@ -57,16 +58,15 @@ def attack_callback(
     additive = Variable(additive, requires_grad=True)
 
     for _ in range(iters):
-        with torch.autograd.set_detect_anomaly(True):
-            img = Variable(image + additive, requires_grad=True)
-            img.data.clamp_(0.0, 1.0)
-            y = model(img)
-            # y[-1] = norm(get_score(y, k, b),mmin, mmax)
-            loss = loss_fn(y, metric_range, k, b)
+        img = Variable(image + additive, requires_grad=True)
+        
+        img.data.clamp_(0.0, 1.0)
+        y = model(img)
+        loss = loss_fn(y, metric_range, k, b)
 
-            model.zero_grad()
-            loss.backward()
-            input_grad = img.grad.data
+        model.zero_grad()
+        loss.backward()
+        input_grad = img.grad.data
 
         gradient_sign = input_grad.sign()
         additive.data -= alpha * gradient_sign
