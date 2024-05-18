@@ -4,6 +4,8 @@ import models_train
 from torchvision.transforms.functional import resize, to_tensor, normalize
 from attack_cls import Attack
 
+from icecream import ic
+
 EPS = 1e-6
 
 def get_format_string(args):
@@ -97,6 +99,12 @@ if __name__ == "__main__":
     print(args.architecture, args.pruning)
 
     path = get_format_string(args)
+
+    if args.debug:
+        ic.enable()
+        print("DEBUG")
+    else:
+        ic.disable()
 
     print("Device: ", args.device)
     print(path)

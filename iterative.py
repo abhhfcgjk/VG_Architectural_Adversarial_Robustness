@@ -1,6 +1,9 @@
 from torch.autograd import Variable
 from typing import Any, List
 import torch
+from torchvision.transforms.functional import resize, to_tensor, normalize
+from torchvision.transforms import Normalize
+
 from icecream import ic
 
 def norm(score: int, mmin: int, mmax: int, metric_range=1):
@@ -21,7 +24,7 @@ def loss_fn(output, metric_range, k, b):
 
 # iterative attack baseline (IFGSM attack)
 def attack_callback(
-        image,
+        image_,
         model=None,
         attack_type="IFGSM",
         metric_range=100,
@@ -46,8 +49,77 @@ def attack_callback(
     Returns:
         torch.Tensor of shape [1,3,H,W]: adversarial image with same shape as image argument.
     """
-    ic.enable()
-    image = Variable(image.clone().to(device), requires_grad=True)
+    # ic.enable()
+
+    # image = Variable(image_.to(device), requires_grad=True)
+    # if attack_type == "IFGSM":
+    #     additive = torch.zeros_like(image).to(device)
+    # elif attack_type == "PGD":
+    #     additive = torch.rand_like(image).to(device)
+    # else:
+    #     raise "No attack_type. Got {}. Expected IFGSM, PGD.".format(attack_type)
+
+    # additive = Variable(additive, requires_grad=True)
+
+    # for _ in range(iters):
+
+    #     im = (image+additive).clamp_(0., 1.)
+    #     # im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    #     ic(im.shape)
+    #     img = Variable(im, requires_grad=True)
+    #     ic(img.shape)
+
+    #     y =  model(img)
+    #     loss = loss_fn(y, metric_range, k, b)
+
+    #     model.zero_grad()
+    #     loss.backward()
+    #     input_grad = img.grad.data
+
+    #     gradient_sign = input_grad.sign()
+
+    #     additive.data -= alpha * gradient_sign
+    #     additive.data.clamp_(-eps, eps)
+
+    # res_image = (image + additive).data.clamp_(min=0, max=1)
+
+    # return res_image
+
+    # image = Variable(image_.clone().to(device), requires_grad=True)
+    # if attack_type == "IFGSM":
+    #     additive = torch.zeros_like(image).to(device)
+    # elif attack_type == "PGD":
+    #     additive = torch.rand_like(image).to(device)
+    # else:
+    #     raise "No attack_type. Got {}. Expected IFGSM, PGD.".format(attack_type)
+
+    # additive = Variable(additive, requires_grad=True)
+    
+    # ic(image.shape)
+    # ic(additive.shape)
+    # # image = normalize(image, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    # for _ in range(iters):
+    #     img = Variable(image+additive, requires_grad=True)
+    #     ic(img.shape)
+    #     img.data.clamp_(0.0, 1.0)
+    #     y = model(img)
+
+    #     loss = loss_fn(y, metric_range, k, b)
+
+    #     model.zero_grad()
+    #     loss.backward()
+    #     input_grad = img.grad.data
+
+    #     gradient_sign = input_grad.sign()
+    #     additive.data -= alpha * gradient_sign
+    #     additive.data.clamp_(-eps, eps)
+
+    # res_image = (image_ + additive).data.clamp_(min=0, max=1)
+
+    # return res_image
+
+
+    image = Variable(image_.clone().to(device), requires_grad=True)
     if attack_type == "IFGSM":
         additive = torch.zeros_like(image).to(device)
     elif attack_type == "PGD":
@@ -58,10 +130,14 @@ def attack_callback(
     additive = Variable(additive, requires_grad=True)
 
     for _ in range(iters):
-        img = Variable(image + additive, requires_grad=True)
-        
+        # with torch.autograd.set_detect_anomaly(True):
+
+        img = Variable(image+additive, requires_grad=True)
         img.data.clamp_(0.0, 1.0)
-        y = model(img)
+
+        ic(img.shape)
+        y = model(normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+        # y[-1] = norm(get_score(y, k, b),mmin, mmax)
         loss = loss_fn(y, metric_range, k, b)
 
         model.zero_grad()
@@ -69,9 +145,10 @@ def attack_callback(
         input_grad = img.grad.data
 
         gradient_sign = input_grad.sign()
+        ic(additive.shape, gradient_sign.shape)
         additive.data -= alpha * gradient_sign
         additive.data.clamp_(-eps, eps)
 
     res_image = (image + additive).data.clamp_(min=0, max=1)
 
-    return res_image
+    return additive
