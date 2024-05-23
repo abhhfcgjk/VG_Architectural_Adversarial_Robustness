@@ -34,8 +34,6 @@ def attack_callback(
         alpha=1 / 255,
         k: List[int] = None,
         b: List[int] = None,
-        mmin=0,
-        mmax=100
 ):
     """
     Attack function.
@@ -51,75 +49,8 @@ def attack_callback(
     """
     # ic.enable()
 
-    # image = Variable(image_.to(device), requires_grad=True)
-    # if attack_type == "IFGSM":
-    #     additive = torch.zeros_like(image).to(device)
-    # elif attack_type == "PGD":
-    #     additive = torch.rand_like(image).to(device)
-    # else:
-    #     raise "No attack_type. Got {}. Expected IFGSM, PGD.".format(attack_type)
 
-    # additive = Variable(additive, requires_grad=True)
-
-    # for _ in range(iters):
-
-    #     im = (image+additive).clamp_(0., 1.)
-    #     # im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    #     ic(im.shape)
-    #     img = Variable(im, requires_grad=True)
-    #     ic(img.shape)
-
-    #     y =  model(img)
-    #     loss = loss_fn(y, metric_range, k, b)
-
-    #     model.zero_grad()
-    #     loss.backward()
-    #     input_grad = img.grad.data
-
-    #     gradient_sign = input_grad.sign()
-
-    #     additive.data -= alpha * gradient_sign
-    #     additive.data.clamp_(-eps, eps)
-
-    # res_image = (image + additive).data.clamp_(min=0, max=1)
-
-    # return res_image
-
-    # image = Variable(image_.clone().to(device), requires_grad=True)
-    # if attack_type == "IFGSM":
-    #     additive = torch.zeros_like(image).to(device)
-    # elif attack_type == "PGD":
-    #     additive = torch.rand_like(image).to(device)
-    # else:
-    #     raise "No attack_type. Got {}. Expected IFGSM, PGD.".format(attack_type)
-
-    # additive = Variable(additive, requires_grad=True)
-    
-    # ic(image.shape)
-    # ic(additive.shape)
-    # # image = normalize(image, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    # for _ in range(iters):
-    #     img = Variable(image+additive, requires_grad=True)
-    #     ic(img.shape)
-    #     img.data.clamp_(0.0, 1.0)
-    #     y = model(img)
-
-    #     loss = loss_fn(y, metric_range, k, b)
-
-    #     model.zero_grad()
-    #     loss.backward()
-    #     input_grad = img.grad.data
-
-    #     gradient_sign = input_grad.sign()
-    #     additive.data -= alpha * gradient_sign
-    #     additive.data.clamp_(-eps, eps)
-
-    # res_image = (image_ + additive).data.clamp_(min=0, max=1)
-
-    # return res_image
-
-
-    image = Variable(image_.clone().to(device), requires_grad=True)
+    image = Variable(image_.clone().to(device) , requires_grad=True)
     if attack_type == "IFGSM":
         additive = torch.zeros_like(image).to(device)
     elif attack_type == "PGD":
@@ -135,8 +66,9 @@ def attack_callback(
         img = Variable(image+additive, requires_grad=True)
         img.data.clamp_(0.0, 1.0)
 
+
         ic(img.shape)
-        y = model(normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+        y = model(img)
         # y[-1] = norm(get_score(y, k, b),mmin, mmax)
         loss = loss_fn(y, metric_range, k, b)
 
@@ -148,7 +80,8 @@ def attack_callback(
         ic(additive.shape, gradient_sign.shape)
         additive.data -= alpha * gradient_sign
         additive.data.clamp_(-eps, eps)
+        # additive.grad.zero_()
 
-    res_image = (image + additive).data.clamp_(min=0, max=1)
+    res_image = (image_ + additive).data.clamp_(min=0, max=1)
 
     return additive

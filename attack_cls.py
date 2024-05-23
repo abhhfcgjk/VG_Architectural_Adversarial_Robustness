@@ -38,7 +38,8 @@ class Attack:
     def compute_output(self, x):
         # im = normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         if self.model_name == "Linearity":
-            return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+            # return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+            return self.model(x)[-1].item() * self.k[0] + self.b[0]
         elif self.model_name == "KonCept":
             return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])).item()
         raise NameError(f"No model {self.model_name}.")
@@ -51,11 +52,11 @@ class Attack:
         # self.min_train = self.checkpoint['min']
         # self.max_train = self.checkpoint['max']
         self.dataset_path = '.'
-        self.resize = False
+        # self.resize = False
         # self.metric_range_train = self.checkpoint['max'] - self.checkpoint['min']
         print(self.checkpoint.keys())
 
-    def set_load_conf(self, dataset_path, resize_size_h, resize_size_w):
+    def set_load_conf(self, dataset_path, resize_size_h, resize_size_w, batch_size=4):
         self.dataset_path = dataset_path
         self.resize = True
         self.resize_size_h: int = resize_size_h
@@ -66,7 +67,7 @@ class Attack:
     def _get_info_max_min_from_testset(self, debug=False):
         self.clear_vals = []
         count = 5
-        for img in tqdm(
+        for img_, img in tqdm(
                 self.loader,
                 total=len(self.loader),
         ):
@@ -82,6 +83,7 @@ class Attack:
 
             with torch.no_grad():
                 clear_val = self.compute_output(img)
+                ic('OUT: ', clear_val)
                 self.clear_vals.append(clear_val)
 
             ###########debug
@@ -102,48 +104,42 @@ class Attack:
         image_num = 0
         count = 5
         self.gains = {int(x * 255): [] for x in self.epsilons}
-        for img in tqdm(
+        for img_, img in tqdm(
                 self.loader,
                 total=len(self.loader),
         ):
-            # if Path(image_path).suffix not in [".png", ".jpg", ".jpeg"]:
-            #     continue
 
-            # img = Image.open(image_path).convert("RGB")
-            # if self.resize:  # resize or not?
-            #     img = resize(img, (self.resize_size_h, self.resize_size_w))  #
-            # img = to_tensor(img).to(self.device)
-            # img = img.unsqueeze(0)
+            clear_val = (self.clear_vals[image_num] - self.min_test)/(self.max_test - self.min_test)
+                                    # iterative.norm(self.clear_vals[image_num],
+                                    #    mmin=self.min_test, mmax=self.max_test)
 
-
-            clear_val = iterative.norm(self.clear_vals[image_num],
-                                       mmin=self.min_test, mmax=self.max_test)
             ic(clear_val)
 
             self.clear_vals[image_num] = clear_val
 
             for _, eps in enumerate(self.epsilons):
-                img_attacked = iterative.attack_callback(
+                additive = iterative.attack_callback(
                     ###############
                     img, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
                     device=self.device,
                     #################
-                    eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b,
-                    mmin=self.min_test, mmax=self.max_test
+                    eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b
                 )
-                
+                img_attacked = normalize(img_ + additive,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                 
                 with torch.no_grad():
-                    save_image(img, f'debug_img/clear{image_num}_{int(eps*255)}.png')
-                    save_image(img_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
-                    diff = img_attacked - img
-                    diff = torch.clamp(diff, min=-10 / 255, max=10 / 255)
-                    # print("DIFF:", torch.sum(diff))
-                    img_attacked = img + diff
+                    # save_image(img, f'debug_img/clear{image_num}_{int(eps*255)}.png')
+                    # save_image(img_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
+                    # diff = img_attacked - img
+                    # diff = torch.clamp(diff, min=-10 / 255, max=10 / 255)
+                    # # print("DIFF:", torch.sum(diff))
+                    # img_attacked = img + diff
+                    # save_image(img, f'debug_img/clear{image_num}_{int(eps*255)}.png')
+                    # save_image(img_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
 
                     attacked_val = self.compute_output(img_attacked)
                     # attacked_val = attacked_val[-1].item() * self.k[0] + self.b[0]
-                    attacked_val = iterative.norm(attacked_val, self.min_test, self.max_test)
+                    attacked_val = (attacked_val - self.min_test)/(self.max_test - self.min_test)
                     ic(clear_val, attacked_val)
                     gain = attacked_val - clear_val
                     self.gains[int(eps * 255)].append(gain)
@@ -222,7 +218,8 @@ class Attack:
 
 
 class TestLoader(Dataset):
-    def __init__(self, dataset_path, resize, resize_size_h, resize_size_w):
+    def __init__(self,  dataset_path, resize, resize_size_h, resize_size_w):
+        # self.batch_size = batch_size
         self.resize = resize
         self.resize_size_h, self.resize_size_w = resize_size_h, resize_size_w
         self.dataset_path = dataset_path
@@ -236,4 +233,6 @@ class TestLoader(Dataset):
         if self.resize:  # resize or not?
             img = resize(image, (self.resize_size_h, self.resize_size_w))  #
         img = to_tensor(img).cuda()
-        return img
+        img_ = img
+        img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        return img_, img

@@ -77,37 +77,9 @@ class Trainer:
         self._train_loop()
 
     def compute_output(self, inputs, label):
-        # if self.style_transfer:
-        #     output1 = self.model(inputs[0])
-        #     output2 = self.model(inputs[1])
-        #     output = [torch.cat([o1, o2], dim=0) for o1, o2 in zip(output1, output2)]
-        #     return output
         return self.model(inputs)
 
     def unpack_data(self, inputs, label, step):
-        # if self.style_transfer:
-        #     label = torch.tensor([k.tolist() for k in label]).to(self.device)
-        #     img_size = self.img_size_scheduler(step, self.epochs, self.schedule_for_model)
-        #     resized_inputs = F.interpolate(inputs, size=img_size)
-        #     input_aux, targets = self.style_transfer(resized_inputs, label, 1-self.mgamma)
-        #     inputs = (inputs, input_aux)
-        #     # assert len(target_aux) == 3
-        #     # batch_size = label[0].size(0)
-        #     inputs, label = self.mixup(inputs, targets)
-        #     if self.feature_model == 'shape':
-        #         label[2] = 0.
-        #     elif self.feature_model == 'texture':
-        #         label[2] = 1.
-        #     elif self.feature_model == 'debiased':
-        #         pass
-        #     else:
-        #         raise ModuleNotFoundError('')
-        #     # label = targets
-        #     inputs = (
-        #         normalize(inputs[0], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
-        #         normalize(inputs[1], [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]) 
-        #     )
-
         return inputs, label
 
     def _prepair(self, train=True, val=True, test=True, use_normalize=True):
@@ -122,9 +94,6 @@ class Trainer:
         elif self.base_model_name == "KonCept":
             # self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
             self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
-        # if self.mixup is not None:
-        #     self.mixup.criterion = self.loss_func
-        #     self.loss_func = self.mixup.calculate_loss
 
 
     def _prepair_train(self):
@@ -264,7 +233,8 @@ class Trainer:
         output = self.compute_output(inputs, label)
         # output = self.model(inputs)
         # ic(output, label)
-        ic(inputs.shape)
+        # ic(inputs.shape)
+        ic("train")
         ic(output)
         ic(label)
         loss = self.loss_func(output, label) / self.args.accumulation_steps
@@ -284,7 +254,8 @@ class Trainer:
         # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
         label = [k.to(self.device) for k in label]
 
-        output = self.model(inputs)
+        output = self.compute_output(inputs, label)
+        ic("val")
         ic(output)
         ic(label)
         self.metric_computer.update((output, label))
@@ -382,21 +353,21 @@ class Trainer:
 
         self.model.print_sparcity(prune_parameters)
 
-    def img_size_scheduler(self, batch_idx, epoch, schedule, min_size=260):
-        ret_size = 224.0
-        if batch_idx % 2 == 0:
-            ret_size /= 2 ** 0.5
-        schedule = [0] + schedule + [self.epochs]
-        for i in range(len(schedule) - 1):
-            if schedule[i] <= epoch < schedule[i + 1]:
-                if epoch < (schedule[i] + schedule[i + 1]) / 2:
-                    ret_size /= 2 ** 0.5
-                    ri = i
-                break
-        ret_size = max(int(ret_size + 0.5), min_size)
-        if batch_idx == 0:
-            print("img size is ", ret_size)
-        return ret_size, ret_size
+    # def img_size_scheduler(self, batch_idx, epoch, schedule, min_size=260):
+    #     ret_size = 224.0
+    #     if batch_idx % 2 == 0:
+    #         ret_size /= 2 ** 0.5
+    #     schedule = [0] + schedule + [self.epochs]
+    #     for i in range(len(schedule) - 1):
+    #         if schedule[i] <= epoch < schedule[i + 1]:
+    #             if epoch < (schedule[i] + schedule[i + 1]) / 2:
+    #                 ret_size /= 2 ** 0.5
+    #                 ri = i
+    #             break
+    #     ret_size = max(int(ret_size + 0.5), min_size)
+    #     if batch_idx == 0:
+    #         print("img size is ", ret_size)
+    #     return ret_size, ret_size
 
     @classmethod
     def run(cls, args):

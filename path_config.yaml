@@ -1,5 +1,5 @@
 checkpoints:
-  adversarial: "./chackpoints/adversarial_trained/resnet50_imagenet_linf_4.pt"
+  adversarial: "./checkpoints/adversarial_trained/resnet50_imagenet_linf_4.pt"
   texture: "./checkpoints/style_transfer_checkpoints/res50-texture-biased.pth"
   shape: "./checkpoints/style_transfer_checkpoints/res50-shape-biased.pth"
   debiased: "./checkpoints/style_transfer_checkpoints/res50-debiased.pth"

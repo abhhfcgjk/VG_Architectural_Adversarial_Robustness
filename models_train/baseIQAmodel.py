@@ -132,6 +132,7 @@ class IQA(nn.Module):
             features = list(resnet_model.children())
         elif arch == "inceptionresnet":
             features = list(inceptionresnetv2(num_classes=1000, pretrained='imagenet').children())
+            ic("inceptionresnet")
         else:
             resnet_model = models.__dict__[arch](pretrained=True)
 
