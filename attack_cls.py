@@ -88,7 +88,7 @@ class Attack:
 
             ###########debug
             if debug:
-                print(min(self.clear_vals), max(self.clear_vals))
+                print('min: ',min(self.clear_vals),'max: ', max(self.clear_vals))
                 count -= 1
                 if not count:
                     break
@@ -118,18 +118,18 @@ class Attack:
             self.clear_vals[image_num] = clear_val
 
             for _, eps in enumerate(self.epsilons):
-                additive = iterative.attack_callback(
+                img_attacked_, _ = iterative.attack_callback(
                     ###############
-                    img, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
+                    img_, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
                     device=self.device,
                     #################
                     eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b
                 )
-                img_attacked = normalize(img_ + additive,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                img_attacked = normalize(img_attacked_,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                 
                 with torch.no_grad():
-                    # save_image(img, f'debug_img/clear{image_num}_{int(eps*255)}.png')
-                    # save_image(img_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
+                    # save_image(img_, f'debug_img/clear{image_num}.png')
+                    # save_image(img_attacked_, f'debug_img/{image_num}_{int(eps*255)}.png')
                     # diff = img_attacked - img
                     # diff = torch.clamp(diff, min=-10 / 255, max=10 / 255)
                     # # print("DIFF:", torch.sum(diff))
@@ -149,7 +149,7 @@ class Attack:
             ###########debug
             if debug:
                 # print(self.attacked_vals, self.clear_vals)
-                print(self.attacked_vals[image_num - 1], self.clear_vals[image_num - 1])
+                # print(self.attacked_vals[image_num - 1], self.clear_vals[image_num - 1])
                 count -= 1
                 if not count:
                     break

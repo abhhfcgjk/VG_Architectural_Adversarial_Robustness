@@ -61,27 +61,29 @@ def attack_callback(
     additive = Variable(additive, requires_grad=True)
 
     for _ in range(iters):
-        # with torch.autograd.set_detect_anomaly(True):
-
-        img = Variable(image+additive, requires_grad=True)
+        img = image+additive
         img.data.clamp_(0.0, 1.0)
 
-
         ic(img.shape)
-        y = model(img)
-        # y[-1] = norm(get_score(y, k, b),mmin, mmax)
+        y = model(normalize(img,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+
         loss = loss_fn(y, metric_range, k, b)
 
         model.zero_grad()
+        if additive.grad is not None:
+            additive.grad.zero_()
+
         loss.backward()
-        input_grad = img.grad.data
+        input_grad = additive.grad.data
+        # ic(input_grad)
 
         gradient_sign = input_grad.sign()
-        ic(additive.shape, gradient_sign.shape)
+        # ic(gradient_sign)
+        
         additive.data -= alpha * gradient_sign
         additive.data.clamp_(-eps, eps)
-        # additive.grad.zero_()
+        
 
-    res_image = (image_ + additive).data.clamp_(min=0, max=1)
+    res_image = (image + additive).data.clamp_(min=0, max=1)
 
-    return additive
+    return res_image, additive
