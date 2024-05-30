@@ -38,10 +38,11 @@ class Attack:
     def compute_output(self, x):
         # im = normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         if self.model_name == "Linearity":
-            # return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
-            return self.model(x)[-1].item() * self.k[0] + self.b[0]
+            return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+            # return self.model(x)[-1].item() * self.k[0] + self.b[0]
         elif self.model_name == "KonCept":
             return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])).item()
+            # raise NotImplementedError()
         raise NameError(f"No model {self.model_name}.")
 
     def load_checkpoints(self, checkpoints_path="LinearityIQA/checkpoints/p1q2.pth"):
@@ -82,7 +83,7 @@ class Attack:
             # img = img.unsqueeze(0)
 
             with torch.no_grad():
-                clear_val = self.compute_output(img)
+                clear_val = self.compute_output(img_)
                 ic('OUT: ', clear_val)
                 self.clear_vals.append(clear_val)
 
@@ -95,6 +96,7 @@ class Attack:
             ##########
         self.min_test, self.max_test = min(self.clear_vals), max(self.clear_vals)
         self.metric_range_test = self.max_test - self.min_test
+        print("Range: ", self.min_test, self.max_test)
 
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
         self._get_info_max_min_from_testset(debug)
@@ -125,7 +127,7 @@ class Attack:
                     #################
                     eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b
                 )
-                img_attacked = normalize(img_attacked_,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                # img_attacked = normalize(img_attacked_,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                 
                 with torch.no_grad():
                     # save_image(img_, f'debug_img/clear{image_num}.png')
@@ -137,8 +139,9 @@ class Attack:
                     # save_image(img, f'debug_img/clear{image_num}_{int(eps*255)}.png')
                     # save_image(img_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
 
-                    attacked_val = self.compute_output(img_attacked)
+                    attacked_val = self.compute_output(img_attacked_)
                     # attacked_val = attacked_val[-1].item() * self.k[0] + self.b[0]
+                    ic(attacked_val)
                     attacked_val = (attacked_val - self.min_test)/(self.max_test - self.min_test)
                     ic(clear_val, attacked_val)
                     gain = attacked_val - clear_val
@@ -234,5 +237,5 @@ class TestLoader(Dataset):
             img = resize(image, (self.resize_size_h, self.resize_size_w))  #
         img = to_tensor(img).cuda()
         img_ = img
-        img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        # img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         return img_, img

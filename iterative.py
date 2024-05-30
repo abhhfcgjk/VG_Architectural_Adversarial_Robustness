@@ -14,9 +14,9 @@ def get_score(y: List[Any], k: List[int], b: List[int]):
     return y[-1] * k[0] + b[0]
 
 
-def loss_fn(output, metric_range, k, b):
-    loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
-    return loss
+# def loss_fn(output, metric_range, k, b):
+#     loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
+#     return loss
 
 # def loss_fn(output, metric_range, k, b):
 #     loss = 1 - (output) / metric_range
@@ -34,6 +34,7 @@ def attack_callback(
         alpha=1 / 255,
         k: List[int] = None,
         b: List[int] = None,
+        loss_fn=lambda output, metric_range, k, b: 1 - (output[-1] * k[0] + b[0]) / metric_range
 ):
     """
     Attack function.
@@ -66,6 +67,7 @@ def attack_callback(
 
         ic(img.shape)
         y = model(normalize(img,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+        # y = model(img)
 
         loss = loss_fn(y, metric_range, k, b)
 
