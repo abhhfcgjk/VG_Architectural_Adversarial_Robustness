@@ -1,5 +1,5 @@
 import torch
-from torch.optim import Adam, SGD, Adadelta, lr_scheduler
+from torch.optim import Adam, SGD, Adadelta, lr_scheduler, Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.cuda.amp.autocast_mode import autocast
 from models_train.IQAdataset import get_data_loaders
@@ -103,8 +103,12 @@ class Trainer:
             for param in self.model.features.parameters():
                 param.requires_grad = False
 
-        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step,
-                                             gamma=self.args.lr_decay)
+        if self.base_model_name=="Linearity":
+            self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step,
+                                                 gamma=self.args.lr_decay)
+        elif self.base_model_name=="KonCept":
+            points = {0: 0.0001, 40: 0.00005, 60: 0.00001}
+            self.scheduler = SimpleLRScheduler(self.optimizer, points)
 
         self.scaler = GradScaler()
 
@@ -284,13 +288,18 @@ class Trainer:
         self.b = checkpoint['b']
         self.model.eval()
         self.metric_computer.reset()
-
-        for step, (inputs, label) in enumerate(self.test_loader):
+        test_len = len(self.test_loader)
+        for step, (inputs, label) in tqdm(enumerate(self.test_loader), total=test_len):
             self._val_step(inputs, label)
         metrics = self.metric_computer.compute()
 
         checkpoint['model'] = self.model.state_dict()
         checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
+        checkpoint['min'] = self.metric_computer.preds.min()
+        checkpoint['max'] = self.metric_computer.preds.max()
+        metric_range = checkpoint['max'] - checkpoint['min']
+        print(checkpoint['min'], checkpoint['max'])
+        print(f'Metric_range:', metric_range)
         torch.save(checkpoint, self.args.trained_model_file)
 
         print('{}, {}: {:.3f}'.format(self.args.dataset, self.metrics_printed[0], metrics[self.metrics_printed[0]]))
@@ -384,6 +393,26 @@ class Trainer:
         else:
             trainer.train()
             trainer.eval()
+
+
+class SimpleLRScheduler:
+    def __init__(
+        self,
+        optimizer: Optimizer,
+        points: Dict[int, float],
+    ):
+        self.optimizer = optimizer
+        self.points = points
+
+    def step(self, epoch: int):
+        if epoch in self.points:
+            self.lr = self.points[epoch]
+            for param_group in self.optimizer.param_groups:
+                param_group["lr"] = self.lr
+
+        print("LR=", self.lr)
+        return self.lr
+
 
 
 def dump_scalar_metrics(metrics: Dict, writer: SummaryWriter, phase: str, global_step: int = 0, dataset: str = ''):

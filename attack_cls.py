@@ -50,16 +50,15 @@ class Attack:
         self.model.load_state_dict(self.checkpoint["model"])
         self.k = self.checkpoint['k']
         self.b = self.checkpoint['b']
-        # self.min_train = self.checkpoint['min']
-        # self.max_train = self.checkpoint['max']
+        self.min_train = self.checkpoint['min']
+        self.max_train = self.checkpoint['max']
         self.dataset_path = '.'
-        # self.resize = False
-        # self.metric_range_train = self.checkpoint['max'] - self.checkpoint['min']
+        self.metric_range_train = self.checkpoint['max'] - self.checkpoint['min']
         print(self.checkpoint.keys())
 
-    def set_load_conf(self, dataset_path, resize_size_h, resize_size_w, batch_size=4):
+    def set_load_conf(self, dataset_path, resize, resize_size_h, resize_size_w, batch_size=4):
         self.dataset_path = dataset_path
-        self.resize = True
+        self.resize = resize
         self.resize_size_h: int = resize_size_h
         self.resize_size_w: int = resize_size_w
         self.loader = DataLoader(TestLoader(self.dataset_path, self.resize, self.resize_size_h, self.resize_size_w),
@@ -96,6 +95,12 @@ class Attack:
             ##########
         self.min_test, self.max_test = min(self.clear_vals), max(self.clear_vals)
         self.metric_range_test = self.max_test - self.min_test
+
+
+        self.min_test, self.max_test = self.min_train, self.max_train
+        self.metric_range_test = self.metric_range_train
+
+
         print("Range: ", self.min_test, self.max_test)
 
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
@@ -234,8 +239,8 @@ class TestLoader(Dataset):
     def __getitem__(self, index):
         image = Image.open(self.imgs_names[index]).convert("RGB")
         if self.resize:  # resize or not?
-            img = resize(image, (self.resize_size_h, self.resize_size_w))  #
-        img = to_tensor(img).cuda()
+            image = resize(image, (self.resize_size_h, self.resize_size_w))  #
+        img = to_tensor(image).cuda()
         img_ = img
         # img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         return img_, img

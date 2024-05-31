@@ -15,7 +15,7 @@ def get_format_string(args):
         args.activation,
         args.model,
         args.architecture,
-        args.resize,
+        True,#args.resize,
         args.resize_size_h,
         args.resize_size_w, #args.mixup, args.mixup_gamma,
         
@@ -38,6 +38,7 @@ def run(args):
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
     exec_.set_load_conf(dataset_path=args.dataset_path,
+                        resize=args.resize,
                         resize_size_h=args.resize_size_h,
                         resize_size_w=args.resize_size_w)
 
