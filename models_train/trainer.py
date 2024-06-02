@@ -107,7 +107,7 @@ class Trainer:
             self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step,
                                                  gamma=self.args.lr_decay)
         elif self.base_model_name=="KonCept":
-            points = {0: 0.0001, 40: 0.00005, 60: 0.00001}
+            points = {0: 1e-4, 40: 1e-4/5, 60: 1e-4/10} # 70 epochs
             self.scheduler = SimpleLRScheduler(self.optimizer, points)
 
         self.scaler = GradScaler()
@@ -130,7 +130,7 @@ class Trainer:
                                 lr=self.args.learning_rate,
                                 weight_decay=self.args.weight_decay)  # Adam can be changed to other optimizers, such as SGD, Adadelta.
         elif self.base_model_name=="KonCept":
-            self.optimizer = Adam(self.model.parameters(), lr=self.args.learning_rate)
+            self.optimizer = Adam(self.model.parameters(), lr=1e-4)
         else:
             raise NameError(f"No {self.base_model_name} model.")
 

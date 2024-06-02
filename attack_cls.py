@@ -97,8 +97,8 @@ class Attack:
         self.metric_range_test = self.max_test - self.min_test
 
 
-        self.min_test, self.max_test = self.min_train, self.max_train
-        self.metric_range_test = self.metric_range_train
+        # self.min_test, self.max_test = self.min_train, self.max_train
+        # self.metric_range_test = self.metric_range_train
 
 
         print("Range: ", self.min_test, self.max_test)
