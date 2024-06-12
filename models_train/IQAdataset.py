@@ -1,4 +1,5 @@
 from torch.utils.data import Dataset, DataLoader, Subset
+from torchvision import transforms
 from torchvision.transforms.functional import resize, rotate, crop, hflip, to_tensor, normalize
 from PIL import Image
 import h5py
@@ -14,9 +15,34 @@ def default_loader(path):
 
 
 class IQADataset(Dataset):
-    def __init__(self, args, status='train', loader=default_loader, use_normalize=True):
+    def __init__(self, args, status='train', loader=default_loader, use_normalize=True, model='Linearity'):
         self.use_normalize = use_normalize
         self.status = status
+
+        self.model = model
+
+        self.data_transforms = {
+            'train': transforms.Compose([
+        #         transforms.RandomResizedCrop(input_size),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        #         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+
+            ]),
+            'val': transforms.Compose([
+        #         transforms.Resize(input_size),
+        #         transforms.CenterCrop(input_size),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+            ]),
+            'test': transforms.Compose([
+        #         transforms.Resize(input_size),
+        #         transforms.CenterCrop(input_size),
+                transforms.ToTensor(),
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+            ]),
+        }
 
         self.augment = args.augmentation
         self.angle = args.angle
@@ -69,25 +95,28 @@ class IQADataset(Dataset):
         return im, (label, label_std)
 
     def transform(self, im, status, angle=2, crop_size_h=498, crop_size_w=498, hflip_p=0.5):
-        if status == 'train' and self.augment:  # data augmentation
-            angle = random.uniform(-angle, angle)
-            p = random.random()
-            w, h = im.size
-            i = random.randint(0, h - crop_size_h)
-            j = random.randint(0, w - crop_size_w)
+        if self.model == "Linearity":
+            if status == 'train' and self.augment:  # data augmentation
+                angle = random.uniform(-angle, angle)
+                p = random.random()
+                w, h = im.size
+                i = random.randint(0, h - crop_size_h)
+                j = random.randint(0, w - crop_size_w)
 
-            im = rotate(im, angle)
-            if p < hflip_p:
-                im = hflip(im)
-            im = crop(im, i, j, self.crop_size_h, self.crop_size_w)
-        im = to_tensor(im)
-        if self.use_normalize:
-            im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            # im = normalize(im, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+                im = rotate(im, angle)
+                if p < hflip_p:
+                    im = hflip(im)
+                im = crop(im, i, j, self.crop_size_h, self.crop_size_w)
+            im = to_tensor(im)
+            if self.use_normalize:
+                im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                # im = normalize(im, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        elif self.model=="KonCept":
+            im = self.data_transforms[status](im)
         return im
 
 
-def get_data_loaders(args, train=True, val=True, test=True, use_normalize=True):
+def get_data_loaders(args, train=True, val=True, test=True, use_normalize=True, model="Linearity"):
     """ Prepare the train-val-test data
     :param args: related arguments
     :return: train_loader, val_loader, test_loader
@@ -95,7 +124,7 @@ def get_data_loaders(args, train=True, val=True, test=True, use_normalize=True):
     train_loader, val_loader, test_loader = None, None, None
     # print(train, val, test)
     if train:
-        train_dataset = IQADataset(args, 'train', use_normalize=use_normalize)
+        train_dataset = IQADataset(args, 'train', use_normalize=use_normalize, model=model)
         batch_size = args.batch_size
         if args.debug:
             num_samples = 5 * batch_size
@@ -110,8 +139,8 @@ def get_data_loaders(args, train=True, val=True, test=True, use_normalize=True):
                                 pin_memory=True)  # If the last batch only contains 1 sample, you need drop_last=True.
     
     if val and test:
-        val_dataset = IQADataset(args, 'val', use_normalize=use_normalize)
-        test_dataset = IQADataset(args, 'test', use_normalize=use_normalize)
+        val_dataset = IQADataset(args, 'val', use_normalize=use_normalize, model=model)
+        test_dataset = IQADataset(args, 'test', use_normalize=use_normalize, model=model)
         if args.debug:
             num_samples = 5
             print("Debug mode: reduced validation/test datasets to the first {} samples".format(num_samples))

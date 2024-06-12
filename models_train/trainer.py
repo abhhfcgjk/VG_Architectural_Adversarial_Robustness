@@ -85,7 +85,8 @@ class Trainer:
     def _prepair(self, train=True, val=True, test=True, use_normalize=True):
         # print(train,val,test)
         self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val,
-                                                                                test=test, use_normalize=use_normalize)
+                                                                                test=test, use_normalize=use_normalize,
+                                                                                model=self.base_model_name)
         if self.base_model_name == "Linearity":
             self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
                                     p=self.args.p, q=self.args.q,
