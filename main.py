@@ -77,10 +77,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--resize", action="store_true", help="Resize?")
     parser.add_argument(
-        "--resize_size_h", default=498, type=int, help="resize_h (default: 498)"
+        "--resize_size_h", default=384, type=int, help="resize_h (default: 498, 384)"
     )
     parser.add_argument(
-        "--resize_size_w", default=664, type=int, help="resize_w (default: 664)"
+        "--resize_size_w", default=512, type=int, help="resize_w (default: 664, 512)"
     )
 
     parser.add_argument("-iter", "--iterations", type=int, default=1)
