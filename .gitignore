@@ -13,9 +13,7 @@ graph_data
 runs/
 *.log
 /KonIQ-10k
-/prune
 /models_train/adversarial_trained
 /checkpoints
-/NIPS_test
-/weights
+/weights/*
 /debug_img
