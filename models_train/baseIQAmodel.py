@@ -1,4 +1,4 @@
-from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
+from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, swap_all_activations
 from models_train.VOneNet import get_model
 from models_train.inceptionresnet import inceptionresnetv2
 
@@ -202,6 +202,20 @@ class IQA(nn.Module):
             '''All activations changed to ReLU_SiLU class'''
             ReLU_to_ReLUSiLU(self.features)
             Activ = ReLU_SiLU
+        elif activation == "gelu":
+            '''All activations changed to GELU'''
+            Activ = nn.GELU
+        elif activation == "elu":
+            '''All activations changed to ELU'''
+            Activ = nn.ELU
+        elif activation == "Fgelu":
+            '''All activations changed to GELU'''
+            swap_all_activations(self.features, nn.ReLU, nn.GELU)
+            Activ = nn.GELU
+        elif activation == "Felu":
+            '''All activations changed to ELU'''
+            swap_all_activations(self.features, nn.ReLU, nn.ELU)
+            Activ = nn.ELU
         else:
             '''Default activation function'''
             Activ = nn.ReLU

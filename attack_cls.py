@@ -19,7 +19,7 @@ from icecream import ic
 class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
-    def __init__(self, model, arch, pool, use_bn_end, P6, P7, se, pruning, activation, device='cpu') -> None:
+    def __init__(self, model, arch, pool, use_bn_end, P6, P7, se, pruning,t_prune, activation, device='cpu') -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -27,6 +27,7 @@ class Attack:
         self.se = se
         self.model_name = model
         self.prune = pruning
+        self.prune_method = t_prune
         self.activation = activation
         # self.prune 
         self.model = IQAModel(model,arch=arch, pool=pool,
@@ -55,6 +56,9 @@ class Attack:
         self.dataset_path = '.'
         self.metric_range_train = self.checkpoint['max'] - self.checkpoint['min']
         print(self.checkpoint.keys())
+        self.min_test = self.min_train
+        self.max_test = self.max_train
+        self.metric_range_test = self.metric_range_train
 
     def set_load_conf(self, dataset_path, resize, resize_size_h, resize_size_w, batch_size=4):
         self.dataset_path = dataset_path
@@ -104,7 +108,7 @@ class Attack:
         print("Range: ", self.min_test, self.max_test)
 
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
-        self._get_info_max_min_from_testset(debug)
+        # self._get_info_max_min_from_testset(debug)
         self.attack_type = attack_type
         self.iterations = iterations
         self.attacked_vals = []
@@ -116,16 +120,19 @@ class Attack:
                 total=len(self.loader),
         ):
 
-            clear_val = (self.clear_vals[image_num] - self.min_test)/(self.max_test - self.min_test)
+            # clear_val = (self.clear_vals[image_num] - self.min_test)/(self.max_test - self.min_test)
                                     # iterative.norm(self.clear_vals[image_num],
                                     #    mmin=self.min_test, mmax=self.max_test)
 
-            ic(clear_val)
+            # ic(clear_val)
 
-            self.clear_vals[image_num] = clear_val
+            # self.clear_vals[image_num] = clear_val
+
+            clear_val = self.compute_output(img_)
+            clear_val = (clear_val - self.min_test)/(self.max_test - self.min_test)
 
             for _, eps in enumerate(self.epsilons):
-                img_attacked_, _ = iterative.attack_callback(
+                img_attacked_ = iterative.attack_callback(
                     ###############
                     img_, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
                     device=self.device,
@@ -181,7 +188,7 @@ class Attack:
         self.results = []
         degree = 0
         se_status = "+se" if self.se else ""
-        prune_status = f"+prune={self.prune}" if self.prune is not None and self.prune > 0 else ""
+        prune_status = f"+prune={self.prune}{self.prune_method}" if self.prune is not None and self.prune > 0 else ""
         mdif = {'arch': self.arch + '-' + self.model_name + se_status + prune_status,
                 'activation': self.activation,
                 'attack': self.attack_type,

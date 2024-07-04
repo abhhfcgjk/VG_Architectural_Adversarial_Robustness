@@ -254,6 +254,7 @@ class PruneConv(BasePruningMethod):
 
 
 def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50) -> Tuple:
+    print(model)
     resnet_model = model.features
     h = height  #16#90
     w = width  #24#120

@@ -14,10 +14,23 @@ def get_score(y: List[Any], k: List[int], b: List[int]):
     return y[-1] * k[0] + b[0]
 
 
+def denorm(batch, mean, std):
+    mean = torch.tensor(mean).cuda()
+    std = torch.tensor(std).cuda()
+    return batch * std.view(1,-1,1,1) + mean.view(1,-1,1,1)
+
+def fgsm_attack(data, data_grad, eps):
+    grad_sign = data_grad.sign()
+    perturbed_data = data - eps*grad_sign
+    perturbed_data.clamp_(0, 1)
+    return perturbed_data
+
+"""Linearity"""
 # def loss_fn(output, metric_range, k, b):
 #     loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
 #     return loss
 
+"""KonCept"""
 def loss_fn(output, metric_range, k, b):
     loss = 1 - (output) / metric_range
     return loss
@@ -51,41 +64,63 @@ def attack_callback(
     # ic.enable()
 
 
-    image = Variable(image_.clone().to(device) , requires_grad=True)
+    # image = Variable(image_.clone().to(device) , requires_grad=True)
     if attack_type == "IFGSM":
-        additive = torch.zeros_like(image).to(device)
+        additive = torch.zeros_like(image_).to(device)
     elif attack_type == "PGD":
-        additive = torch.rand_like(image).to(device)
+        additive = torch.rand_like(image_).to(device)
     else:
         raise "No attack_type. Got {}. Expected IFGSM, PGD.".format(attack_type)
 
-    additive = Variable(additive, requires_grad=True)
+    # additive = Variable(additive, requires_grad=True)
 
+    # for _ in range(iters):
+    #     img = image+additive
+    #     img.data.clamp_(0.0, 1.0)
+
+    #     ic(img.shape)
+    #     y = model(normalize(img,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+    #     # y = model(img)
+
+    #     loss = loss_fn(y, metric_range, k, b)
+
+    #     model.zero_grad()
+    #     if additive.grad is not None:
+    #         additive.grad.zero_()
+
+    #     loss.backward()
+    #     input_grad = additive.grad.data
+    #     # ic(input_grad)
+
+    #     gradient_sign = input_grad.sign()
+    #     # ic(gradient_sign)
+        
+    #     additive.data -= alpha * gradient_sign
+    #     additive.data.clamp_(-eps, eps)
+        
+
+    # res_image = (image + additive).data.clamp_(min=0, max=1)
+    im_denorm = image_.clone()
     for _ in range(iters):
-        img = image+additive
-        img.data.clamp_(0.0, 1.0)
+        im = normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        im.requires_grad_(True)
 
-        ic(img.shape)
-        y = model(normalize(img,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
-        # y = model(img)
+        output = model(im)
 
-        loss = loss_fn(y, metric_range, k, b)
-
+        loss = loss_fn(output, metric_range,k,b)
         model.zero_grad()
-        if additive.grad is not None:
-            additive.grad.zero_()
-
         loss.backward()
-        input_grad = additive.grad.data
-        # ic(input_grad)
 
-        gradient_sign = input_grad.sign()
-        # ic(gradient_sign)
+        im_grad = im.grad.data
+        im_denorm = denorm(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         
-        additive.data -= alpha * gradient_sign
-        additive.data.clamp_(-eps, eps)
-        
+        additive.data += alpha * im_grad.sign()
 
-    res_image = (image + additive).data.clamp_(min=0, max=1)
+        # perturbed_im = fgsm_attack(im_denorm, im_grad, eps)
+        # perturbed_im = normalize(perturbed_im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
-    return res_image, additive
+    
+    perturbed_im = image_ - additive
+    perturbed_im.clamp_(0.0, 1.0)
+
+    return perturbed_im

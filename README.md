@@ -55,7 +55,7 @@ rm -rf apex
 
 ## Training on KonIQ-10k
 ```
-CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 --ft_lr_ratio 0.1 -arch resnet34 --loss_type norm-in-norm --p 1 --q 2 --activation silu --pbar
+CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 --ft_lr_ratio 0.1 -arch resnet34 --loss_type norm-in-norm --p 1 --q 2 --activation silu --pbar
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --feature_model debiased --mgamma 0.1 --debug
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 4 -e 5 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --pbar
 
@@ -68,11 +68,9 @@ CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -
 ```
 ## Testing
 ```
-python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation Fsilu --device cuda --csv_results_dir rs -iter 1 --model KonCept
-
+python main.py --dataset_path ./NIPS_test/ -arch resnet50 --activation Fsilu --device cuda --csv_results_dir rs -iter 1 --model KonCept
 python main.py --dataset_path ./NIPS_test/ --resize -arch resnet34 --activation silu --device cuda --csv_results_dir rs -iter 10
 python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 -prune 0.1 -t_prune pls
-python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 --feature_model debiased -mg 0.1
 ```
 
 ## Visualization
@@ -96,6 +94,32 @@ tensorboard --logdir=runs --port=6006
 |	resnet50	|relu	|10^4	|783.25	|1563.77	|2341.97	|3117.52	|3890.71	|0.94|
 |	wideresnet50|	relu|	10^4|	783.25|	1563.74|	2341.96	|3117.5	|3890.67|	0.94| -->
 									
+|arch|activation|attack|iterations|eps 2|eps 4|eps 6|eps 8|eps 10|SROCC|
+|----|:--------:|:----:|:--------:|:---:|:---:|:---:|:---:|:----:|:----:|
+|resnet50-Linearity|relu|IFGSM|1.0|0.317411637289097|0.271145925804271|0.203409666328665|0.135890861648704|0.0711905868014346|0.907342712845833|
+|resnet50-Linearity|Fsilu|IFGSM|1.0|0.163610402542496|0.229744249788945|0.260979490454468|0.272827489772825|0.273075761617867|0.805964034119172|
+|resnet50-Linearity|silu|IFGSM|1.0|0.259757468717855|0.23818706373003|0.190764396984096|0.139550987124785|0.0886347675207367|0.897967910330036|
+|wideresnet50-Linearity|relu|IFGSM|1.0|0.440476591477283|0.384431273431617|0.301024952409307|0.224072102553711|0.155612114483452|0.914137004748674|
+|vonenet50-Linearity|relu|IFGSM|1.0|0.145615089197789|0.205410044566726|0.232540992669077|0.242709561170841|0.24332868292649|0.858145411487797|
+|advresnet50-Linearity|relu|IFGSM|1.0|0.0611025438093723|0.0946663652016859|0.11539471999587|0.129646397657898|0.139469237948142|0.854452963192787|
+|resnet50-Linearity|relu_silu|IFGSM|1.0|0.230368264512998|0.216448610724966|0.184115635267945|0.148635853859261|0.111172278951117|0.907032739330434|
+|resnet18-Linearity|relu|IFGSM|1.0|0.298096763164257|0.293965902695312|0.26022545658979|0.22359577736597|0.189172568807873|0.895401377115908|
+|resnet34-Linearity|relu|IFGSM|1.0|0.218251315115138|0.21347787263771|0.188101582467376|0.156821526633806|0.123871338665881|0.90180907612445|
+|resnet50-Linearity+prune=0.1pls|relu|IFGSM|1.0|0.202443460903232|0.167075693101577|0.118835222943282|0.073644110824028|0.0323004043994797|0.90534272521054|
+|resnet50-Linearity+prune=0.1l1|relu|IFGSM|1.0|0.208643864374943|0.178530992987175|0.134158508733606|0.0910499020984101|0.0505680989874457|0.906934696593827|
+|resnet50-Linearity+prune=0.1l2|relu|IFGSM|1.0|0.238957705320767|0.188690965305981|0.127481952603284|0.0701611496486072|0.0171878938957012|0.907126080398333|
+|resnet50-Linearity|gelu|IFGSM|1.0|0.403301606201018|0.393757472064734|0.344268353823393|0.288486292875002|0.231876088272428|0.905414880534313|
+|resnet50-Linearity|elu|IFGSM|1.0|0.22330776541684|0.201555592621671|0.16927916985953|0.135975865788519|0.10115349592574|0.908696613023034|
+|resnet50-Linearity|Fgelu|IFGSM|1.0|0.573644929308788|0.790752127526658|0.875399428139593|0.901769387388634|0.891817010123757|0.830302889183858|
+|resnet50-Linearity|Felu|IFGSM|1.0|0.109893066494807|0.112317684632482|0.109976290284704|0.108697793749888|0.107717667291837|0.836819747430995|
+|debiasedresnet50-Linearity|relu|IFGSM|1.0|0.115846801627178|0.104204860041715|0.0897594529607334|0.0766619504281097|0.0648316974973126|0.900750465090084|
+|shaperesnet50-Linearity|relu|IFGSM|1.0|0.179624649010126|0.171043458136231|0.149689439459143|0.127254819449897|0.105996555911404|0.900756089344851|
+|textureresnet50-Linearity|relu|IFGSM|1.0|0.267632329718235|0.243983856159449|0.201300531996576|0.158704673919841|0.118445381456513|0.90411785434087|
+|inceptionresnet-KonCept|Fsilu|IFGSM|1.0|0.100106660520033|0.103463330162708|0.0906105439583131|0.0798407800597584|0.0714483065289855|0.784502508918709|
+|inceptionresnet-KonCept|relu|IFGSM|1.0|0.83149735842992|1.252678077|1.520598964|1.698436824|1.81926388|0.845597697212582|
+|inceptionresnet-KonCept|silu|IFGSM|1.0|0.259084220259577|0.290124690175235|0.294807609890422|0.289799871938365|0.280418428622285|0.821794397480203|
+
+
 
 
 

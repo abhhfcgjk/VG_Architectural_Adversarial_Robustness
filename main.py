@@ -31,7 +31,7 @@ def run(args):
                            arch=args.architecture, pool=args.pool,
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
                            activation=args.activation, se=args.squeeze_excitation,
-                           device=args.device, pruning=args.pruning
+                           device=args.device, pruning=args.pruning, t_prune=args.pruning_type
                            )
     # print(exec.model.state_dict().keys())
     # quit()
@@ -77,10 +77,10 @@ if __name__ == "__main__":
 
     parser.add_argument("--resize", action="store_true", help="Resize?")
     parser.add_argument(
-        "--resize_size_h", default=384, type=int, help="resize_h (default: 498, 384)"
+        "--resize_size_h", default=498, type=int, help="resize_h (default: 498, 384)"
     )
     parser.add_argument(
-        "--resize_size_w", default=512, type=int, help="resize_w (default: 664, 512)"
+        "--resize_size_w", default=664, type=int, help="resize_w (default: 664, 512)"
     )
 
     parser.add_argument("-iter", "--iterations", type=int, default=1)
