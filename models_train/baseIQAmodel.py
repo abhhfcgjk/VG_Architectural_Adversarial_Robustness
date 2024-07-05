@@ -22,6 +22,7 @@ class Identity(nn.Module):
 
 
 class Wrap(nn.Module):
+    """Wrap to train with VOneNet"""
     def __init__(self, features):
         super().__init__()
         self.module = features
