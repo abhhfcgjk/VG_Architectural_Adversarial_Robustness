@@ -26,14 +26,14 @@ def fgsm_attack(data, data_grad, eps):
     return perturbed_data
 
 """Linearity"""
-# def loss_fn(output, metric_range, k, b):
-#     loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
-#     return loss
+def loss_fn(output, metric_range, k, b):
+    loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
+    return loss
 
 """KonCept"""
-def loss_fn(output, metric_range, k, b):
-    loss = 1 - (output) / metric_range
-    return loss
+# def loss_fn(output, metric_range, k, b):
+#     loss = 1 - (output) / metric_range
+#     return loss
 
 # iterative attack baseline (IFGSM attack)
 def attack_callback(
@@ -102,8 +102,9 @@ def attack_callback(
     # res_image = (image + additive).data.clamp_(min=0, max=1)
     im_denorm = image_.clone()
     for _ in range(iters):
-        im = normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        im.requires_grad_(True)
+        im = Variable(normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
+        # im.requires_grad_(True)
+        # ic(im)
 
         output = model(im)
 
@@ -115,7 +116,7 @@ def attack_callback(
         im_denorm = denorm(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         
         additive.data += alpha * im_grad.sign()
-
+        im.grad.zero_()
         # perturbed_im = fgsm_attack(im_denorm, im_grad, eps)
         # perturbed_im = normalize(perturbed_im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 

@@ -29,35 +29,35 @@ class D1Layer(nn.Module):
             expend_features.append(exp_val)
         x_res = torch.stack(tuple(expend_features), 1)
         # ic(x_res)
-        ic(x_res.shape)
+        # ic(x_res.shape)
         ind = self.get_ind(x_res)
-        ic(ind.shape)
-        ic(ind)
+        # ic(ind.shape)
+        # ic(ind)
         q = ind.view_as(x.T).T
-        ic(q)
-        ic(q.shape)
+        q = q.float()
+        # ic(q)
+        # ic(q.shape)
         emb_val = self.embeddings(ind)
-        ic(emb_val.shape)
-        ic(x_res.shape)
-        q_latent_loss = 0
+        # ic(emb_val.shape)
+        # ic(x_res.shape)
+        q_latent_loss = 0.
         if self.training:
             q_latent_loss = torch.nn.functional.mse_loss(emb_val, x_res)
             e_latent_loss = torch.nn.functional.mse_loss(x, q.detach())
             q_latent_loss = q_latent_loss + 0.25 * e_latent_loss
         q = x + (q-x).detach().contiguous()
-
         return q, q_latent_loss
     
     def get_ind(self, flat_x):
         sm = torch.sum(flat_x, dim=1).unsqueeze(1)
         # ic(sm.unsqueeze(1).shape)
         # ic(sm.unsqueeze(0).shape)
-        ic(sm.shape)
+        # ic(sm.shape)
         emb = torch.sum(self.embeddings.weight**2, dim=1).unsqueeze(0)
-        ic(self.embeddings.weight.shape)
-        ic(emb.shape)
+        # ic(self.embeddings.weight.shape)
+        # ic(emb.shape)
         dist = sm + emb - 2. * torch.matmul(flat_x, self.embeddings.weight.t())
-        ic(dist.shape)
+        # ic(dist.shape)
         encoding_ind = torch.argmin(dist, dim=1)
         return encoding_ind
 

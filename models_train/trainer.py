@@ -43,13 +43,13 @@ class Trainer:
         self.epochs = self.args.epochs
         self.current_epoch = 0
         self.gpu = 0
-        self.is_se = args.squeeze_excitation
+        self.dlayer = args.dlayer
         self.pruning = args.pruning
         self.model = IQAModel(args.model, arch=self.args.architecture,
                               pool=self.args.pool,
                               use_bn_end=self.args.use_bn_end,
                               P6=self.args.P6, P7=self.args.P7,
-                              activation=args.activation, se=self.is_se,
+                              activation=args.activation, dlayer=self.dlayer,
                               pruning=self.pruning).to(self.device)
         # self.mgamma = args.mgamma
         # self.feature_model = args.feature_model
@@ -235,14 +235,22 @@ class Trainer:
         inputs, label = self.unpack_data(inputs, label, step)
 
         self.optimizer.zero_grad(set_to_none=True)
-        output = self.compute_output(inputs, label)
+        output, eq_loss = self.compute_output(inputs, label)
         # output = self.model(inputs)
         # ic(output, label)
         # ic(inputs.shape)
+        # eq_loss = eq_loss.float()
         ic("train")
+        
         ic(output)
         ic(label)
-        loss = self.loss_func(output, label) / self.args.accumulation_steps
+        ic(eq_loss)
+        loss = self.loss_func(output, label) / self.args.accumulation_steps 
+        if self.dlayer:
+            loss += eq_loss
+        # ic(loss)
+        ic(loss)
+
         with autocast(enabled=True):
             self.scaler.scale(loss).backward()
 
@@ -259,7 +267,7 @@ class Trainer:
         # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
         label = [k.to(self.device) for k in label]
 
-        output = self.compute_output(inputs, label)
+        output, _ = self.compute_output(inputs, label)
         ic("val")
         ic(output)
         ic(label)

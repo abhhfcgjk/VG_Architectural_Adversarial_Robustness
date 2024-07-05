@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torchvision import models
 import numpy as np
 
+from models_train.Dlayer import D1Layer
+
 from typing import List, Tuple, Any, Union
 
 from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
@@ -12,6 +14,7 @@ from models_train.VOneNet import get_model
 
 from models_train.baseIQAmodel import IQA
 
+from icecream import ic
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
@@ -58,13 +61,14 @@ class Linearity(IQA):
             print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
                                                          getattr(module, attr).shape, percentage))
 
-    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', se=False,
+    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', dlayer=None,
                  pruning=0.0):
         super(Linearity, self).__init__(arch)
         
         self.pruning = pruning
         self.pool = pool
         self.use_bn_end = use_bn_end
+        self.dlayer = dlayer
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
             c = 1
@@ -99,6 +103,8 @@ class Linearity(IQA):
             self.regr7 = nn.Linear(64, 1)
             self.regression = nn.Linear(64 * 2, 1)
 
+        self.d_layer = D1Layer(16, 8)
+        # self.d_layer.train = True
 
     def extract_features(self, x):
         f, pq = [], []
@@ -120,12 +126,19 @@ class Linearity(IQA):
                 pq.append(self.regr7(x7))
 
         f = torch.cat(f, dim=1)
-
-        return f, pq
+        ic(f.shape)
+        if self.dlayer=='d1':
+            f, eq_loss = self.d_layer(f)
+        else:
+            eq_loss = 0
+        # f = f.float()
+        # ic(f)
+        # ic(eq_loss)
+        return f, pq, eq_loss
 
     def forward(self, x):
-        f, pq = self.extract_features(x)
+        f, pq, eq_loss = self.extract_features(x)
         s = self.regression(f)
         pq.append(s)
 
-        return pq
+        return pq, eq_loss

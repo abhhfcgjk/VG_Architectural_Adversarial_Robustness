@@ -23,6 +23,9 @@ def get_format_string(args):
     # if args.feature_model:
     #     assert args.mgamma
     #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
+
+    if args.dlayer:
+        format_str += f'-dlayer={args.dlayer}'
     format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
     return format_str
 
@@ -93,8 +96,9 @@ if __name__ == "__main__":
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
     parser.add_argument("-weights", "--checkpoints_dir", type=str, default='weights')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
-    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
+    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
     parser.add_argument('--model', default='Linearity', type=str)
+    parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)
