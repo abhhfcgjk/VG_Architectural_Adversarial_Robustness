@@ -104,9 +104,9 @@ class Linearity(IQA):
             self.regression = nn.Linear(64 * 2, 1)
 
 
-        self.d_in = nn.Linear(64*2, 200)
-        self.d_h = nn.Linear(200, 200)
-        self.d_out = nn.Linear(200, 64*2)
+        self.d_in = nn.Sequential(nn.Linear(64*2, 200), Activ())
+        self.d_h = nn.Sequential(nn.Linear(200, 200), Activ())
+        self.d_out = nn.Sequential(nn.Linear(200, 64*2), Activ())
         self.d_layer = D1Layer(8, 16)
         # self.d_layer.train = True
 

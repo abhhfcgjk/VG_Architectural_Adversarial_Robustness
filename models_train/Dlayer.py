@@ -61,6 +61,12 @@ class D1Layer(nn.Module):
         encoding_ind = torch.argmin(dist, dim=1)
         return encoding_ind
 
+
+class D2Layer(nn.Module):
+    def __init__(self, num_embeddings, embedding_dim):
+        super(D2Layer, self).__init__()
+
+
 if __name__ =="__main__":
     x = torch.rand(4, 4)
     # ic(x)
