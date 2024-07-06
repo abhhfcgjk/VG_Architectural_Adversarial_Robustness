@@ -103,7 +103,11 @@ class Linearity(IQA):
             self.regr7 = nn.Linear(64, 1)
             self.regression = nn.Linear(64 * 2, 1)
 
-        self.d_layer = D1Layer(16, 8)
+
+        self.d_in = nn.Linear(64*2, 200)
+        self.d_h = nn.Linear(200, 200)
+        self.d_out = nn.Linear(200, 64*2)
+        self.d_layer = D1Layer(8, 16)
         # self.d_layer.train = True
 
     def extract_features(self, x):
@@ -128,7 +132,10 @@ class Linearity(IQA):
         f = torch.cat(f, dim=1)
         ic(f.shape)
         if self.dlayer=='d1':
-            f, eq_loss = self.d_layer(f)
+            e, eq_loss = self.d_layer(f)
+            h1 = self.d_in(e)
+            h2 = self.d_h(h1)
+            f = self.d_out(h2)
         else:
             eq_loss = 0
         # f = f.float()
@@ -136,9 +143,13 @@ class Linearity(IQA):
         # ic(eq_loss)
         return f, pq, eq_loss
 
+
     def forward(self, x):
         f, pq, eq_loss = self.extract_features(x)
         s = self.regression(f)
         pq.append(s)
 
-        return pq, eq_loss
+        if self.training:
+            return pq, eq_loss
+        else:
+            return pq
