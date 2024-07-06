@@ -135,7 +135,10 @@ class Linearity(IQA):
             e, eq_loss = self.d_layer(f)
             h1 = self.d_in(e)
             h2 = self.d_h(h1)
-            f = self.d_out(h2)
+            h3 = self.d_h(h2)
+            h4 = self.d_h(h3)
+            h5 = self.d_h(h4)
+            f = self.d_out(h5)
         else:
             eq_loss = 0
         # f = f.float()
