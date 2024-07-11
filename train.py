@@ -25,6 +25,8 @@ def get_format_string(args) -> str:
     #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
     if args.dlayer:
         format_str += f'-dlayer={args.dlayer}'
+    if args.gabor:
+        format_str += f'-gabor=True'
     return format_str
 
 def run(args):
@@ -139,6 +141,7 @@ if __name__ == "__main__":
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     parser.add_argument('--model', default='Linearity', type=str)
+    parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 

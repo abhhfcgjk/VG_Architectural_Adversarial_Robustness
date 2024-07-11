@@ -13,6 +13,7 @@ from models_train.SE import SqueezeExcitation
 from models_train.VOneNet import get_model
 
 from models_train.baseIQAmodel import IQA
+from models_train.gaborresnet50 import swap_to_gabor
 
 from icecream import ic
 
@@ -62,13 +63,14 @@ class Linearity(IQA):
                                                          getattr(module, attr).shape, percentage))
 
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', dlayer=None,
-                 pruning=0.0):
+                 pruning=0.0, gabor=False):
         super(Linearity, self).__init__(arch)
         
         self.pruning = pruning
         self.pool = pool
         self.use_bn_end = use_bn_end
         self.dlayer = dlayer
+        self.gabor = gabor
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
             c = 1
@@ -78,6 +80,8 @@ class Linearity(IQA):
         self.P7 = P7  #
 
         in_features, self.features = self.get_features(self._base_model_features)
+        if self.gabor:
+            swap_to_gabor(self.features)
 
         Activ = self.get_activation_module(activation)
 
@@ -111,7 +115,7 @@ class Linearity(IQA):
         if self.dlayer=='d1':
             self.d1_layer = D1Layer(64*2, 200, 64*2, Activ, 8, 16)
         elif self.dlayer=='d2':
-            self.d2_layer = D2Layer(64*2, 200, 64*2, Activ, 25)
+            self.d2_layer = D2Layer(64*2, 200, 64*2, Activ, 100)
 
     def extract_features(self, x):
         f, pq = [], []
@@ -134,6 +138,7 @@ class Linearity(IQA):
 
         f = torch.cat(f, dim=1)
         ic(f.shape)
+        eq_loss = 0
         if self.dlayer=='d1':
             f, eq_loss = self.d1_layer(f)
             # h1 = self.d_in(e)
@@ -143,11 +148,10 @@ class Linearity(IQA):
             # h5 = self.d_h(h4)
             # f = self.d_out(h5)
         elif self.dlayer=='d2':
-            f = self.d2_layer(f)
-        else:
-            eq_loss = 0
+            f, eq_loss = self.d2_layer(f)
+        
         # f = f.float()
-        # ic(f)
+        # ic(f.shape)
         # ic(eq_loss)
         return f, pq, eq_loss
 

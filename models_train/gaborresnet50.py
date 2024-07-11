@@ -1,4 +1,4 @@
-from gabor_layers import GaborLayer
+from models_train.gabor_layers import GaborLayer
 from torchvision.models import resnet50
 from torch import nn
 

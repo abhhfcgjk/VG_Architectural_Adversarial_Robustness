@@ -100,35 +100,53 @@ def attack_callback(
         
 
 
-    # im_denorm = image_.clone()
-    # for _ in range(iters):
-    #     im = Variable(normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
-    #     output = model(im)
-    #     loss = loss_fn(output, metric_range,k,b)
-    #     model.zero_grad()
-    #     loss.backward()
-    #     im_grad = im.grad.data
-    #     im_denorm = denorm(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    #     additive.data += alpha * im_grad.sign()
-    #     im.grad.zero_()
-    # perturbed_im = image_ - additive
-    # perturbed_im.clamp_(0.0, 1.0)
-    # return perturbed_im
-
-
     im_denorm = image_.clone()
-    im = Variable(normalize(im_denorm, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
     for _ in range(iters):
-        im = im + normalize(additive,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        additive.data.clamp_(-10/255, 10/255)
+        im = Variable(normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
         output = model(im)
         loss = loss_fn(output, metric_range,k,b)
         model.zero_grad()
         loss.backward()
         im_grad = im.grad.data
-        additive.data += alpha * im_grad.sign()
-        im.grad.zero_()
-    perturbed_im = image_ - additive
+        additive.data -= alpha * im_grad.sign()
+        
+    perturbed_im = image_ + additive
     perturbed_im.clamp_(0.0, 1.0)
     return perturbed_im
+
+
+    # im_denorm = image_.clone()
+    
+    # im = Variable(normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
+    # output = model(im)
+    # loss = loss_fn(output, metric_range,k,b)
+    # model.zero_grad()
+    # loss.backward()
+    # im_grad = im.grad.data
+    # epsilon = alpha
+    # for _ in range(iters):
+    #     additive.data += epsilon * im_grad.sign()
+    # perturbed_im = image_ - additive
+    # perturbed_im.clamp_(0.0, 1.0)
+    # return perturbed_im
+
+
+
+    # im_denorm = image_.clone()
+    # im = Variable(normalize(im_denorm, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
+    # for _ in range(iters):
+    #     im = im + normalize(additive,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    #     ic(im)
+    #     output = model(im)
+    #     loss = loss_fn(output, metric_range,k,b)
+    #     model.zero_grad()
+    #     loss.backward()
+    #     im_grad = im.grad.data
+    #     additive.data += alpha * im_grad.sign()
+    #     im.grad.zero_()
+    # perturbed_im = image_ - additive
+    # perturbed_im.clamp_(0.0, 1.0)
+    # return perturbed_im
 
 

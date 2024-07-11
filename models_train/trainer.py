@@ -50,7 +50,7 @@ class Trainer:
                               use_bn_end=self.args.use_bn_end,
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, dlayer=self.dlayer,
-                              pruning=self.pruning).to(self.device)
+                              pruning=self.pruning, gabor=args.gabor).to(self.device)
         # self.mgamma = args.mgamma
         # self.feature_model = args.feature_model
         # if args.feature_model:
@@ -267,7 +267,10 @@ class Trainer:
         # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
         label = [k.to(self.device) for k in label]
 
-        output, _ = self.compute_output(inputs, label)
+        if self.model.training:
+            output, _ = self.compute_output(inputs, label)
+        else:
+            output = self.compute_output(inputs, label)
         ic("val")
         ic(output)
         ic(label)

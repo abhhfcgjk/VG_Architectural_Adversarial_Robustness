@@ -19,12 +19,11 @@ from icecream import ic
 class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
-    def __init__(self, model, arch, pool, use_bn_end, P6, P7, se, pruning,t_prune, activation, device='cpu') -> None:
+    def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu', gabor=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
         self.arch = arch
-        self.se = se
         self.model_name = model
         self.prune = pruning
         self.prune_method = t_prune
@@ -32,7 +31,7 @@ class Attack:
         # self.prune 
         self.model = IQAModel(model,arch=arch, pool=pool,
                            use_bn_end=use_bn_end,
-                           P6=P6, P7=P7, activation=activation, se=se, pruning=None).to(self.device)
+                           P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor).to(self.device)
         self.model.eval()
         # print(self.model)
 
@@ -187,9 +186,8 @@ class Attack:
     def save_results(self, csv_results_dir='.'):
         self.results = []
         degree = 0
-        se_status = "+se" if self.se else ""
         prune_status = f"+prune={self.prune}{self.prune_method}" if self.prune is not None and self.prune > 0 else ""
-        mdif = {'arch': self.arch + '-' + self.model_name + se_status + prune_status,
+        mdif = {'arch': self.arch + '-' + self.model_name + prune_status,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations,

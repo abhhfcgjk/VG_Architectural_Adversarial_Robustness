@@ -84,18 +84,30 @@ class D2Layer(nn.Module):
         self.l_h = nn.Sequential(nn.Linear(H, H), self.Activ())
         self.l_out = nn.Sequential(nn.Linear(H, D_out), self.Activ())
 
+    def get_ew_bins(self, x, levels=5):
+        b_min, b_max = x.min(axis=0)[0], x.max(axis=0)[0]
+        ew_bins = {}
+        columns = ['column' + str(i) for i in range(x.size()[1])]
+        for i, col in enumerate(columns):
+            ew_bins[col] = torch.tensor(np.linspace(b_min[i].cpu().detach().numpy(), b_max[i].cpu().detach().numpy(), num=levels + 1)[1:-1].tolist()).cuda()
+        return ew_bins
+
     def get_ef_bins(self, x, levels = 5):
         ef_bins = {}
         columns = ['column'+ str(i) for i in range(x.size()[1])]
-        percentile_centroids = torch.quantile(x, torch.linspace(0, 100, levels + 1)[1:-1]/100, dim=0).T
+        percentile_centroids = torch.quantile(x, torch.linspace(0, 100, levels + 1).cuda()[1:-1]/100, dim=0).T
+        # ic(percentile_centroids)
         for i, col in enumerate(columns):
             ef_bins[col] = percentile_centroids[i]
+        # ic(ef_bins)
         return ef_bins
 
     def discretize_by_bins(self, x, all_bins: dict):
         X_discre = []
         for i, (col, bins) in enumerate(all_bins.items()):
             _x = x[:, i]
+            ic(_x)
+            ic(bins)
             _x_discre = torch.bucketize(_x, bins)
             X_discre.append(_x_discre.reshape(-1, 1))
         X_discre = torch.hstack(X_discre)
@@ -104,6 +116,7 @@ class D2Layer(nn.Module):
     def descritization(self, x, levels=5):
         bins = self.get_ew_bins(x, levels)
         dis = self.discretize_by_bins(x, bins)
+        ic(dis)
         return dis
     
     def forward(self, x):
@@ -114,7 +127,8 @@ class D2Layer(nn.Module):
         h5 = self.l_h(h4)
         h6 = self.l_h(h5)
         y = self.l_out(h6)
-        return y
+        d2_loss = 0
+        return y, d2_loss
 
 
 if __name__ =="__main__":

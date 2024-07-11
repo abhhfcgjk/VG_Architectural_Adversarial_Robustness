@@ -26,6 +26,8 @@ def get_format_string(args):
 
     if args.dlayer:
         format_str += f'-dlayer={args.dlayer}'
+    if args.gabor:
+        format_str += f'-gabor=True'
     format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
     return format_str
 
@@ -33,8 +35,8 @@ def run(args):
     exec_: Attack = Attack(args.model,
                            arch=args.architecture, pool=args.pool,
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
-                           activation=args.activation, se=args.squeeze_excitation,
-                           device=args.device, pruning=args.pruning, t_prune=args.pruning_type
+                           activation=args.activation,
+                           device=args.device, pruning=args.pruning, t_prune=args.pruning_type, gabor=args.gabor
                            )
     # print(exec.model.state_dict().keys())
     # quit()
@@ -99,6 +101,7 @@ if __name__ == "__main__":
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
     parser.add_argument('--model', default='Linearity', type=str)
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
+    parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)
