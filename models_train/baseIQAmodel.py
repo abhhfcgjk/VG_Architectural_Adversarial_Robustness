@@ -1,4 +1,4 @@
-from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, swap_all_activations
+from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, swap_all_activations, ReLU_ELU, ReLU_GELU
 from models_train.VOneNet import get_model
 from models_train.inceptionresnet import inceptionresnetv2
 
@@ -195,6 +195,12 @@ class IQA(nn.Module):
         elif activation == 'relu_silu':
             '''Change activations only in Linearity blocks to ReLU_SiLU'''
             Activ = ReLU_SiLU
+        elif activation == 'relu_elu':
+            '''Change activations only in Linearity blocks to ReLU_ELU'''
+            Activ = ReLU_ELU
+        elif activation == 'relu_gelu':
+            '''Change activations only in Linearity blocks to ReLU_GELU'''
+            Activ = ReLU_GELU
         elif activation == 'Fsilu':
             '''All activations changed to SiLU'''
             ReLU_to_SILU(self.features)
@@ -203,6 +209,14 @@ class IQA(nn.Module):
             '''All activations changed to ReLU_SiLU class'''
             ReLU_to_ReLUSiLU(self.features)
             Activ = ReLU_SiLU
+        elif activation == 'Frelu_elu':
+            '''All activations changed to ReLU_ELU class'''
+            swap_all_activations(self.features, nn.ReLU, ReLU_ELU)
+            Activ = ReLU_ELU
+        elif activation == 'Frelu_gelu':
+            '''All activations changed to ReLU_GELU class'''
+            swap_all_activations(self.features, nn.ReLU, ReLU_GELU)
+            Activ = ReLU_GELU
         elif activation == "gelu":
             '''All activations changed to GELU'''
             Activ = nn.GELU
