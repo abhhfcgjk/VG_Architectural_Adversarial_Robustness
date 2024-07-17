@@ -27,6 +27,8 @@ def get_format_string(args) -> str:
         format_str += f'-dlayer={args.dlayer}'
     if args.gabor:
         format_str += f'-gabor=True'
+    if args.noise:
+        format_str += f'-noise=True'
     return format_str
 
 def run(args):
@@ -142,6 +144,7 @@ if __name__ == "__main__":
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     parser.add_argument('--model', default='Linearity', type=str)
     parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
+    parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 

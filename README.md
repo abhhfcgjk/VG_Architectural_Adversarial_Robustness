@@ -77,23 +77,7 @@ python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation 
 ```
 tensorboard --logdir=runs --port=6006
 ```
-## Results
-
-<!-- | arch | activation | eps 2 | eps 4 | eps 6 | eps 8 | eps 10 |
-|------|:----------:|:-----:|:-----:|:-----:|:-----:|-------:|
-|resnet34|relu|783.23204070329|1563.6732801795|2341.83929860591|3117.28492379188|3890.36685228347|
-|resnet34|silu|783.28941017389|1563.97335231304|2342.45024621486|3118.20954084396|3891.54888689518|
-|wideresnet50|relu|783.2502014935017|1563.7392178177834|2341.9534787535667|3117.4952164292336|3890.666365623474|
-|resnet50|relu|783.2514122128487|1563.7654811143875|2341.969683766365|3117.523342370987|3890.707716345787|
-|resnet34|relu|783.2173258066177|1563.6410564184189|2341.7897522449493|3117.240220308304|3890.296071767807|
-
-| arch | activation | degree | eps 2 | eps 4 | eps 6 | eps 8 | eps 10 | SROCC |
-|------|:----------:|:------:|:-----:|:-----:|:-----:|:-----:|:------:|------:|
-|	resnet34|	silu|	10^4|	783.28|	1563.96|	2342.46|	3118.32|	3891.82|	0.91|
-|	resnet34	|relu	|10^4	|783.22	|1563.64	|2341.79	|3117.24	|3890.3	|0.92|
-|	resnet50	|relu	|10^4	|783.25	|1563.77	|2341.97	|3117.52	|3890.71	|0.94|
-|	wideresnet50|	relu|	10^4|	783.25|	1563.74|	2341.96	|3117.5	|3890.67|	0.94| -->
-									
+## Results									
 |arch|activation|attack|iterations|eps 2|eps 4|eps 6|eps 8|eps 10|SROCC|
 |----|:--------:|:----:|:--------:|:---:|:---:|:---:|:---:|:----:|:----:|
 |resnet50-Linearity|relu|IFGSM|1.0|0.317411637289097|0.271145925804271|0.203409666328665|0.135890861648704|0.0711905868014346|0.907342712845833|
@@ -156,10 +140,4 @@ tensorboard --logdir=runs --port=6006
 
 
 ## Links
-<!-- [KonIQ-10k](https://drive.google.com/file/d/13KlUl_Uo68MDjL_ef7INQHf_waDZf4R9/view?usp=drive_link)<br>
-[Checkpoints-SiLU](https://drive.google.com/file/d/19sbNdE7EJDQScCWgPuQpxgptYt1YckM0/view?usp=drive_link)<br>
-[Checkpoints-ReLU](https://drive.google.com/file/d/1pte9VqUfsD3Eu0DSNQYKQpbtJep2zxEB/view?usp=drive_link)<br>
-[Checkpoints-SiLU_res34](https://drive.google.com/file/d/1OrU0zi8-TWI_MkE_1OetBKG-EvQ8hGpX/view?usp=drive_link)<br>
-[Checkpoints-ReLU_res34](https://drive.google.com/file/d/1kDGQ96qYbZuXXpqiT-BD-pk8TY_WNtkS/view?usp=drive_link)<br>
-[Checkpoints-ReLU-SiLU_res34](https://drive.google.com/file/d/1F-9J2R9j6ID5ln-ZPPcDPzUlXZX0PuFr/view?usp=drive_link)<br> -->
 __[Checkpoints](https://drive.google.com/drive/folders/1K98OLnfLZ7Q0L0kYDiuBisiMnctvYeg1?usp=sharing)__

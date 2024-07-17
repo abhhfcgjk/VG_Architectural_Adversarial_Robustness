@@ -45,6 +45,7 @@ class Trainer:
         self.gpu = 0
         self.dlayer = args.dlayer
         self.pruning = args.pruning
+        self.noise_batch = args.noise
         self.model = IQAModel(args.model, arch=self.args.architecture,
                               pool=self.args.pool,
                               use_bn_end=self.args.use_bn_end,
@@ -143,6 +144,9 @@ class Trainer:
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
                 label = [k.cuda() for k in label]
                 inputs = inputs.cuda()
+
+                if self.noise_batch:
+                    inputs, label = self.expand_batch(inputs, label, alpha=2)
 
                 metrics = self._train_step(inputs, label, step)
                 dump_scalar_metrics(
@@ -319,6 +323,17 @@ class Trainer:
 
     # def __del__(self):
     #     self.writer.close()
+
+    def expand_batch(self, inputs, label, alpha=2):
+        eps = alpha/255
+        noise = torch.randn_like(inputs, device="cuda")
+        inputs_noise = inputs + eps*noise
+        inputs = torch.cat((inputs, inputs_noise), 0)
+        label[0] = torch.cat((label[0],label[0]))
+        label[1] = torch.cat((label[1],label[1]))
+        ic(inputs.shape)
+        ic(label)
+        return inputs, label
 
     def _prepair_prune(self):
         form = self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type + f'_lr={self.args.learning_rate}_e={self.args.epochs}'
