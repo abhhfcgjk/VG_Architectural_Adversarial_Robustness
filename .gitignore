@@ -1,7 +1,7 @@
 
 models_train/KonIQ-10k
-
-
+*.out
+/venv
 __pycache__/
 
 models_train/results
