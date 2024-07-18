@@ -28,6 +28,8 @@ def get_format_string(args):
         format_str += f'-dlayer={args.dlayer}'
     if args.gabor:
         format_str += f'-gabor=True'
+    if args.noise:
+        format_str += '-noise=True'
     format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
     return format_str
 
@@ -102,6 +104,7 @@ if __name__ == "__main__":
     parser.add_argument('--model', default='Linearity', type=str)
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
+    parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)
