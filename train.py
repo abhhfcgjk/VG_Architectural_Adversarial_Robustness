@@ -194,9 +194,11 @@ if __name__ == "__main__":
 
     args.format_str = get_format_string(args)
 
+    server_mnt = "~/mnt/dione/28i_mel"
+    destination_path = os.path.expanduser(server_mnt)
     if not os.path.exists('weights'):
         os.makedirs('weights')
-    args.trained_model_file = 'weights/' + args.format_str
+    args.trained_model_file = os.path.join(destination_path, args.format_str)
     if not os.path.exists('results'):
         os.makedirs('results')
     args.save_result_file = 'results/' + args.format_str
