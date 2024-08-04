@@ -136,7 +136,7 @@ class Attack:
                     img_, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
                     device=self.device,
                     #################
-                    eps=10 / 255, iters=iterations, alpha=eps, k=self.k, b=self.b
+                    eps=1.0, iters=iterations, delta=eps, k=self.k, b=self.b
                 )
                 # img_attacked = normalize(img_attacked_,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
                 
@@ -190,8 +190,7 @@ class Attack:
         mdif = {'arch': self.arch + '-' + self.model_name + prune_status,
                 'activation': self.activation,
                 'attack': self.attack_type,
-                'iterations': self.iterations,
-                'degree': f'10^{degree}'}
+                'iterations': self.iterations}
         for int_eps in self.gains.keys():
 
             self.results.append(np.array(self.gains[int_eps]).mean())
@@ -206,7 +205,7 @@ class Attack:
         print('SROCC:', self.checkpoint['SROCC'])
 
         cols = [f'eps {e}' for e in self.gains.keys()]
-        cols = ['arch', 'activation', 'attack', 'iterations', 'degree'] + cols + ['SROCC']
+        cols = ['arch', 'activation', 'attack', 'iterations'] + cols + ['SROCC']
         if csv_results_dir is not None:
             csv_path = os.path.join(csv_results_dir, "results.csv".format(self.activation))
             if "results.csv" not in os.listdir(csv_results_dir):

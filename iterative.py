@@ -42,9 +42,9 @@ def attack_callback(
         attack_type="IFGSM",
         metric_range=100,
         device="cuda",
-        eps=10 / 255,
+        eps=1.0,
         iters=10,
-        alpha=1 / 255,
+        delta=1 / 255,
         k: List[int] = None,
         b: List[int] = None,
         # loss_fn=lambda output, metric_range, k, b: 1 - (output[-1] * k[0] + b[0]) / metric_range
@@ -109,10 +109,10 @@ def attack_callback(
         model.zero_grad()
         loss.backward()
         im_grad = im.grad.data
-        additive.data -= alpha * im_grad.sign()
+        additive.data -= delta * im_grad.sign()
         
     perturbed_im = image_ + additive
-    perturbed_im.clamp_(0.0, 1.0)
+    perturbed_im.clamp_(0.0, eps)
     return perturbed_im
 
 

@@ -3,15 +3,15 @@ import argparse
 import models_train
 from torchvision.transforms.functional import resize, to_tensor, normalize
 from attack_cls import Attack
+import os
 
 from icecream import ic
 
 EPS = 1e-6
 
 def get_format_string(args):
-    format_str = '{}/activation={}-{}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
+    format_str = 'activation={}-{}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
         .format(
-        args.checkpoints_dir,
         args.activation,
         args.model,
         args.architecture,
@@ -92,13 +92,13 @@ if __name__ == "__main__":
 
     parser.add_argument("-iter", "--iterations", type=int, default=1)
     parser.add_argument("--activation", type=str, default="relu")
-    parser.add_argument("--attack_type", type=str, default="IFGSM")
+    parser.add_argument("--attack_type", type=str, default="PGD")
     parser.add_argument("--dataset_path", type=str, default="./NIPS_test/")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--csv_results_dir", type=str, default=".")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
-    parser.add_argument("-weights", "--checkpoints_dir", type=str, default='weights')
+    # parser.add_argument("-weights", "--checkpoints_dir", type=str, default='weights')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
     parser.add_argument('--model', default='Linearity', type=str)
@@ -109,7 +109,10 @@ if __name__ == "__main__":
 
     print(args.architecture, args.pruning)
 
-    path = get_format_string(args)
+    args.format_str = get_format_string(args)
+
+    server_mnt = "~/mnt/dione/28i_mel"
+    destination_path = os.path.expanduser(server_mnt)
 
     if args.debug:
         ic.enable()
@@ -118,8 +121,9 @@ if __name__ == "__main__":
         ic.disable()
 
     print("Device: ", args.device)
-    print(path)
-    args.trained_model_file = path
+    
+    args.trained_model_file = os.path.join(destination_path, args.format_str)
+    print(args.trained_model_file)
     total_score = run(args)
     print(
         "Result for {} type attack: {:.4f}".format(
