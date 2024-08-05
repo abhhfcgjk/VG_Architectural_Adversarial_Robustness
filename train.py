@@ -23,8 +23,8 @@ def get_format_string(args) -> str:
     # if args.feature_model:
     #     assert args.mgamma
     #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
-    if args.dlayer:
-        format_str += f'-dlayer={args.dlayer}'
+    if args.gradnorm_regularization:
+        format_str += f'-gr={args.gradnorm_regularization}'
     if args.gabor:
         format_str += f'-gabor=True'
     if args.noise:
@@ -145,6 +145,8 @@ if __name__ == "__main__":
     parser.add_argument('--model', default='Linearity', type=str)
     parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
     parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
+    
+    parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 

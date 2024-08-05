@@ -46,22 +46,16 @@ class Trainer:
         self.dlayer = args.dlayer
         self.pruning = args.pruning
         self.noise_batch = args.noise
+        self.gradnorm_regularization = args.gradnorm_regularization
+        self.h_gradnorm_regularization = 1e-2
+        self.weight_gradnorm_regularization = 1e-3
         self.model = IQAModel(args.model, arch=self.args.architecture,
                               pool=self.args.pool,
                               use_bn_end=self.args.use_bn_end,
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, dlayer=self.dlayer,
                               pruning=self.pruning, gabor=args.gabor).to(self.device)
-        # self.mgamma = args.mgamma
-        # self.feature_model = args.feature_model
-        # if args.feature_model:
-        #     self.schedule_for_model = [30,60,90]
-        #     self.style_transfer = StyleTransfer()
-        #     self.mixup = MixData(args.gamma, self.device)
-        # else:
-        #     # self.feature_model = None
-        #     self.style_transfer = None
-        #     self.mixup = None
+
 
         self.scaler = GradScaler()
         self.k = [1, 1, 1]
@@ -239,7 +233,7 @@ class Trainer:
         inputs, label = self.unpack_data(inputs, label, step)
 
         self.optimizer.zero_grad(set_to_none=True)
-        output, eq_loss = self.compute_output(inputs, label)
+        output = self.compute_output(inputs, label)
         # output = self.model(inputs)
         # ic(output, label)
         # ic(inputs.shape)
@@ -248,11 +242,13 @@ class Trainer:
         
         ic(output)
         ic(label)
-        ic(eq_loss)
+        # ic(eq_loss)
         loss = self.loss_func(output, label) / self.args.accumulation_steps 
-        if self.dlayer:
-            loss += eq_loss
-        # ic(loss)
+        # if self.dlayer:
+        #     loss += eq_loss
+        # # ic(loss)
+        grad_loss = self.gradnorm_regularize(inputs)
+        loss += self.weight_gradnorm_regularization*grad_loss
         ic(loss)
 
         with autocast(enabled=True):
@@ -271,10 +267,8 @@ class Trainer:
         # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
         label = [k.to(self.device) for k in label]
 
-        if self.model.training:
-            output, _ = self.compute_output(inputs, label)
-        else:
-            output = self.compute_output(inputs, label)
+        output = self.compute_output(inputs, label)
+
         ic("val")
         ic(output)
         ic(label)
@@ -404,6 +398,33 @@ class Trainer:
     #     if batch_idx == 0:
     #         print("img size is ", ret_size)
     #     return ret_size, ret_size
+
+    def gradnorm_regularize(self, images):
+        get_pred = lambda output: output[-1]*self.k[0] + self.b[0]
+        images = images.cuda()
+        images.requires_grad_(True)
+        
+        output_cur = self.compute_output(images, None)
+        ic(output_cur)
+
+        pred_cur = get_pred(output_cur)
+        ic(pred_cur)
+        dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
+        dx = dx[0]
+        images.requires_grad_(False)
+
+        v = dx.view(dx.shape[0], -1)
+        v = torch.sign(v)
+
+        v = v.view(dx.shape).detach()
+        x2 = images + self.h_gradnorm_regularization*v
+
+        output_pert = self.compute_output(x2, None)
+        pred_pert = get_pred(output_pert)
+
+        dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
+        loss = dl.pow(2).mean()/2
+        return loss
 
     @classmethod
     def run(cls, args):

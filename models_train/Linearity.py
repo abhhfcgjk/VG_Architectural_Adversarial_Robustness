@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torchvision import models
 import numpy as np
 
-from models_train.Dlayer import D1Layer, D2Layer
+# from models_train.Dlayer import D1Layer, D2Layer
 
 from typing import List, Tuple, Any, Union
 
@@ -69,7 +69,7 @@ class Linearity(IQA):
         self.pruning = pruning
         self.pool = pool
         self.use_bn_end = use_bn_end
-        self.dlayer = dlayer
+        # self.dlayer = dlayer
         self.gabor = gabor
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
@@ -112,10 +112,10 @@ class Linearity(IQA):
         # self.d_h = nn.Sequential(nn.Linear(200, 200), Activ())
         # self.d_out = nn.Sequential(nn.Linear(200, 64*2), Activ())
 
-        if self.dlayer=='d1':
-            self.d1_layer = D1Layer(64*2, 200, 64*2, Activ, 8, 16)
-        elif self.dlayer=='d2':
-            self.d2_layer = D2Layer(64*2, 200, 64*2, Activ, 100)
+        # if self.dlayer=='d1':
+        #     self.d1_layer = D1Layer(64*2, 200, 64*2, Activ, 8, 16)
+        # elif self.dlayer=='d2':
+        #     self.d2_layer = D2Layer(64*2, 200, 64*2, Activ, 100)
 
     def extract_features(self, x):
         f, pq = [], []
@@ -138,30 +138,27 @@ class Linearity(IQA):
 
         f = torch.cat(f, dim=1)
         ic(f.shape)
-        eq_loss = 0
-        if self.dlayer=='d1':
-            f, eq_loss = self.d1_layer(f)
-            # h1 = self.d_in(e)
-            # h2 = self.d_h(h1)
-            # h3 = self.d_h(h2)
-            # h4 = self.d_h(h3)
-            # h5 = self.d_h(h4)
-            # f = self.d_out(h5)
-        elif self.dlayer=='d2':
-            f, eq_loss = self.d2_layer(f)
+        # eq_loss = 0
+        # if self.dlayer=='d1':
+        #     f, eq_loss = self.d1_layer(f)
+        #     # h1 = self.d_in(e)
+        #     # h2 = self.d_h(h1)
+        #     # h3 = self.d_h(h2)
+        #     # h4 = self.d_h(h3)
+        #     # h5 = self.d_h(h4)
+        #     # f = self.d_out(h5)
+        # elif self.dlayer=='d2':
+        #     f, eq_loss = self.d2_layer(f)
         
         # f = f.float()
         # ic(f.shape)
         # ic(eq_loss)
-        return f, pq, eq_loss
+        return f, pq
 
 
     def forward(self, x):
-        f, pq, eq_loss = self.extract_features(x)
+        f, pq = self.extract_features(x)
         s = self.regression(f)
         pq.append(s)
 
-        if self.training:
-            return pq, eq_loss
-        else:
-            return pq
+        return pq

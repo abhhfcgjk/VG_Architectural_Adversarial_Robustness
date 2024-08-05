@@ -9,7 +9,7 @@ from torchvision import models
 from typing import Tuple, Union, List, Literal
 
 from icecream import ic
-
+import os
 import yaml
 
 _MODELS = ["Linearity", "KonCept"]
@@ -23,18 +23,22 @@ class Identity(nn.Module):
 
 class Wrap(nn.Module):
     """Wrap to train with VOneNet"""
-    def __init__(self, features):
+    def __init__(self, features, layers_count=4):
         super().__init__()
         self.module = features
         self.model = features[0]
         self.index = 0
-        self.__resnet50layers_count = 4
-        self.layers = [self.model[-1].layer1, self.model[-1].layer2, self.model[-1].layer3, self.model[-1].layer4]
+        # self.__resnet50layers_count = 4
+        self.layers_count = layers_count
+        self.layers = []
+        for i in range(1, layers_count+1):
+            # self.layers = [self.model[-1].layer1, self.model[-1].layer2, self.model[-1].layer3, self.model[-1].layer4]
+            self.layers.append(getattr(self.model[-1], f'layer{i}'))
         self.it = [self.model[0], self.model[1]] + self.layers
-        self.len = 6
+        self.len = self.layers_count + 2
 
     def __getitem__(self, item):
-        if item > 5:
+        if item > self.len-1:
             raise IndexError('index error in wrap')
         elif item < 2:
             return self.model[item]
@@ -99,8 +103,17 @@ class IQA(nn.Module):
         elif arch == 'vonenet50':
             features = list(get_model(model_arch='resnet50', pretrained=True,
                                       map_location='cuda' if torch.cuda.is_available() else 'cpu').children())
-            # features[0][-1].avgpool = Identity()
-            # features[0][-1].fc = Identity()
+        
+        elif arch == 'vonenet101':
+            server_mnt = "~/mnt/dione/28i_mel"
+            destination_path = os.path.expanduser(server_mnt)
+            weightsdir =os.path.join(destination_path, 'vonenet_resnet101.pth.tar')
+            ic(weightsdir)
+            features = list(get_model(model_arch='resnet101', pretrained=True,weightsdir=weightsdir,
+                                      map_location='cuda' if torch.cuda.is_available() else 'cpu').children(),
+                                      )
+            ic(features)
+
         elif arch == "advresnet50":
             # adversarial_path = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
             with open(YAML_PATH, 'r') as file:
@@ -146,13 +159,13 @@ class IQA(nn.Module):
         assert self.__class__.__name__ in _MODELS
         # if self.arch == "inceptionresnet":
         #     features = features[:-1]
-        if self.arch != "vonenet50":
+        if self.arch != "vonenet50" and self.arch != "vonenet101":
             if self.__class__.__name__ == "Linearity":
                 features = features[:-2]
             elif self.__class__.__name__ == "KonCept":
                 features = features[:-1]
 
-        elif self.arch == "vonenet50":
+        elif self.arch == "vonenet50" or self.arch == "vonenet101":
             if self.__class__.__name__ == "Linearity":
                 features[0][-1].avgpool = Identity()
             features[0][-1].fc = Identity()
@@ -167,7 +180,7 @@ class IQA(nn.Module):
         #     self.id1 = 23
         #     self.id2 = 30
         #     features = features[0]
-        if self.arch == 'vonenet50':
+        if self.arch == 'vonenet50' or self.arch == 'vonenet101':
             self.id1 = 4
             self.id2 = 5
             in_features = [1024, 2048]
@@ -185,6 +198,8 @@ class IQA(nn.Module):
         
         if self.arch == 'vonenet50':
             return in_features, Wrap(features)
+        elif self.arch == 'vonenet101':
+            return in_features, Wrap(features, layers_count=4)
         else:
             return in_features, nn.Sequential(*features)
         

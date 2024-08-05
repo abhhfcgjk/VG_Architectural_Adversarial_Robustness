@@ -45,6 +45,9 @@ def VOneNet(sf_corr=0.75, sf_max=9, sf_min=0, rand_param=False, gabor_seed=0,
         if model_arch.lower() == 'resnet50':
             print('Model: ', 'VOneResnet50')
             model_back_end = ResNetBackEnd(block=Bottleneck, layers=[3, 4, 6, 3])
+        elif model_arch.lower() == 'resnet101':
+            print('Model: ', 'VOneResnet101')
+            model_back_end = ResNetBackEnd(block=Bottleneck, layers=[3, 4, 23, 3])
         elif model_arch.lower() == 'alexnet':
             print('Model: ', 'VOneAlexNet')
             model_back_end = AlexNetBackEnd()
