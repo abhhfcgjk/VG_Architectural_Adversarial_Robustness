@@ -9,7 +9,12 @@ class Activaion_forward_ReLU_backward_SiLU(Function):
     @staticmethod
     def forward(ctx, x, inplace):
         result = F.relu(x, inplace=inplace)
-        dx = 1 / (1 + exp(-x)) + x * exp(-x) / (1 + exp(-x)) ** 2 # d(x*sigmoid(x))/dx
+        # x = x.cpu()
+        ex = exp(-x)
+        prod = x*ex
+        # x = x.cpu()
+        dx = (1 / (1 + ex) + prod / (1 +ex) ** 2) # d(x*sigmoid(x))/dx
+        
         ctx.save_for_backward(dx)
         ctx.inplace = inplace
         return result
@@ -17,6 +22,7 @@ class Activaion_forward_ReLU_backward_SiLU(Function):
     @staticmethod
     def backward(ctx, grad_output):
         dx, = ctx.saved_tensors
+        # dx = dx.cuda()
         result = grad_output * dx
         inplace = ctx.inplace
         return result, None

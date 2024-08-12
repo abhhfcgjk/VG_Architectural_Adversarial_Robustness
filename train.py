@@ -16,8 +16,8 @@ def writer_add_scalar(writer, status, dataset, scalars, iter):
         writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
 
 def get_format_string(args) -> str:
-    format_str = 'activation={}-{}-{}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}' \
-        .format(args.activation, args.model, args.architecture,
+    format_str = 'activation={}-{}-{}-bs={}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}' \
+        .format(args.activation, args.model, args.architecture, args.batch_size,
             args.loss_type, args.p, args.q, args.detach,
             args.dataset, args.resize, args.resize_size_h, args.resize_size_w)
     # if args.feature_model:
@@ -25,6 +25,10 @@ def get_format_string(args) -> str:
     #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
     if args.gradnorm_regularization:
         format_str += f'-gr={args.gradnorm_regularization}'
+    if args.cayley:
+        format_str += f'-cl={args.cayley}'
+    if args.cayley_pool:
+        format_str += f'-clp={args.cayley_pool}'
     if args.gabor:
         format_str += f'-gabor=True'
     if args.noise:
@@ -147,6 +151,8 @@ if __name__ == "__main__":
     parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
     
     parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
+    parser.add_argument('-cl', '--cayley', action='store_true', help="Use cayley block with conv")
+    parser.add_argument('-clp', '--cayley_pool', action='store_true', help="Use cayley block with pooling")
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 

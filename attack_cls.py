@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from pathlib import Path
 from tqdm import tqdm
-from torchvision.transforms.functional import resize, to_tensor, normalize
+from torchvision.transforms.functional import resize, to_tensor, normalize, crop
 import iterative
 from models_train.IQAmodel import IQAModel
 
@@ -19,7 +19,8 @@ from icecream import ic
 class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
-    def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu', gabor=False) -> None:
+    def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu',
+                 gabor=False, gradnorm_regularization=False, cayley=False, cayley_pool=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -28,10 +29,15 @@ class Attack:
         self.prune = pruning
         self.prune_method = t_prune
         self.activation = activation
+        self.gradnorm_regularization = gradnorm_regularization
+        self.cayley = cayley
+        self.cayley_pool = cayley_pool
         # self.prune 
         self.model = IQAModel(model,arch=arch, pool=pool,
                            use_bn_end=use_bn_end,
-                           P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor).to(self.device)
+                           P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
+                           cayley=cayley, cayley_pool=cayley_pool).to(self.device)
+        ic(self.model)
         self.model.eval()
         # print(self.model)
 
@@ -47,6 +53,8 @@ class Attack:
 
     def load_checkpoints(self, checkpoints_path="LinearityIQA/checkpoints/p1q2.pth"):
         self.checkpoint = torch.load(checkpoints_path, map_location=self.device)
+        # ic(self.checkpoint['model']['cayley_block6.conv_cayley.alpha'])
+        ic(self.model.state_dict().keys())
         self.model.load_state_dict(self.checkpoint["model"])
         self.k = self.checkpoint['k']
         self.b = self.checkpoint['b']
@@ -59,12 +67,13 @@ class Attack:
         self.max_test = self.max_train
         self.metric_range_test = self.metric_range_train
 
-    def set_load_conf(self, dataset_path, resize, resize_size_h, resize_size_w, batch_size=4):
+    def set_load_conf(self, dataset_path, resize, crop, resize_size_h, resize_size_w, batch_size=4):
         self.dataset_path = dataset_path
         self.resize = resize
+        self.crop = crop
         self.resize_size_h: int = resize_size_h
         self.resize_size_w: int = resize_size_w
-        self.loader = DataLoader(TestLoader(self.dataset_path, self.resize, self.resize_size_h, self.resize_size_w),
+        self.loader = DataLoader(TestLoader(self.dataset_path, self.resize, self.crop, self.resize_size_h, self.resize_size_w),
                                  batch_size=1)
 
     def _get_info_max_min_from_testset(self, debug=False):
@@ -187,7 +196,10 @@ class Attack:
         self.results = []
         degree = 0
         prune_status = f"+prune={self.prune}{self.prune_method}" if self.prune is not None and self.prune > 0 else ""
-        mdif = {'arch': self.arch + '-' + self.model_name + prune_status,
+        cl = f'+cayley={self.cayley}' if self.cayley else ''
+        clp = f'+cayley_pool={self.cayley_pool}' if self.cayley_pool else ''
+        gr = f'+gr=True' if self.gradnorm_regularization else ''
+        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + clp,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations}
@@ -230,8 +242,9 @@ class Attack:
 
 
 class TestLoader(Dataset):
-    def __init__(self,  dataset_path, resize, resize_size_h, resize_size_w):
+    def __init__(self,  dataset_path, resize,crop=False, resize_size_h=498, resize_size_w=664):
         # self.batch_size = batch_size
+        self.crop = crop
         self.resize = resize
         self.resize_size_h, self.resize_size_w = resize_size_h, resize_size_w
         self.dataset_path = dataset_path
@@ -242,7 +255,9 @@ class TestLoader(Dataset):
 
     def __getitem__(self, index):
         image = Image.open(self.imgs_names[index]).convert("RGB")
-        if self.resize:  # resize or not?
+        if self.crop:  # crop or not?
+            image = crop(image, 0, 0, height=self.resize_size_h, width=self.resize_size_w)
+        elif self.resize:  # resize or not?
             image = resize(image, (self.resize_size_h, self.resize_size_w))  #
         img = to_tensor(image).cuda()
         img_ = img

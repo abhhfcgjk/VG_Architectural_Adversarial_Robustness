@@ -1,6 +1,8 @@
 from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU, swap_all_activations, ReLU_ELU, ReLU_GELU
 from models_train.VOneNet import get_model
 from models_train.inceptionresnet import inceptionresnetv2
+from models_train.Cayley import get_lipschitz_model, swap_conv_to_lipschitz
+from models_train import LipSim
 
 from torch import nn
 import torch
@@ -100,6 +102,8 @@ class IQA(nn.Module):
 
         if arch == 'wideresnet50':
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet50_2', pretrained=True).children())
+        elif arch == 'wideresnet101':
+            features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet101_2', pretrained=True).children())
         elif arch == 'vonenet50':
             features = list(get_model(model_arch='resnet50', pretrained=True,
                                       map_location='cuda' if torch.cuda.is_available() else 'cpu').children())
@@ -113,6 +117,15 @@ class IQA(nn.Module):
                                       map_location='cuda' if torch.cuda.is_available() else 'cpu').children(),
                                       )
             ic(features)
+        
+        elif arch == 'lipsim':
+            server_mnt = "~/mnt/dione/28i_mel"
+            # destination_path = os.path.expanduser(server_mnt)
+            # weightsdir =os.path.join(destination_path, 'vonenet_resnet101.pth.tar')
+            features = list(LipSim.L2LipschitzNetwork(1).children())[:-1]
+            ic(len(features))
+            ic(features[-1])
+            ic(features[3])
 
         elif arch == "advresnet50":
             # adversarial_path = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
@@ -126,6 +139,19 @@ class IQA(nn.Module):
 
             adversarial_resnet.load_state_dict(adversarial_state_dict)
             features = list(adversarial_resnet.children())
+        elif arch == 'debiasedresnet101':
+            assert "resnet101" in arch
+            
+            with open(YAML_PATH, 'r') as file:
+                yaml_file = yaml.safe_load(file)
+            model_type = arch.replace("resnet", "")
+            
+            _path = yaml_file['checkpoints'][model_type]
+            resnet_model = models.__dict__["resnet101"]()
+            _state_dict = self.extract_shapa_texture_debiased_state_dict(_path)
+            resnet_model.load_state_dict(_state_dict, strict=False)
+
+            features = list(resnet_model.children())
         elif ("debiased" in arch) or ("shape" in arch) or ("texture" in arch):
             assert "resnet50" in arch
             with open(YAML_PATH, 'r') as file:
@@ -184,7 +210,7 @@ class IQA(nn.Module):
             self.id1 = 4
             self.id2 = 5
             in_features = [1024, 2048]
-        elif 'res' in self.arch:
+        elif 'res' in self.arch or self.arch=='cayley101':
             self.id1 = 6
             self.id2 = 7
             if 'resnet18' in self.arch or 'resnet34' in self.arch:
@@ -193,6 +219,8 @@ class IQA(nn.Module):
                 in_features = [1024, 2048]
         elif self.arch == "inceptionresnet":
             in_features = [1024, 3072]
+        elif self.arch=='lipsim':
+            in_features = [498, 664]
         else:
             raise NotImplementedError(f'The arch {self.arch} is not implemented!')
         

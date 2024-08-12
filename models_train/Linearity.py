@@ -11,6 +11,7 @@ from typing import List, Tuple, Any, Union
 from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
 from models_train.SE import SqueezeExcitation
 from models_train.VOneNet import get_model
+from models_train.Cayley import CayleyBlock, CayleyBlockPool
 
 from models_train.baseIQAmodel import IQA
 from models_train.gaborresnet50 import swap_to_gabor
@@ -63,7 +64,7 @@ class Linearity(IQA):
                                                          getattr(module, attr).shape, percentage))
 
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', dlayer=None,
-                 pruning=0.0, gabor=False):
+                 pruning=0.0, gabor=False, cayley=False, cayley_pool=False):
         super(Linearity, self).__init__(arch)
         
         self.pruning = pruning
@@ -71,6 +72,8 @@ class Linearity(IQA):
         self.use_bn_end = use_bn_end
         # self.dlayer = dlayer
         self.gabor = gabor
+        self.cayley = cayley
+        self.cayley_pool = cayley_pool
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
             c = 1
@@ -84,19 +87,24 @@ class Linearity(IQA):
             swap_to_gabor(self.features)
 
         Activ = self.get_activation_module(activation)
-
+        ic(self.features)
+        if self.cayley:
+            self.cayley_block6 = CayleyBlock(1024, 200, stride=(2,2), padding=(6,2), kernel_size=(2,4))
+        if self.cayley_pool:
+            self.cayley_block6 = CayleyBlockPool(1024, stride=(2,2), padding=(2,0), kernel_size=(4,8))
+            # self.cayley_block7 = CayleyBlock(2048, 800, stride=(1,1), padding=(4,2), kernel_size=(2,3))
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6 + 1)]), 1024),
-                                 nn.BatchNorm1d(1024),
-                                 nn.Linear(1024, 256),
-                                 nn.BatchNorm1d(256),
-                                 nn.Linear(256, 64),
-                                 nn.BatchNorm1d(64), Activ())
+                                nn.BatchNorm1d(1024),
+                                nn.Linear(1024, 256),
+                                nn.BatchNorm1d(256),
+                                nn.Linear(256, 64),
+                                nn.BatchNorm1d(64), Activ())
         self.dr7 = nn.Sequential(nn.Linear(in_features[1] * c * sum([p * p for p in range(1, self.P7 + 1)]), 1024),
-                                 nn.BatchNorm1d(1024),
-                                 nn.Linear(1024, 256),
-                                 nn.BatchNorm1d(256),
-                                 nn.Linear(256, 64),
-                                 nn.BatchNorm1d(64), Activ())
+                                nn.BatchNorm1d(1024),
+                                nn.Linear(1024, 256),
+                                nn.BatchNorm1d(256),
+                                nn.Linear(256, 64),
+                                nn.BatchNorm1d(64), Activ())
 
         if self.use_bn_end:
             self.regr6 = nn.Sequential(nn.Linear(64, 1), nn.BatchNorm1d(1))
@@ -108,22 +116,20 @@ class Linearity(IQA):
             self.regression = nn.Linear(64 * 2, 1)
 
 
-        # self.d_in = nn.Sequential(nn.Linear(64*2, 200), Activ())
-        # self.d_h = nn.Sequential(nn.Linear(200, 200), Activ())
-        # self.d_out = nn.Sequential(nn.Linear(200, 64*2), Activ())
-
-        # if self.dlayer=='d1':
-        #     self.d1_layer = D1Layer(64*2, 200, 64*2, Activ, 8, 16)
-        # elif self.dlayer=='d2':
-        #     self.d2_layer = D2Layer(64*2, 200, 64*2, Activ, 100)
-
     def extract_features(self, x):
         f, pq = [], []
 
+        ic(len(self.features))
         for ii, model in enumerate(self.features):
+            ic(x.shape)
             x = model(x)
 
             if ii == self.id1:
+                if self.cayley:
+                    x = self.cayley_block6(x)
+                if self.cayley_pool:
+                    ic(x.shape)
+                    x = self.cayley_block6(x)
                 x6 = x
                 x6 = SPSP(x6, P=self.P6, method=self.pool)
                 x6 = self.dr6(x6)
@@ -131,6 +137,8 @@ class Linearity(IQA):
                 pq.append(self.regr6(x6))
             if ii == self.id2:
                 x7 = x
+                # if self.cayley:
+                #     x7 = self.cayley_block7(x7)
                 x7 = SPSP(x7, P=self.P7, method=self.pool)
                 x7 = self.dr7(x7)
                 f.append(x7)
@@ -138,21 +146,6 @@ class Linearity(IQA):
 
         f = torch.cat(f, dim=1)
         ic(f.shape)
-        # eq_loss = 0
-        # if self.dlayer=='d1':
-        #     f, eq_loss = self.d1_layer(f)
-        #     # h1 = self.d_in(e)
-        #     # h2 = self.d_h(h1)
-        #     # h3 = self.d_h(h2)
-        #     # h4 = self.d_h(h3)
-        #     # h5 = self.d_h(h4)
-        #     # f = self.d_out(h5)
-        # elif self.dlayer=='d2':
-        #     f, eq_loss = self.d2_layer(f)
-        
-        # f = f.float()
-        # ic(f.shape)
-        # ic(eq_loss)
         return f, pq
 
 

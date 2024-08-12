@@ -47,14 +47,17 @@ class Trainer:
         self.pruning = args.pruning
         self.noise_batch = args.noise
         self.gradnorm_regularization = args.gradnorm_regularization
-        self.h_gradnorm_regularization = 1e-2
-        self.weight_gradnorm_regularization = 1e-3
+        self.h_gradnorm_regularization = 6/255 # 10/255
+        self.weight_gradnorm_regularization = 1e-1 # 1e-2
+        self.cayley = args.cayley
+        self.cayley_pool = args.cayley_pool
         self.model = IQAModel(args.model, arch=self.args.architecture,
                               pool=self.args.pool,
                               use_bn_end=self.args.use_bn_end,
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, dlayer=self.dlayer,
-                              pruning=self.pruning, gabor=args.gabor).to(self.device)
+                              pruning=self.pruning, gabor=args.gabor,
+                              cayley=self.cayley, cayley_pool=self.cayley_pool).to(self.device)
 
 
         self.scaler = GradScaler()
@@ -247,8 +250,9 @@ class Trainer:
         # if self.dlayer:
         #     loss += eq_loss
         # # ic(loss)
-        grad_loss = self.gradnorm_regularize(inputs)
-        loss += self.weight_gradnorm_regularization*grad_loss
+        if self.gradnorm_regularization:
+            grad_loss = self.gradnorm_regularize(inputs)
+            loss += self.weight_gradnorm_regularization*grad_loss
         ic(loss)
 
         with autocast(enabled=True):
@@ -424,6 +428,7 @@ class Trainer:
 
         dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
         loss = dl.pow(2).mean()/2
+
         return loss
 
     @classmethod

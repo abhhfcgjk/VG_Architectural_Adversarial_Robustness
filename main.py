@@ -10,11 +10,12 @@ from icecream import ic
 EPS = 1e-6
 
 def get_format_string(args):
-    format_str = 'activation={}-{}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
+    format_str = 'activation={}-{}-{}-bs={}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
         .format(
         args.activation,
         args.model,
         args.architecture,
+        args.batch_size,
         True,#args.resize,
         args.resize_size_h,
         args.resize_size_w, #args.mixup, args.mixup_gamma,
@@ -24,8 +25,12 @@ def get_format_string(args):
     #     assert args.mgamma
     #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
 
-    if args.dlayer:
-        format_str += f'-dlayer={args.dlayer}'
+    if args.gradnorm_regularization:
+        format_str += f'-gr={args.gradnorm_regularization}'
+    if args.cayley:
+        format_str += f'-cl={args.cayley}'
+    if args.cayley_pool:
+        format_str += f'-clp={args.cayley_pool}'
     if args.gabor:
         format_str += f'-gabor=True'
     if args.noise:
@@ -38,7 +43,9 @@ def run(args):
                            arch=args.architecture, pool=args.pool,
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
                            activation=args.activation,
-                           device=args.device, pruning=args.pruning, t_prune=args.pruning_type, gabor=args.gabor
+                           device=args.device, pruning=args.pruning, t_prune=args.pruning_type, gabor=args.gabor,
+                           gradnorm_regularization=args.gradnorm_regularization,
+                           cayley=args.cayley, cayley_pool=args.cayley_pool
                            )
     # print(exec.model.state_dict().keys())
     # quit()
@@ -46,6 +53,7 @@ def run(args):
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
     exec_.set_load_conf(dataset_path=args.dataset_path,
                         resize=args.resize,
+                        crop=args.crop,
                         resize_size_h=args.resize_size_h,
                         resize_size_w=args.resize_size_w)
 
@@ -90,6 +98,10 @@ if __name__ == "__main__":
         "--resize_size_w", default=664, type=int, help="resize_w (default: 664, 512)"
     )
 
+    parser.add_argument(
+        "--batch_size", '-bs', default=8, type=int, help="resize_w (default: 664, 512)"
+    )
+
     parser.add_argument("-iter", "--iterations", type=int, default=1)
     parser.add_argument("--activation", type=str, default="relu")
     parser.add_argument("--attack_type", type=str, default="PGD")
@@ -105,6 +117,11 @@ if __name__ == "__main__":
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
     parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
+    parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
+    parser.add_argument('-cl', '--cayley', action='store_true', help="Use cayley block with conv")
+    parser.add_argument('-clp', '--cayley_pool', action='store_true', help="Use cayley block with pooling")
+    parser.add_argument('--crop', action='store_true', help='Use crop for image')
+
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)
