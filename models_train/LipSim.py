@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from torchvision.transforms import Normalize
+from torchvision.transforms import Normalize, v2
 from torchvision.transforms.functional import pil_to_tensor
 
 def safe_inv(x):
@@ -238,18 +238,57 @@ class L2LipschitzNetwork(nn.Module):
         self.last = PoolingLinear(in_channels, self.n_classes, agg="trunc")
 
     def forward(self, x):
-        x = self.base(x)
+        # x = self.base(x)
+        ic(x.shape)
+        for model in self.base:
+            x = model(x)
+            ic(model)
+            ic(x.shape)
+        # ic(self.base)
+        # ic(x.shape)
         x = self.last(x)
+        ic(self.last)
+        ic(x.shape)
         return x
+
+
+# class LipSimBase(nn.Module):
+#     def __init__(self, )
 
 if __name__=='__main__':
     # from IQAdataset import get_data_loaders
     from PIL import Image
+    import os
+    from icecream import ic
     # loader = get_data_loaders()
+    server_mnt = "~/mnt/dione/28i_mel"
+    destination_path = os.path.expanduser(server_mnt)
+    weightsdir =os.path.join(destination_path, 'model.ckpt-1.pth')
+    transform = v2.Compose([
+        v2.Resize((498, 664)), #224
+        v2.ToDtype(torch.float32),
+        Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ])
     im = pil_to_tensor(Image.open('../KonIQ-10k/826373.jpg').convert('RGB')).unsqueeze(0)
-    model = L2LipschitzNetwork(1)
+    im = transform(im)
+
+    lipsim = L2LipschitzNetwork(1, depth=20,depth_linear=7, num_channels=45, n_features=1024, conv_size=5)
+    ic(lipsim)
+    ckpt = torch.load(weightsdir)['model_state_dict']
+    for key in list(ckpt.keys()):
+        ckpt[key.replace('module.model.', '')] = ckpt[key]
+        del ckpt[key]
+    lipsim.load_state_dict(ckpt)
+
+    x = F.max_pool2d(im, kernel_size=(16,32), stride=(2,2), padding=(0,0))
+    ic(x.shape)
+    x = F.max_pool2d(x, kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
+    ic(x.shape)
     # print(list(model.children())[4])
-    print(model(im))
+    print(lipsim(x))
+
+
+    
 
 # def get_model():
 #     pass

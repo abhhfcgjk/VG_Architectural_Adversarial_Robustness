@@ -120,12 +120,18 @@ class IQA(nn.Module):
         
         elif arch == 'lipsim':
             server_mnt = "~/mnt/dione/28i_mel"
-            # destination_path = os.path.expanduser(server_mnt)
-            # weightsdir =os.path.join(destination_path, 'vonenet_resnet101.pth.tar')
-            features = list(LipSim.L2LipschitzNetwork(1).children())[:-1]
-            ic(len(features))
-            ic(features[-1])
-            ic(features[3])
+            destination_path = os.path.expanduser(server_mnt)
+            weightsdir =os.path.join(destination_path, 'model.ckpt-1.pth')
+            # features = list(LipSim.L2LipschitzNetwork(1).children())
+            # ic(len(features))
+            lipsim = LipSim.L2LipschitzNetwork(1, depth=20,depth_linear=7, num_channels=45, n_features=1024, conv_size=5)
+            ckpt = torch.load(weightsdir)['model_state_dict']
+            for key in list(ckpt.keys()):
+                ckpt[key.replace('module.model.', '')] = ckpt[key]
+                del ckpt[key]
+            lipsim.load_state_dict(ckpt)
+            features = list(lipsim.children())
+            ic(features)
 
         elif arch == "advresnet50":
             # adversarial_path = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
@@ -179,13 +185,16 @@ class IQA(nn.Module):
             features = list(resnet_model.children())
         
         self._base_model_features = features
+        ic(len(self._base_model_features))
 
     def get_features(self, features) -> Tuple[List[Union[int, int]], nn.Module]:
 
         assert self.__class__.__name__ in _MODELS
-        # if self.arch == "inceptionresnet":
-        #     features = features[:-1]
-        if self.arch != "vonenet50" and self.arch != "vonenet101":
+        if self.arch == 'lipsim':
+            features = features[:-2]
+        elif self.arch == "inceptionresnet":
+            features = features[:-1]
+        elif self.arch != "vonenet50" and self.arch != "vonenet101":
             if self.__class__.__name__ == "Linearity":
                 features = features[:-2]
             elif self.__class__.__name__ == "KonCept":
@@ -210,7 +219,7 @@ class IQA(nn.Module):
             self.id1 = 4
             self.id2 = 5
             in_features = [1024, 2048]
-        elif 'res' in self.arch or self.arch=='cayley101':
+        elif 'res' in self.arch:
             self.id1 = 6
             self.id2 = 7
             if 'resnet18' in self.arch or 'resnet34' in self.arch:
@@ -220,7 +229,9 @@ class IQA(nn.Module):
         elif self.arch == "inceptionresnet":
             in_features = [1024, 3072]
         elif self.arch=='lipsim':
-            in_features = [498, 664]
+            self.id1 = 1
+            self.id2 = 2
+            in_features = [45, 8820]
         else:
             raise NotImplementedError(f'The arch {self.arch} is not implemented!')
         
@@ -228,6 +239,10 @@ class IQA(nn.Module):
             return in_features, Wrap(features)
         elif self.arch == 'vonenet101':
             return in_features, Wrap(features, layers_count=4)
+        elif self.arch == 'lipsim':
+            ic(features.__len__())
+            ic(nn.Sequential(*features).__len__())
+            return in_features, nn.Sequential(*features)
         else:
             return in_features, nn.Sequential(*features)
         

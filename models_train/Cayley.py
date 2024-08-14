@@ -50,8 +50,10 @@ def cayley(W):
 class CayleyConv(StridedConv, nn.Conv2d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-
-        self.register_parameter('alpha', None)
+        if self.eval:
+            self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float32, requires_grad=True).cuda())
+        else:
+            self.register_parameter('alpha', None)
         # self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float32, requires_grad=True).cuda())
 
 
