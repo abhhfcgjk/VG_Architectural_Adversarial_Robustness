@@ -126,7 +126,7 @@ class Linearity(IQA):
         if self.cayley:
             self.cayley_block6 = CayleyBlock(1024, 200, stride=(2,2), padding=(6,2), kernel_size=(2,4))
         if self.cayley_pool:
-            self.cayley_block6 = CayleyBlockPool(1024, stride=(2,2), padding=(1,0), kernel_size=(2,10))
+            self.cayley_block6 = CayleyBlockPool(1024, 200, stride=1, padding=0, kernel_size=3)
             # self.cayley_block7 = CayleyBlock(2048, 800, stride=(1,1), padding=(4,2), kernel_size=(2,3))
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6 + 1)]), 1024),
                                 nn.BatchNorm1d(1024),

@@ -139,22 +139,44 @@ class CayleyBlockPool(nn.Module):
                      'padding_mode', 'output_padding', 'in_channels',
                      'out_channels', 'kernel_size']
     __annotations__ = {'bias': Optional[torch.Tensor]}
-    def __init__(self, in_channels, stride=(1,1), padding=(8,4), kernel_size=(2,4)):
+    def __init__(self, in_channels=2048, intermed_channels=1024, stride=(1,1), padding=(0,0), kernel_size=3):
         super(CayleyBlockPool, self).__init__()
         
-        self.conv_in = nn.AvgPool2d( stride=stride, kernel_size=kernel_size, padding=padding)
-        self.conv_cayley = CayleyConv(in_channels, in_channels, stride=(1,1), kernel_size=3)
-        self.conv_out = nn.AvgPool2d(kernel_size=3, stride=stride)
+        # self.h = height
+        # self.w = weight
+
+        self.conv_in = nn.Conv2d(in_channels, intermed_channels, stride=stride, kernel_size=kernel_size, padding=padding)
+        self.conv_cayley = CayleyConv(intermed_channels, in_channels, stride=(1,1), kernel_size=3)
+        # self.conv_out = nn.AvgPool2d(kernel_size=3, stride=stride)
     
+    def pool_to_square(self, x, h, w):
+        if w > h:
+            delta = w - h
+            up = int(np.ceil(h*0.02)+1)
+            ic(up, delta)
+            kernel_size = (up, up+delta)
+            return F.max_pool2d(x, kernel_size=kernel_size, stride=1)
+        elif w < h:
+            delta = h - w
+            up = int(np.ceil(w*0.02))
+            kernel_size = (delta+up, up)
+            return F.max_pool2d(x, kernel_size=kernel_size)
+        return x
+
     def forward(self, X):
         ic("Cayley(")
+        # ic(X.shape)
+        # x = self.conv_in(X)
         ic(X.shape)
-        x = self.conv_in(X)
+        _, _, h, w = X.shape
+        x = self.pool_to_square(X, h, w)
+        ic(x.shape)
+        x = self.conv_in(x)
         ic(x.shape)
         out = self.conv_cayley(x)
         ic(out.shape)
-        out = self.conv_out(out)
-        ic(out.shape)
+        # out = self.conv_out(out)
+        # ic(out.shape)
         ic(")cayley")
         return out
 
