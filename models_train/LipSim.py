@@ -239,13 +239,11 @@ class L2LipschitzNetwork(nn.Module):
 
     def forward(self, x):
         # x = self.base(x)
-        ic(x.shape)
-        for model in self.base:
-            x = model(x)
-            ic(model)
-            ic(x.shape)
-        # ic(self.base)
-        # ic(x.shape)
+        ic('fst', x.shape)
+        # for model in self.base:
+        #     x = model(x)
+
+        x = self.base(x)
         x = self.last(x)
         ic(self.last)
         ic(x.shape)
@@ -254,6 +252,25 @@ class L2LipschitzNetwork(nn.Module):
 
 # class LipSimBase(nn.Module):
 #     def __init__(self, )
+
+
+from typing import List
+
+def extract_features(lipsim, step_back=2) -> List:
+    features = [lipsim.base[0]]
+
+    for model in lipsim.base[1].children():
+        # features += [ for m in model]
+        # for m in model.children():
+        #     features.append(m)
+        features.append(model)
+    if step_back:
+        features = features[:-step_back]
+    return features
+
+class Identity(nn.Module):
+    def forward(self, x):
+        return x
 
 if __name__=='__main__':
     # from IQAdataset import get_data_loaders
@@ -265,7 +282,7 @@ if __name__=='__main__':
     destination_path = os.path.expanduser(server_mnt)
     weightsdir =os.path.join(destination_path, 'model.ckpt-1.pth')
     transform = v2.Compose([
-        v2.Resize((498, 664)), #224
+        v2.Resize((224, 224)), #224 # 498x664
         v2.ToDtype(torch.float32),
         Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -273,22 +290,35 @@ if __name__=='__main__':
     im = transform(im)
 
     lipsim = L2LipschitzNetwork(1, depth=20,depth_linear=7, num_channels=45, n_features=1024, conv_size=5)
-    ic(lipsim)
+    # ic(lipsim)
+
+
     ckpt = torch.load(weightsdir)['model_state_dict']
     for key in list(ckpt.keys()):
         ckpt[key.replace('module.model.', '')] = ckpt[key]
         del ckpt[key]
     lipsim.load_state_dict(ckpt)
 
-    x = F.max_pool2d(im, kernel_size=(16,32), stride=(2,2), padding=(0,0))
-    ic(x.shape)
-    x = F.max_pool2d(x, kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
-    ic(x.shape)
-    # print(list(model.children())[4])
-    print(lipsim(x))
 
+    features = extract_features(lipsim)
+    ic(features)
 
+    x = im
     
+    for model in features:
+        x = model(x)
+        ic(x.shape)
+    print('iter', x.shape)
 
-# def get_model():
-#     pass
+    # x = im
+    # x = F.max_pool2d(x, kernel_size=(16,32), stride=(2,2), padding=(0,0))
+    # ic(x.shape)
+    # x = F.max_pool2d(x, kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
+    # ic(x.shape)
+    # print(list(model.children())[4])
+
+    lipsim.base[-1] = Identity()
+    lipsim.last = Identity()
+    print(lipsim(im).shape)
+
+

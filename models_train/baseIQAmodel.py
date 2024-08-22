@@ -130,7 +130,21 @@ class IQA(nn.Module):
                 ckpt[key.replace('module.model.', '')] = ckpt[key]
                 del ckpt[key]
             lipsim.load_state_dict(ckpt)
-            features = list(lipsim.children())
+            features = LipSim.extract_features(lipsim, step_back=2)
+            ic(features)
+        elif arch == 'lipsim2':
+            server_mnt = "~/mnt/dione/28i_mel"
+            destination_path = os.path.expanduser(server_mnt)
+            weightsdir =os.path.join(destination_path, 'model.ckpt-1.pth')
+            # features = list(LipSim.L2LipschitzNetwork(1).children())
+            # ic(len(features))
+            lipsim = LipSim.L2LipschitzNetwork(1, depth=20,depth_linear=7, num_channels=45, n_features=1024, conv_size=5)
+            ckpt = torch.load(weightsdir)['model_state_dict']
+            for key in list(ckpt.keys()):
+                ckpt[key.replace('module.model.', '')] = ckpt[key]
+                del ckpt[key]
+            lipsim.load_state_dict(ckpt)
+            features = LipSim.extract_features(lipsim, step_back=None)
             ic(features)
 
         elif arch == "advresnet50":
@@ -145,6 +159,21 @@ class IQA(nn.Module):
 
             adversarial_resnet.load_state_dict(adversarial_state_dict)
             features = list(adversarial_resnet.children())
+        elif arch == 'advresnet101':
+            adv_resnet = models.__dict__['resnet101']()
+            server_mnt = "~/mnt/dione/28i_mel"
+            destination_path = os.path.expanduser(server_mnt)
+            # weightsdir =os.path.join(destination_path, 'linearity-apgd-ssim-8.pth')
+            weightsdir =os.path.join(destination_path, 'apgd_ssim_eps=2.pth')
+            sd = adv_resnet.state_dict()
+            ckpt = torch.load(weightsdir)['model']
+            # print(ckpt)
+            # for key in list(ckpt.keys()):
+            #     if not key in list(sd.keys()):
+            #         del ckpt[key]
+            ic(len(ckpt.keys()))
+            ic(len(sd.keys()))
+            adv_resnet.load_state_dict(ckpt)
         elif arch == 'debiasedresnet101':
             assert "resnet101" in arch
             
@@ -190,8 +219,8 @@ class IQA(nn.Module):
     def get_features(self, features) -> Tuple[List[Union[int, int]], nn.Module]:
 
         assert self.__class__.__name__ in _MODELS
-        if self.arch == 'lipsim':
-            features = features[:-2]
+        if self.arch == 'lipsim' or self.arch=='lipsim2':
+            features = features
         elif self.arch == "inceptionresnet":
             features = features[:-1]
         elif self.arch != "vonenet50" and self.arch != "vonenet101":
@@ -229,9 +258,13 @@ class IQA(nn.Module):
         elif self.arch == "inceptionresnet":
             in_features = [1024, 3072]
         elif self.arch=='lipsim':
-            self.id1 = 1
-            self.id2 = 2
-            in_features = [45, 8820]
+            self.id1 = 15
+            self.id2 = 20
+            in_features = [45, 45]
+        elif self.arch=='lipsim2':
+            self.id1 = 20 # 12
+            self.id2 = 22
+            in_features = [45, 45]
         else:
             raise NotImplementedError(f'The arch {self.arch} is not implemented!')
         
@@ -239,7 +272,7 @@ class IQA(nn.Module):
             return in_features, Wrap(features)
         elif self.arch == 'vonenet101':
             return in_features, Wrap(features, layers_count=4)
-        elif self.arch == 'lipsim':
+        elif self.arch == 'lipsim' or self.arch=='lipsim2':
             ic(features.__len__())
             ic(nn.Sequential(*features).__len__())
             return in_features, nn.Sequential(*features)

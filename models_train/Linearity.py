@@ -46,34 +46,6 @@ def SPSP(x, P=1, method='avg'):
                 pool_features.append(torch.cat((m1, rm2), 1).view(batch_size, -1))  # statistical pooling: mean & std
     return torch.cat(pool_features, dim=1)
 
-def SPSP1d(x, P=1, method='avg'):
-    batch_size = x.size(0)
-    map_size = x.size()[:-1]
-    pool_features = []
-    for p in range(1, P + 1):
-        pool_size = [np.int32(d / p) for d in map_size]
-        if method == 'maxmin':
-            M = F.max_pool1d(x, pool_size)
-            m = -F.max_pool1d(-x, pool_size)
-            pool_features.append(torch.cat((M, m), 1).view(batch_size, -1))  # max & min pooling
-        elif method == 'max':
-            M = F.max_pool1d(x, pool_size)
-            pool_features.append(M.view(batch_size, -1))  # max pooling
-        elif method == 'min':
-            m = -F.max_pool1d(-x, pool_size)
-            pool_features.append(m.view(batch_size, -1))  # min pooling
-        elif method == 'avg':
-            a = F.avg_pool1d(x, pool_size)
-            pool_features.append(a.view(batch_size, -1))  # average pooling
-        else:
-            m1 = F.avg_pool1d(x, pool_size)
-            rm2 = torch.sqrt(F.relu(F.avg_pool1d(torch.pow(x, 2), pool_size) - torch.pow(m1, 2)))
-            if method == 'std':
-                pool_features.append(rm2.view(batch_size, -1))  # std pooling
-            else:
-                pool_features.append(torch.cat((m1, rm2), 1).view(batch_size, -1))  # statistical pooling: mean & std
-    return torch.cat(pool_features, dim=1)
-
 
 class Linearity(IQA):
     @staticmethod
@@ -117,7 +89,7 @@ class Linearity(IQA):
         #     ic('_________')
         #     ic(d)
         #     ic('_________')
-        if self.arch == 'lipsim':
+        if self.arch == 'lipsim' or self.arch=='lipsim2':
             self.lipsim_pool = nn.Sequential(
                 nn.MaxPool2d(kernel_size=(16,32), stride=(2,2), padding=(0,0)),
                 nn.MaxPool2d(kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
@@ -157,7 +129,7 @@ class Linearity(IQA):
         ic(self.features)
         ic(len(self.features))
         ic(self.features[2])
-        if self.arch=='lipsim':
+        if self.arch == 'lipsim' or self.arch=='lipsim2':
             x = self.lipsim_pool(x)
         
         for ii, model in enumerate(self.features):
@@ -176,9 +148,6 @@ class Linearity(IQA):
                     x = self.cayley_block6(x)
                 x6 = x
                 ic(x6.shape)
-                # if self.arch=='lipsim':
-                #     x6 = x6 #SPSP1d(x6, P=self.P6, method=self.pool)
-                # else:
                 x6 = SPSP(x6, P=self.P6, method=self.pool)
                 ic(x6.shape)
                 x6 = self.dr6(x6)
@@ -188,12 +157,10 @@ class Linearity(IQA):
             if ii == self.id2:
                 x7 = x
                 ic(x7.shape)
-                if self.arch=='lipsim':
-                    x7 = x7 #SPSP1d(x7, P=self.P7, method=self.pool)
-                else:
-                    x7 = SPSP(x7, P=self.P7, method=self.pool)
+                x7 = SPSP(x7, P=self.P7, method=self.pool)
                 ic(x7.shape)
                 x7 = self.dr7(x7)
+                ic(x7.shape)
                 f.append(x7)
                 pq.append(self.regr7(x7))
 
