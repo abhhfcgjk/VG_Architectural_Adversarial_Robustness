@@ -105,7 +105,7 @@ class IQA(nn.Module):
         elif arch == 'wideresnet101':
             features = list(torch.hub.load('pytorch/vision:v0.10.0', 'wide_resnet101_2', pretrained=True).children())
         elif arch == 'vonenet50':
-            features = list(get_model(model_arch='resnet50', pretrained=True,
+            features = list(get_model(model_arch='resnet50', pretrained=True, weightsdir=None,
                                       map_location='cuda' if torch.cuda.is_available() else 'cpu').children())
         
         elif arch == 'vonenet101':
