@@ -149,31 +149,35 @@ class IQA(nn.Module):
 
         elif arch == "advresnet50":
             # adversarial_path = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
-            with open(YAML_PATH, 'r') as file:
-                yaml_file = yaml.safe_load(file)
-            adversarial_path = yaml_file['checkpoints']['adversarial']
-            # adversarial_path = yaml.dump()
-            adversarial_resnet = models.__dict__[arch.replace('adv', '')]()
+            # with open(YAML_PATH, 'r') as file:
+            #     yaml_file = yaml.safe_load(file)
+            # adversarial_path = yaml_file['checkpoints']['adversarial']
 
+            adversarial_resnet = models.__dict__[arch.replace('adv', '')]()
+            server_mnt = "~/mnt/dione/28i_mel"
+            destination_path = os.path.expanduser(server_mnt)
+            adversarial_path =os.path.join(destination_path, 'advresnet50_imagenet_linf_4.pt')
+            
             adversarial_state_dict = self.extract_adversarial_state_dict(adversarial_path)
 
             adversarial_resnet.load_state_dict(adversarial_state_dict)
             features = list(adversarial_resnet.children())
         elif arch == 'advresnet101':
             adv_resnet = models.__dict__['resnet101']()
-            server_mnt = "~/mnt/dione/28i_mel"
-            destination_path = os.path.expanduser(server_mnt)
-            # weightsdir =os.path.join(destination_path, 'linearity-apgd-ssim-8.pth')
-            weightsdir =os.path.join(destination_path, 'apgd_ssim_eps=2.pth')
-            sd = adv_resnet.state_dict()
-            ckpt = torch.load(weightsdir)['model']
-            # print(ckpt)
-            # for key in list(ckpt.keys()):
-            #     if not key in list(sd.keys()):
-            #         del ckpt[key]
-            ic(len(ckpt.keys()))
-            ic(len(sd.keys()))
-            adv_resnet.load_state_dict(ckpt)
+        #     server_mnt = "~/mnt/dione/28i_mel"
+        #     destination_path = os.path.expanduser(server_mnt)
+        #     # weightsdir =os.path.join(destination_path, 'linearity-apgd-ssim-8.pth')
+        #     weightsdir =os.path.join(destination_path, 'apgd_ssim_eps=2.pth')
+        #     sd = adv_resnet.state_dict()
+        #     ckpt = torch.load(weightsdir)['model']
+        #     # print(ckpt)
+        #     # for key in list(ckpt.keys()):
+        #     #     if not key in list(sd.keys()):
+        #     #         del ckpt[key]
+        #     ic(len(ckpt.keys()))
+        #     ic(len(sd.keys()))
+        #     adv_resnet.load_state_dict(ckpt)
+            features = list(adv_resnet.children())
         elif arch == 'debiasedresnet101':
             assert "resnet101" in arch
             
