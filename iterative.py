@@ -1,7 +1,10 @@
 from torch.autograd import Variable
 from typing import Any, List
 import torch
+from torchvision.transforms.functional import resize, to_tensor, normalize
+from torchvision.transforms import Normalize
 
+from icecream import ic
 
 def norm(score: int, mmin: int, mmax: int, metric_range=1):
     return (score - mmin) * metric_range / (mmax - mmin)
@@ -14,26 +17,52 @@ def get_score(y: List[Any], k: List[int], b: List[int], model_name):
         return y
     raise NameError(f"No {model_name} model.")
 
+<<<<<<< HEAD
 def loss_fn(output, metric_range, k, b, model_name):
     loss = 1 - (get_score(output, k, b, model_name)) / metric_range
+=======
+
+def denorm(batch, mean, std):
+    mean = torch.tensor(mean).cuda()
+    std = torch.tensor(std).cuda()
+    return batch * std.view(1,-1,1,1) + mean.view(1,-1,1,1)
+
+def fgsm_attack(data, data_grad, eps):
+    grad_sign = data_grad.sign()
+    perturbed_data = data - eps*grad_sign
+    perturbed_data.clamp_(0, 1)
+    return perturbed_data
+
+"""Linearity"""
+def loss_fn(output, metric_range, k, b):
+    loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
+>>>>>>> dev
     return loss
 
+"""KonCept"""
+# def loss_fn(output, metric_range, k, b):
+#     loss = 1 - (output) / metric_range
+#     return loss
 
 # iterative attack baseline (IFGSM attack)
 def attack_callback(
-        image,
+        image_,
         model=None,
         attack_type="IFGSM",
         metric_range=100,
-        device="cpu",
-        eps=10 / 255,
+        device="cuda",
+        eps=1.0,
         iters=10,
-        alpha=1 / 255,
+        delta=1 / 255,
         k: List[int] = None,
         b: List[int] = None,
+<<<<<<< HEAD
         model_name="Linearity",
         mmin=0,
         mmax=100
+=======
+        # loss_fn=lambda output, metric_range, k, b: 1 - (output[-1] * k[0] + b[0]) / metric_range
+>>>>>>> dev
 ):
     """
     Attack function.
@@ -47,32 +76,101 @@ def attack_callback(
     Returns:
         torch.Tensor of shape [1,3,H,W]: adversarial image with same shape as image argument.
     """
-    image = Variable(image.clone().to(device), requires_grad=True)
+    # ic.enable()
+
+
+    # image = Variable(image_.clone().to(device) , requires_grad=True)
     if attack_type == "IFGSM":
-        additive = torch.zeros_like(image).to(device)
+        additive = torch.zeros_like(image_).to(device)
     elif attack_type == "PGD":
-        additive = torch.rand_like(image).to(device)
+        additive = torch.rand_like(image_).to(device)
     else:
         raise "No attack_type. Got {}. Expected IFGSM, PGD.".format(attack_type)
 
-    additive = Variable(additive, requires_grad=True)
+    # additive = Variable(additive, requires_grad=True)
 
+    # for _ in range(iters):
+    #     img = image+additive
+    #     img.data.clamp_(0.0, 1.0)
+
+    #     ic(img.shape)
+    #     y = model(normalize(img,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))
+    #     # y = model(img)
+
+    #     loss = loss_fn(y, metric_range, k, b)
+
+    #     model.zero_grad()
+    #     if additive.grad is not None:
+    #         additive.grad.zero_()
+
+    #     loss.backward()
+    #     input_grad = additive.grad.data
+    #     # ic(input_grad)
+
+    #     gradient_sign = input_grad.sign()
+    #     # ic(gradient_sign)
+        
+    #     additive.data -= alpha * gradient_sign
+    #     additive.data.clamp_(-eps, eps)
+        
+
+
+    im_denorm = image_.clone()
     for _ in range(iters):
+<<<<<<< HEAD
         with torch.autograd.set_detect_anomaly(True):
             img = Variable(image + additive, requires_grad=True)
             img.data.clamp_(0.0, 1.0)
             y = model(img)
             # y[-1] = norm(get_score(y, k, b),mmin, mmax)
             loss = loss_fn(y, metric_range, k, b, model_name)
+=======
+        additive.data.clamp_(-10/255, 10/255)
+        im = Variable(normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
+        output = model(im)
+        loss = loss_fn(output, metric_range,k,b)
+        model.zero_grad()
+        loss.backward()
+        im_grad = im.grad.data
+        additive.data -= delta * im_grad.sign()
+        
+    perturbed_im = image_ + additive
+    perturbed_im.clamp_(0.0, eps)
+    return perturbed_im
+>>>>>>> dev
 
-            model.zero_grad()
-            loss.backward()
-            input_grad = img.grad.data
 
-        gradient_sign = input_grad.sign()
-        additive.data -= alpha * gradient_sign
-        additive.data.clamp_(-eps, eps)
+    # im_denorm = image_.clone()
+    
+    # im = Variable(normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
+    # output = model(im)
+    # loss = loss_fn(output, metric_range,k,b)
+    # model.zero_grad()
+    # loss.backward()
+    # im_grad = im.grad.data
+    # epsilon = alpha
+    # for _ in range(iters):
+    #     additive.data += epsilon * im_grad.sign()
+    # perturbed_im = image_ - additive
+    # perturbed_im.clamp_(0.0, 1.0)
+    # return perturbed_im
 
-    res_image = (image + additive).data.clamp_(min=0, max=1)
 
-    return res_image
+
+    # im_denorm = image_.clone()
+    # im = Variable(normalize(im_denorm, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
+    # for _ in range(iters):
+    #     im = im + normalize(additive,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    #     ic(im)
+    #     output = model(im)
+    #     loss = loss_fn(output, metric_range,k,b)
+    #     model.zero_grad()
+    #     loss.backward()
+    #     im_grad = im.grad.data
+    #     additive.data += alpha * im_grad.sign()
+    #     im.grad.zero_()
+    # perturbed_im = image_ - additive
+    # perturbed_im.clamp_(0.0, 1.0)
+    # return perturbed_im
+
+

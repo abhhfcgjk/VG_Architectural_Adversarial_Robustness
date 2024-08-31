@@ -1,19 +1,26 @@
 import numpy as np
 import argparse
-import LinearityIQA
+import models_train
 from torchvision.transforms.functional import resize, to_tensor, normalize
 from attack_cls import Attack
+import os
+
+from icecream import ic
 
 EPS = 1e-6
 
 def get_format_string(args):
+<<<<<<< HEAD
     format_str = '{}/activation={}-{}-{}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
+=======
+    format_str = 'activation={}-{}-{}-bs={}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
+>>>>>>> dev
         .format(
-        args.checkpoints_dir,
         args.activation,
         args.model,
         args.architecture,
-        args.resize,
+        args.batch_size,
+        True,#args.resize,
         args.resize_size_h,
         args.resize_size_w, #args.mixup, args.mixup_gamma,
         
@@ -21,21 +28,43 @@ def get_format_string(args):
     # if args.feature_model:
     #     assert args.mgamma
     #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
+<<<<<<< HEAD
+=======
+
+    if args.gradnorm_regularization:
+        format_str += f'-gr={args.gradnorm_regularization}'
+    if args.cayley:
+        format_str += f'-cl={args.cayley}'
+    if args.cayley_pool:
+        format_str += f'-clp={args.cayley_pool}'
+    if args.gabor:
+        format_str += f'-gabor=True'
+    if args.noise:
+        format_str += '-noise=True'
+>>>>>>> dev
     format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5' if args.pruning else ''
     return format_str
 
 def run(args):
+<<<<<<< HEAD
     exec_: Attack = Attack(LinearityIQA.IQAModel, base_model=args.model,
+=======
+    exec_: Attack = Attack(args.model,
+>>>>>>> dev
                            arch=args.architecture, pool=args.pool,
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
-                           activation=args.activation, se=args.squeeze_excitation,
-                           device=args.device, pruning=args.pruning
+                           activation=args.activation,
+                           device=args.device, pruning=args.pruning, t_prune=args.pruning_type, gabor=args.gabor,
+                           gradnorm_regularization=args.gradnorm_regularization,
+                           cayley=args.cayley, cayley_pool=args.cayley_pool
                            )
     # print(exec.model.state_dict().keys())
     # quit()
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
     exec_.set_load_conf(dataset_path=args.dataset_path,
+                        resize=args.resize,
+                        crop=args.crop,
                         resize_size_h=args.resize_size_h,
                         resize_size_w=args.resize_size_w)
 
@@ -74,35 +103,61 @@ if __name__ == "__main__":
 
     parser.add_argument("--resize", action="store_true", help="Resize?")
     parser.add_argument(
-        "--resize_size_h", default=498, type=int, help="resize_h (default: 498)"
+        "--resize_size_h", default=498, type=int, help="resize_h (default: 498, 384)"
     )
     parser.add_argument(
-        "--resize_size_w", default=664, type=int, help="resize_w (default: 664)"
+        "--resize_size_w", default=664, type=int, help="resize_w (default: 664, 512)"
+    )
+
+    parser.add_argument(
+        "--batch_size", '-bs', default=8, type=int, help="resize_w (default: 664, 512)"
     )
 
     parser.add_argument("-iter", "--iterations", type=int, default=1)
     parser.add_argument("--activation", type=str, default="relu")
-    parser.add_argument("--attack_type", type=str, default="IFGSM")
+    parser.add_argument("--attack_type", type=str, default="PGD")
     parser.add_argument("--dataset_path", type=str, default="./NIPS_test/")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--csv_results_dir", type=str, default=".")
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
-    parser.add_argument("-weights", "--checkpoints_dir", type=str, default='LinearityIQA/checkpoints')
+    # parser.add_argument("-weights", "--checkpoints_dir", type=str, default='weights')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
+<<<<<<< HEAD
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1
 
     parser.add_argument('--model', default='Linearity', type=str)
+=======
+    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
+    parser.add_argument('--model', default='Linearity', type=str)
+    parser.add_argument('--dlayer', default=None, type=str) # d1, d2
+    parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
+    parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
+    parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
+    parser.add_argument('-cl', '--cayley', action='store_true', help="Use cayley block with conv")
+    parser.add_argument('-clp', '--cayley_pool', action='store_true', help="Use cayley block with pooling")
+    parser.add_argument('--crop', action='store_true', help='Use crop for image')
+>>>>>>> dev
 
     args = parser.parse_args()
 
     print(args.architecture, args.pruning)
 
-    path = get_format_string(args)
+    args.format_str = get_format_string(args)
+
+    server_mnt = "~/mnt/dione/28i_mel"
+    destination_path = os.path.expanduser(server_mnt)
+
+    if args.debug:
+        ic.enable()
+        print("DEBUG")
+    else:
+        ic.disable()
 
     print("Device: ", args.device)
-    print(path)
-    args.trained_model_file = path
+    
+    args.trained_model_file = os.path.join(destination_path, args.format_str)
+    print(args.trained_model_file)
     total_score = run(args)
     print(
         "Result for {} type attack: {:.4f}".format(
