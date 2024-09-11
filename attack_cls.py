@@ -25,6 +25,8 @@ class Attack:
             assert torch.cuda.is_available()
         self.device = device
         self.arch = arch
+        # if arch=='resnet101':
+        #     arch = 'resnext101_32x8d'
         self.model_name = model
         self.prune = pruning
         self.prune_method = t_prune
@@ -33,7 +35,7 @@ class Attack:
         self.cayley = cayley
         self.cayley_pool = cayley_pool
         # self.prune 
-        self.model = IQAModel(model,arch=arch, pool=pool,
+        self.model = IQAModel(model,arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
                            cayley=cayley, cayley_pool=cayley_pool).to(self.device)

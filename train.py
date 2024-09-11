@@ -145,6 +145,13 @@ if __name__ == "__main__":
     parser.add_argument('-prune', "--pruning", type=float,
                         help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
+    parser.add_argument('--prune_iters', type=int, default=1)
+    parser.add_argument('--width_prune', type=int, default=120)
+    parser.add_argument('--height_prune', type=int, default=90)
+    parser.add_argument('--images_count_prune', type=int, default=50)
+    parser.add_argument('--kernel_prune', type=int, default=1)
+
+
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     parser.add_argument('--model', default='Linearity', type=str)
     parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")

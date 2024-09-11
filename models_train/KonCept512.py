@@ -20,7 +20,7 @@ class KonCept(IQA):
     #     else:
     #         raise NameError(f"No base model {base_model_name}")
     #     return base_model
-    def __init__(self, arch="resnet50", activation="relu",**kwargs):
+    def __init__(self, arch="inceptionresnet", activation="relu", **kwargs):
         ic("KONCEPT")
         super(KonCept, self).__init__(arch)
         num_classes=1

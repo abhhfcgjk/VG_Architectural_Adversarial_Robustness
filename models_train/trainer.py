@@ -51,7 +51,15 @@ class Trainer:
         self.weight_gradnorm_regularization = 1e-1 # 1e-2
         self.cayley = args.cayley
         self.cayley_pool = args.cayley_pool
-        self.model = IQAModel(args.model, arch=self.args.architecture,
+
+        self.prune_iters = args.prune_iters
+        self.width_prune = args.width_prune
+        self.height_prune = args.height_prune
+        self.images_count_prune = args.images_count_prune
+        self.kernel_prune = args.kernel_prune
+
+        self.model = IQAModel(args.model, 
+                              arch='resnext101_32x8d' if self.args.architecture=='apgd_ssim' or self.args.architecture=='apgd_ssim_eps2' or self.args.architecture=='free_ssim_eps2' else self.args.architecture,
                               pool=self.args.pool,
                               use_bn_end=self.args.use_bn_end,
                               P6=self.args.P6, P7=self.args.P7,
@@ -289,9 +297,9 @@ class Trainer:
         self.k = checkpoint['k']
         self.b = checkpoint['b']
         self.metric_computer = self._get_perfomance('test', k=self.k, b=self.b, mapping=True)
-        metric_range = checkpoint['max'] - checkpoint['min']
-        print(checkpoint['min'], checkpoint['max'])
-        print(f'Metric_range:', metric_range)
+        # metric_range = checkpoint['max'] - checkpoint['min']
+        # print(checkpoint['min'], checkpoint['max'])
+        # print(f'Metric_range:', metric_range)
 
         checkpoint = torch.load(self.args.trained_model_file)
         self.model.load_state_dict(checkpoint['model'])
@@ -334,21 +342,21 @@ class Trainer:
         return inputs, label
 
     def _prepair_prune(self):
-        form = self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type + f'_lr={self.args.learning_rate}_e={self.args.epochs}'
+        form = self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type + f'_lr={self.args.learning_rate}_e={self.args.epochs}_iters={self.prune_iters}'
 
-        try:
-            checkpoint = torch.load(
-                self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type)
-        except Exception:
-            checkpoint = torch.load(self.args.trained_model_file)
-            self.model.load_state_dict(checkpoint['model'])
-            self.prune()
-            checkpoint['model'] = self.model.state_dict()
-            self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type
-            print(self.args.trained_model_file)
-            torch.save(checkpoint, self.args.trained_model_file)
-            self._prepair(train=False, val=True, test=True)
-            self.eval()
+        # try:
+        #     checkpoint = torch.load(
+        #         self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type)
+        # except Exception:
+        checkpoint = torch.load(self.args.trained_model_file)
+        self.model.load_state_dict(checkpoint['model'])
+        self.prune(iters=self.prune_iters)
+        checkpoint['model'] = self.model.state_dict()
+        self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type
+        print(self.args.trained_model_file)
+        torch.save(checkpoint, self.args.trained_model_file)
+        self._prepair(train=False, val=True, test=True)
+        self.eval()
 
         self.args.trained_model_file = form
         self.model.load_state_dict(checkpoint['model'])
@@ -375,13 +383,17 @@ class Trainer:
             return IQAPerfomanceKonCept(*args, **kwargs)
         raise NameError(f"No {self.base_model_name} model.")
 
-    def prune(self):
+    def prune(self, iters=1):
         prune_parameters: tuple
+
         if self.args.pruning_type == 'l1':
             prune_parameters = l1_prune(self.model, self.pruning)
         elif self.args.pruning_type == 'pls':
             prune_parameters = pls_prune(self.model, self.pruning,
-                                         width=120, height=90, images_count=50)
+                                        width=self.width_prune, 
+                                        height=self.height_prune, 
+                                        images_count=self.images_count_prune, 
+                                        kernel=self.kernel_prune) # 120, 90
         elif self.args.pruning_type == 'l2':
             prune_parameters = ln_prune(self.model, self.pruning, 2)
 
@@ -439,7 +451,9 @@ class Trainer:
         # print(args.evaluate)
         if args.pruning:
             # print("EVAL")
-            trainer.train()
+            iters = args.prune_iters
+            for _ in range(iters):
+                trainer.train()
             trainer.eval()
         elif args.evaluate:
             trainer.eval()

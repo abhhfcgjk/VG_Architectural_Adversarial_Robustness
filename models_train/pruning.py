@@ -6,6 +6,7 @@ from torch.nn.utils.prune import BasePruningMethod, _validate_pruning_amount_ini
 from torch.nn.utils import prune
 from torch.utils.data import Dataset
 from torchvision.transforms.functional import resize, to_tensor, normalize
+import torch.nn.functional as F
 import numpy as np
 import numpy.typing as npt
 from sklearn.cross_decomposition import PLSRegression
@@ -16,7 +17,7 @@ from typing import Tuple, List, Any
 from PIL import Image
 import h5py
 from tqdm import tqdm
-
+from icecream import ic
 
 class PruneDataLoader(Dataset):
     def __init__(self, train_count=20, dataset_path='./KonIQ-10k/', dataset_labels_path='./data/KonIQ-10kinfo.mat',
@@ -63,10 +64,11 @@ class PruneDataLoader(Dataset):
 
 
 class PLSEssitimator:
-    def __init__(self, model, arch='resnet', n_components=2, device='cuda'):
+    def __init__(self, model, arch='resnet', n_components=2, kernel=1, device='cuda'):
         assert 'resnet' in arch
         self.device = 'cuda' if (device == 'cuda' and torch.cuda.is_available()) else 'cpu'
         self.n_comp = n_components
+        self.kernel = kernel
         self.idx_score_layer = []
         self.model = model
         self.convs = []
@@ -77,9 +79,17 @@ class PLSEssitimator:
                         if isinstance(conv, nn.Conv2d):
                             self.convs.append(conv)
         print(len(self.convs))
-        self.feature_maps = nn.ModuleList([
-            nn.Sequential(conv, nn.AvgPool2d((1, 1))) for conv in self.convs
-        ])
+        # self.feature_maps = nn.ModuleList([
+        #     nn.Sequential(conv, nn.AvgPool2d(kernel_size=5)) for conv in self.convs
+        # ])
+        features = []
+        
+        ic(len(self.convs))
+        for i, conv in enumerate(self.convs):
+            # ic(conv.weight.shape)
+            features.append(nn.Sequential(conv))
+        self.feature_maps = nn.ModuleList(features)
+
 
     def flatten(self, features) -> npt.ArrayLike:
         n_samples = features[0].shape[0]
@@ -130,6 +140,8 @@ class PLSEssitimator:
             im = im.to(self.device)
             x = model[0](im)
             out = [x := feature(x) for feature in self.feature_maps]
+            
+            out = [F.max_pool2d(x, kernel_size=self.kernel) if x.shape[-1]>=self.kernel else x for x in out]
             out = [item.detach().cpu().numpy() for item in out]
             if X[0] is not None:
                 X = [np.vstack((X[i], out[i])) for i in range(convs_count)]
@@ -222,14 +234,14 @@ class PruneConv(BasePruningMethod):
     @classmethod
     def apply(cls, model, name, amount, c=2,
               importance_scores=None, /,
-              train_count=20, dataset_path='./KonIQ-10k/',
+              train_count=20, kernel=1, dataset_path='./KonIQ-10k/',
               dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True,
               resize_height=498, resize_width=664):
         prune_loader = cls._load_data(cls, train_count=train_count, dataset_path=dataset_path,
                                       dataset_labels_path=dataset_labels_path, is_resize=is_resize,
                                       resize_height=resize_height, resize_width=resize_width)
 
-        pls_prune = PLSEssitimator(model)
+        pls_prune = PLSEssitimator(model, kernel=kernel)
         cls.convs = pls_prune.convs
 
         X, y = pls_prune.get_layer_features(model, prune_loader)
@@ -253,14 +265,14 @@ class PruneConv(BasePruningMethod):
         return cls
 
 
-def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50) -> Tuple:
+def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50, kernel=1) -> Tuple:
     print(model)
     resnet_model = model.features
     h = height  #16#90
     w = width  #24#120
     t_count = images_count
     PruneConv.apply(resnet_model, 'weight', amount, train_count=t_count, is_resize=True,
-                    resize_height=h, resize_width=w)
+                    resize_height=h, resize_width=w, kernel=kernel)
 
     prune_parameters = []
     for i in range(len(PruneConv.convs)):
