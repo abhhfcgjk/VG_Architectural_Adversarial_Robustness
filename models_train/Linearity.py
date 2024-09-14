@@ -61,7 +61,7 @@ class Linearity(IQA):
                                                          getattr(module, attr).shape, percentage))
 
     def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', dlayer=None,
-                 pruning=0.0, gabor=False, cayley=False, cayley_pool=False):
+                 pruning=0.0, gabor=False, cayley=False, cayley_pool=False, cayley_pair=False):
         super(Linearity, self).__init__(arch)
         
         self.pruning = pruning
@@ -71,6 +71,7 @@ class Linearity(IQA):
         self.gabor = gabor
         self.cayley = cayley
         self.cayley_pool = cayley_pool
+        self.cayley_pair = cayley_pair
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
             c = 1
@@ -99,6 +100,9 @@ class Linearity(IQA):
             self.cayley_block6 = CayleyBlockPool(512, 200, stride=1, padding=0, kernel_size=3)
         if self.cayley_pool:
             self.cayley_block6 = CayleyBlockPool(1024, 200, stride=1, padding=0, kernel_size=3)
+        if self.cayley_pair:
+            self.cayley_conv4 = CayleyBlockPool(1024, 200, stride=1, padding=0, kernel_size=3)
+            self.cayley_conv5 = CayleyBlockPool(2048, 200, stride=1, padding=0, kernel_size=3)
             # self.cayley_block7 = CayleyBlock(2048, 800, stride=(1,1), padding=(4,2), kernel_size=(2,3))
         self.dr6 = nn.Sequential(nn.Linear(in_features[0] * c * sum([p * p for p in range(1, self.P6 + 1)]), 1024),
                                 nn.BatchNorm1d(1024),
@@ -149,7 +153,10 @@ class Linearity(IQA):
                 if self.cayley_pool:
                     ic(x.shape)
                     x = self.cayley_block6(x)
+                
                 x6 = x
+                if self.cayley_pair:
+                    x6 = self.cayley_conv4(x6)
                 ic(x6.shape)
                 x6 = SPSP(x6, P=self.P6, method=self.pool)
                 ic(x6.shape)
@@ -159,6 +166,8 @@ class Linearity(IQA):
                 pq.append(self.regr6(x6))
             if ii == self.id2:
                 x7 = x
+                if self.cayley_pair:
+                    x7 = self.cayley_conv5(x7)
                 ic(x7.shape)
                 x7 = SPSP(x7, P=self.P7, method=self.pool)
                 ic(x7.shape)

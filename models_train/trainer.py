@@ -51,6 +51,7 @@ class Trainer:
         self.weight_gradnorm_regularization = 1e-1 # 1e-2
         self.cayley = args.cayley
         self.cayley_pool = args.cayley_pool
+        self.cayley_pair = args.cayley_pair
 
         self.prune_iters = args.prune_iters
         self.width_prune = args.width_prune
@@ -65,7 +66,7 @@ class Trainer:
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, dlayer=self.dlayer,
                               pruning=self.pruning, gabor=args.gabor,
-                              cayley=self.cayley, cayley_pool=self.cayley_pool).to(self.device)
+                              cayley=self.cayley, cayley_pool=self.cayley_pool, cayley_pair=self.cayley_pair).to(self.device)
 
 
         self.scaler = GradScaler()
@@ -385,7 +386,7 @@ class Trainer:
 
     def prune(self, iters=1):
         prune_parameters: tuple
-
+        # ic(self.model)
         if self.args.pruning_type == 'l1':
             prune_parameters = l1_prune(self.model, self.pruning)
         elif self.args.pruning_type == 'pls':

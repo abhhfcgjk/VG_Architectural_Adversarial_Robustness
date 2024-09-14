@@ -29,6 +29,8 @@ def get_format_string(args) -> str:
         format_str += f'-cl={args.cayley}'
     if args.cayley_pool:
         format_str += f'-clp={args.cayley_pool}'
+    if args.cayley_pair:
+        format_str += f'-cp={args.cayley_pair}'
     if args.gabor:
         format_str += f'-gabor=True'
     if args.noise:
@@ -160,6 +162,7 @@ if __name__ == "__main__":
     parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
     parser.add_argument('-cl', '--cayley', action='store_true', help="Use cayley block with conv")
     parser.add_argument('-clp', '--cayley_pool', action='store_true', help="Use cayley block with pooling")
+    parser.add_argument('-cp', '--cayley_pair', action='store_true', help="Use cayley block after conv4, conv5")
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
 

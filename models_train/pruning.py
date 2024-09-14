@@ -6,6 +6,7 @@ from torch.nn.utils.prune import BasePruningMethod, _validate_pruning_amount_ini
 from torch.nn.utils import prune
 from torch.utils.data import Dataset
 from torchvision.transforms.functional import resize, to_tensor, normalize
+from torchvision.transforms import v2
 import torch.nn.functional as F
 import numpy as np
 import numpy.typing as npt
@@ -18,6 +19,8 @@ from PIL import Image
 import h5py
 from tqdm import tqdm
 from icecream import ic
+
+from .VOneNet.modules import GFB, VOneBlock
 
 class PruneDataLoader(Dataset):
     def __init__(self, train_count=20, dataset_path='./KonIQ-10k/', dataset_labels_path='./data/KonIQ-10kinfo.mat',
@@ -42,12 +45,19 @@ class PruneDataLoader(Dataset):
         self.label = Info['subjective_scores'][0, self.imgs_indexs].astype(np.float32)
         self.im_names = [Info[Info['im_names'][0, :][i]][()].tobytes()[::2].decode() for i in self.imgs_indexs]
         self.ims = []
+        transform = v2.Compose([
+                        v2.RandomCrop((self.resize_height, self.resize_width)),
+                        v2.ToTensor(),
+                        v2.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                    ])
         for im_name in self.im_names:
             im = Image.open(os.path.join(self.dataset_path, im_name)).convert('RGB')
-            if self.resize:  # resize or not?
-                im = resize(im, (self.resize_height, self.resize_width))  # h, w
-            im = to_tensor(im)
-            im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            
+            # if self.resize:  # resize or not?
+                # im = resize(im, (self.resize_height, self.resize_width))  # h, w
+            # im = to_tensor(im)
+            # im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            im = transform(im)
             im = im.unsqueeze(0)
             self.ims.append(im)
 
@@ -72,11 +82,18 @@ class PLSEssitimator:
         self.idx_score_layer = []
         self.model = model
         self.convs = []
+        ic(self.model)
         for layer in self.model:
-            if isinstance(layer, nn.Sequential):
+            # ic(type(layer))
+            if isinstance(layer, (nn.Sequential, nn.Conv2d, VOneBlock)):
+                if isinstance(layer, nn.Conv2d):
+                    layer = nn.Sequential(nn.Sequential(layer))
+                elif isinstance(layer, VOneBlock):
+                    layer = nn.Sequential(nn.Sequential(layer.simple_conv_q0))
                 for block in layer:
+                    ic("elem", block)
                     for conv in block.children():
-                        if isinstance(conv, nn.Conv2d):
+                        if isinstance(conv, (nn.Conv2d, GFB)):
                             self.convs.append(conv)
         print(len(self.convs))
         # self.feature_maps = nn.ModuleList([
@@ -89,6 +106,7 @@ class PLSEssitimator:
             # ic(conv.weight.shape)
             features.append(nn.Sequential(conv))
         self.feature_maps = nn.ModuleList(features)
+        ic(self.feature_maps)
 
 
     def flatten(self, features) -> npt.ArrayLike:
@@ -138,7 +156,8 @@ class PLSEssitimator:
         for im, label in tqdm(loader, total=len(loader)):
             # print(model[0].weight.shape, im.shape)
             im = im.to(self.device)
-            x = model[0](im)
+            # x = model[0](im)
+            x = im
             out = [x := feature(x) for feature in self.feature_maps]
             
             out = [F.max_pool2d(x, kernel_size=self.kernel) if x.shape[-1]>=self.kernel else x for x in out]
@@ -241,7 +260,7 @@ class PruneConv(BasePruningMethod):
                                       dataset_labels_path=dataset_labels_path, is_resize=is_resize,
                                       resize_height=resize_height, resize_width=resize_width)
 
-        pls_prune = PLSEssitimator(model, kernel=kernel)
+        pls_prune = PLSEssitimator(model, kernel=kernel, n_components=4)
         cls.convs = pls_prune.convs
 
         X, y = pls_prune.get_layer_features(model, prune_loader)
@@ -289,7 +308,7 @@ def get_prune_features(model: nn.Module) -> List:
     prune_params_list = []
 
     for name, module in model.named_children():
-        if isinstance(module, nn.Conv2d):
+        if isinstance(module, (nn.Conv2d, GFB)):
             prune_params_list.append((module, 'weight'))
         else:
             prune_params_list += get_prune_features(module)
