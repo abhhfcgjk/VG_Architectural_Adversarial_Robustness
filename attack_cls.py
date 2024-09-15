@@ -20,7 +20,7 @@ class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
     def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu',
-                 gabor=False, gradnorm_regularization=False, cayley=False, cayley_pool=False) -> None:
+                 gabor=False, gradnorm_regularization=False, cayley=False, cayley_pool=False, cayley_pair=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -34,11 +34,12 @@ class Attack:
         self.gradnorm_regularization = gradnorm_regularization
         self.cayley = cayley
         self.cayley_pool = cayley_pool
+        self.cayley_pair = cayley_pair
         # self.prune 
         self.model = IQAModel(model,arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
-                           cayley=cayley, cayley_pool=cayley_pool).to(self.device)
+                           cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair).to(self.device)
         ic(self.model)
         self.model.eval()
         # print(self.model)
@@ -198,10 +199,11 @@ class Attack:
         self.results = []
         degree = 0
         prune_status = f"+prune={self.prune}{self.prune_method}" if self.prune is not None and self.prune > 0 else ""
-        cl = f'+cayley={self.cayley}' if self.cayley else ''
-        clp = f'+cayley_pool={self.cayley_pool}' if self.cayley_pool else ''
-        gr = f'+gr=True' if self.gradnorm_regularization else ''
-        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + clp,
+        cl = f'+cayley' if self.cayley else ''
+        clp = f'+cayley_pool' if self.cayley_pool else ''
+        cp = f'+cayley_pair' if self.cayley_pair else ''
+        gr = f'+gr' if self.gradnorm_regularization else ''
+        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + clp + cp,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations}

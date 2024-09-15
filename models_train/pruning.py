@@ -260,7 +260,7 @@ class PruneConv(BasePruningMethod):
                                       dataset_labels_path=dataset_labels_path, is_resize=is_resize,
                                       resize_height=resize_height, resize_width=resize_width)
 
-        pls_prune = PLSEssitimator(model, kernel=kernel, n_components=4)
+        pls_prune = PLSEssitimator(model, kernel=kernel, n_components=2)
         cls.convs = pls_prune.convs
 
         X, y = pls_prune.get_layer_features(model, prune_loader)

@@ -55,16 +55,19 @@ rm -rf apex
 
 ## Training on KonIQ-10k
 ```
-CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 --ft_lr_ratio 0.1 -arch resnet34 --loss_type norm-in-norm --p 1 --q 2 --activation silu --pbar
-CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --feature_model debiased --mgamma 0.1 --debug
-CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 4 -e 5 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --pbar
+CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 8 -e 30 --ft_lr_ratio 0.1 -arch resnet34 --loss_type norm-in-norm --p 1 --q 2 --activation silu --pbar
 
-CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 30 --ft_lr_ratio 0.1 -arch inceptionresnet --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept -rs_h 384 -rs_w 512 --debug
-CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-5 -bs 4 -e 60 --ft_lr_ratio 0.1 -arch inceptionresnet --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept -rs_h 384 -rs_w 512 --debug
+CUDA_VISIBLE_DEVICES=2 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 8 -e 5 --ft_lr_ratio 0.1 -arch resnet101 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --width_prune 120 --height_prune 90 --kernel_prune 1 --images_count_prune 100 --prune_iters 1 --pbar 
 
-CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 70 --ft_lr_ratio 0.1 -arch inceptionresnet --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept -rs_h 384 -rs_w 512
+CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 8 -e 30 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --feature_model debiased --mgamma 0.1 --debug
+CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 8 -e 5 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --pbar
 
-CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 4 -e 70 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept
+CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 8 -e 30 --ft_lr_ratio 0.1 -arch inceptionresnet --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept -rs_h 384 -rs_w 512 --debug
+CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-5 -bs 8 -e 60 --ft_lr_ratio 0.1 -arch inceptionresnet --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept -rs_h 384 -rs_w 512 --debug
+
+CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 8 -e 70 --ft_lr_ratio 0.1 -arch inceptionresnet --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept -rs_h 384 -rs_w 512
+
+CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 8 -e 70 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --model KonCept
 ```
 ## Testing
 ```
