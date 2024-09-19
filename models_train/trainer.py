@@ -29,7 +29,7 @@ from icecream import ic
 class Trainer:
     metrics_printed = ['SROCC', 'PLCC', 'RMSE']
 
-    def __init__(self, device, args) -> None:
+    def __init__(self, device, args, prune_iter=0) -> None:
         # self.config = data
         if args.debug:
             ic.enable()
@@ -38,9 +38,9 @@ class Trainer:
         self.args = args
         self.base_model_name = args.model
         self.device = device
-        self.arch = self.args.architecture
+        self.arch = args.architecture
         self.device = device
-        self.epochs = self.args.epochs
+        self.epochs = args.epochs
         self.current_epoch = 0
         self.gpu = 0
         self.dlayer = args.dlayer
@@ -58,9 +58,14 @@ class Trainer:
         self.height_prune = args.height_prune
         self.images_count_prune = args.images_count_prune
         self.kernel_prune = args.kernel_prune
+        
 
         self.model = IQAModel(args.model, 
-                              arch='resnext101_32x8d' if self.args.architecture=='apgd_ssim' or self.args.architecture=='apgd_ssim_eps2' or self.args.architecture=='free_ssim_eps2' else self.args.architecture,
+                              arch='resnext101_32x8d' 
+                                if self.args.architecture=='apgd_ssim' or 
+                                self.args.architecture=='apgd_ssim_eps2' or 
+                                self.args.architecture=='free_ssim_eps2' 
+                                else self.args.architecture,
                               pool=self.args.pool,
                               use_bn_end=self.args.use_bn_end,
                               P6=self.args.P6, P7=self.args.P7,
@@ -77,10 +82,8 @@ class Trainer:
         self.writer = SummaryWriter(log_dir='{}/{}-{}'.format(self.args.log_dir, self.args.format_str, current_time))
         self._optimizer()
 
-    def train(self):
-        if self.args.pruning:
-            self._prepair_prune()
-        self._prepair_train()
+    def train(self, train=True, val=True, test=True):
+        self._prepair_train(train, val, test)
         self._train_loop()
 
     def compute_output(self, inputs, label):
@@ -90,10 +93,10 @@ class Trainer:
         return inputs, label
 
     def _prepair(self, train=True, val=True, test=True, use_normalize=True):
-        # print(train,val,test)
-        self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val,
-                                                                                test=test, use_normalize=use_normalize,
-                                                                                model=self.base_model_name)
+        if train or val or test:
+            self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val,
+                                                                                    test=test, use_normalize=use_normalize,
+                                                                                    model=self.base_model_name)
         if self.base_model_name == "Linearity":
             self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
                                     p=self.args.p, q=self.args.q,
@@ -104,9 +107,8 @@ class Trainer:
             self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
 
 
-    def _prepair_train(self):
-        # self._prepair(use_normalize=(self.feature_model is None))
-        self._prepair()
+    def _prepair_train(self, train, val, test):
+        self._prepair(train, val, test)
         if self.args.ft_lr_ratio == .0:
             for param in self.model.features.parameters():
                 param.requires_grad = False
@@ -236,7 +238,7 @@ class Trainer:
         preds = self.metric_computer.preds
         checkpoint['max'] = preds.max()
         checkpoint['min'] = preds.min()
-        checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
+        checkpoint['SROCC'] = self.metric_computer.SROCC
         torch.save(checkpoint, self.args.trained_model_file)
 
     def _train_step(self, inputs, label, step):
@@ -246,19 +248,9 @@ class Trainer:
 
         self.optimizer.zero_grad(set_to_none=True)
         output = self.compute_output(inputs, label)
-        # output = self.model(inputs)
-        # ic(output, label)
-        # ic(inputs.shape)
-        # eq_loss = eq_loss.float()
-        ic("train")
-        
-        ic(output)
-        ic(label)
-        # ic(eq_loss)
+
         loss = self.loss_func(output, label) / self.args.accumulation_steps 
-        # if self.dlayer:
-        #     loss += eq_loss
-        # # ic(loss)
+
         if self.gradnorm_regularization:
             grad_loss = self.gradnorm_regularize(inputs)
             loss += self.weight_gradnorm_regularization*grad_loss
@@ -266,49 +258,31 @@ class Trainer:
 
         with autocast(enabled=True):
             self.scaler.scale(loss).backward()
-
             if step % self.args.accumulation_steps == 0:
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
-                # self.optimizer.zero_grad()
         metrics = {'loss': loss.cpu().detach().numpy()}
         return metrics
 
     def _val_step(self, inputs, label):
-        # inputs = inputs.cuda(self.gpu, non_blocking=True)
         inputs = inputs.to(self.device)
-        # label = [k.cuda(self.gpu, non_blocking=True) for k in label]
         label = [k.to(self.device) for k in label]
-
         output = self.compute_output(inputs, label)
-
-        ic("val")
-        ic(output)
-        ic(label)
         self.metric_computer.update((output, label))
 
-    def eval(self):
+    def eval(self, loaded=False):
         if self.args.evaluate:
             self._prepair(train=False, val=True, test=True)
 
         checkpoint = torch.load(self.args.trained_model_file)
         # results = {}
         # print(checkpoint['model'])
-        self.model.load_state_dict(checkpoint['model'])
+        if not loaded:
+            self.model.load_state_dict(checkpoint['model'])
         self.k = checkpoint['k']
         self.b = checkpoint['b']
         self.metric_computer = self._get_perfomance('test', k=self.k, b=self.b, mapping=True)
-        # metric_range = checkpoint['max'] - checkpoint['min']
-        # print(checkpoint['min'], checkpoint['max'])
-        # print(f'Metric_range:', metric_range)
 
-        checkpoint = torch.load(self.args.trained_model_file)
-        self.model.load_state_dict(checkpoint['model'])
-        # if prune:
-        #     self.prune()
-        # print(getattr(self.model.layer1.conv1, 'weight') == 0)
-        self.k = checkpoint['k']
-        self.b = checkpoint['b']
         self.model.eval()
         self.metric_computer.reset()
         test_len = len(self.test_loader)
@@ -317,7 +291,7 @@ class Trainer:
         metrics = self.metric_computer.compute()
 
         checkpoint['model'] = self.model.state_dict()
-        checkpoint['SROCC'] = abs(self.metric_computer.SROCC)
+        checkpoint['SROCC'] = self.metric_computer.SROCC
         checkpoint['min'] = self.metric_computer.preds.min()
         checkpoint['max'] = self.metric_computer.preds.max()
         metric_range = checkpoint['max'] - checkpoint['min']
@@ -342,41 +316,6 @@ class Trainer:
         ic(label)
         return inputs, label
 
-    def _prepair_prune(self):
-        form = self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type + f'_lr={self.args.learning_rate}_e={self.args.epochs}_iters={self.prune_iters}'
-
-        # try:
-        #     checkpoint = torch.load(
-        #         self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type)
-        # except Exception:
-        checkpoint = torch.load(self.args.trained_model_file)
-        self.model.load_state_dict(checkpoint['model'])
-        self.prune(iters=self.prune_iters)
-        checkpoint['model'] = self.model.state_dict()
-        self.args.trained_model_file = self.args.trained_model_file + f'+prune={self.args.pruning}' + self.args.pruning_type
-        print(self.args.trained_model_file)
-        torch.save(checkpoint, self.args.trained_model_file)
-        self._prepair(train=False, val=True, test=True)
-        self.eval()
-
-        self.args.trained_model_file = form
-        self.model.load_state_dict(checkpoint['model'])
-
-        ##################
-        convs = []
-        prune_parameters = []
-        for layer in self.model.features:
-            if isinstance(layer, nn.Sequential):
-                for block in layer:
-                    for conv in block.children():
-                        if isinstance(conv, nn.Conv2d):
-                            convs.append(conv)
-        for i in range(len(convs)):
-            prune_parameters.append((convs[i], 'weight'))
-        ######################
-
-        self.model.print_sparcity(prune_parameters)
-
     def _get_perfomance(self, *args, **kwargs):
         if self.base_model_name=="Linearity":
             return IQAPerformanceLinearity(*args, **kwargs)
@@ -384,9 +323,25 @@ class Trainer:
             return IQAPerfomanceKonCept(*args, **kwargs)
         raise NameError(f"No {self.base_model_name} model.")
 
-    def prune(self, iters=1):
+    def prune(self):
+        for i in range(self.prune_iters):
+            self._prepair_prune(prune_iter=i)
+            self._prune_features()
+            # self.eval(loaded=True)
+            self.current_epoch = 0
+            if self.epochs > 0:
+                if i == 0:
+                    self.train()
+                else:
+                    self.train(train=False, val=False, test=False)
+            elif self.epochs == 0 and i == 0:
+                self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=False, val=True,
+                                                                                    test=True, use_normalize=True,
+                                                                                    model=self.base_model_name)
+
+    def _prune_features(self):
         prune_parameters: tuple
-        # ic(self.model)
+
         if self.args.pruning_type == 'l1':
             prune_parameters = l1_prune(self.model, self.pruning)
         elif self.args.pruning_type == 'pls':
@@ -400,21 +355,38 @@ class Trainer:
 
         self.model.print_sparcity(prune_parameters)
 
-    # def img_size_scheduler(self, batch_idx, epoch, schedule, min_size=260):
-    #     ret_size = 224.0
-    #     if batch_idx % 2 == 0:
-    #         ret_size /= 2 ** 0.5
-    #     schedule = [0] + schedule + [self.epochs]
-    #     for i in range(len(schedule) - 1):
-    #         if schedule[i] <= epoch < schedule[i + 1]:
-    #             if epoch < (schedule[i] + schedule[i + 1]) / 2:
-    #                 ret_size /= 2 ** 0.5
-    #                 ri = i
-    #             break
-    #     ret_size = max(int(ret_size + 0.5), min_size)
-    #     if batch_idx == 0:
-    #         print("img size is ", ret_size)
-    #     return ret_size, ret_size
+    def _prepair_prune(self, prune_iter=0):
+        if prune_iter > 0:
+            form = self.args.trained_model_file[:-1] + str(prune_iter+1) # prune_iter += 1
+        elif prune_iter == 0:
+            # form = f'{self.args.trained_model_file}+prune={self.args.pruning}{self.args.pruning_type}_lr={self.args.learning_rate}_e={self.args.epochs}_iters={prune_iter+1}'
+            form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(self.args.trained_model_file, self.args.pruning,
+                                                              self.args.pruning_type, self.args.learning_rate,
+                                                              self.args.epochs, prune_iter+1)
+        else:
+            raise Exception
+
+        checkpoint = torch.load(self.args.trained_model_file)
+        self.model.load_state_dict(checkpoint['model'])
+        self.args.trained_model_file = form
+        torch.save(checkpoint, self.args.trained_model_file)
+        print(self.args.trained_model_file)
+        
+        ##################
+        # convs = []
+        # prune_parameters = []
+        # for layer in self.model.features:
+        #     if isinstance(layer, nn.Sequential):
+        #         for block in layer:
+        #             for conv in block.children():
+        #                 if isinstance(conv, nn.Conv2d):
+        #                     convs.append(conv)
+        # for i in range(len(convs)):
+        #     prune_parameters.append((convs[i], 'weight'))
+        ######################
+
+        # self.model.print_sparcity(prune_parameters)
+
 
     def gradnorm_regularize(self, images):
         get_pred = lambda output: output[-1]*self.k[0] + self.b[0]
@@ -450,13 +422,10 @@ class Trainer:
 
         trainer = cls(device, args)
         # print(args.evaluate)
-        if args.pruning:
-            # print("EVAL")
-            iters = args.prune_iters
-            for _ in range(iters):
-                trainer.train()
+        if args.evaluate:
             trainer.eval()
-        elif args.evaluate:
+        elif args.pruning:
+            trainer.prune()
             trainer.eval()
         else:
             trainer.train()

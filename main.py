@@ -37,7 +37,7 @@ def get_format_string(args):
         format_str += f'-gabor=True'
     if args.noise:
         format_str += '-noise=True'
-    format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e=5_iters={args.prune_iters}' if args.pruning else ''
+    format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e={args.prune_epochs}_iters={args.prune_iters}' if args.pruning else ''
     return format_str
 
 def run(args):
@@ -115,6 +115,7 @@ if __name__ == "__main__":
     # parser.add_argument("-weights", "--checkpoints_dir", type=str, default='weights')
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
+    parser.add_argument('--prune_epochs', type=int, default=5)
     parser.add_argument('--prune_iters', type=int, default=1)
     parser.add_argument('--model', default='Linearity', type=str)
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2

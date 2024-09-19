@@ -1,49 +1,16 @@
-import torch
+from models_train.IQAmodel import IQAModel
 from models_train.IQAdataset import get_data_loaders
-import os
+import torch
 import numpy as np
-import random
 from argparse import ArgumentParser
+import os
 import yaml
+import scipy
+from tqdm import tqdm
 
-from models_train.trainer import Trainer
-
-metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 YAML_PATH = './path_config.yaml'
 
-def writer_add_scalar(writer, status, dataset, scalars, iter):
-    for metric_print in metrics_printed:
-        writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
-
-def get_format_string(args) -> str:
-    format_str = 'activation={}-{}-{}-bs={}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}' \
-        .format(args.activation, args.model, args.architecture, args.batch_size,
-            args.loss_type, args.p, args.q, args.detach,
-            args.dataset, args.resize, args.resize_size_h, args.resize_size_w)
-    # if args.feature_model:
-    #     assert args.mgamma
-    #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
-    if args.gradnorm_regularization:
-        format_str += f'-gr={args.gradnorm_regularization}'
-    if args.cayley:
-        format_str += f'-cl={args.cayley}'
-    if args.cayley_pool:
-        format_str += f'-clp={args.cayley_pool}'
-    if args.cayley_pair:
-        format_str += f'-cp={args.cayley_pair}'
-    if args.gabor:
-        format_str += f'-gabor=True'
-    if args.noise:
-        format_str += f'-noise=True'
-    return format_str
-
-def run(args):
-    Trainer.run(args)
-    # trainer.run(train_loader, max_epochs=args.epochs)
-
-
-if __name__ == "__main__":
-
+if __name__=='__main__':
     parser = ArgumentParser(
         description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
     parser.add_argument("--activation", default='relu',
@@ -135,9 +102,8 @@ if __name__ == "__main__":
                         help="log directory for Tensorboard log output")
     parser.add_argument('-tdt', '--test_during_training', action='store_true',
                         help='test_during_training?')  # It is better to re-make a train_loader_for_evaluation so as not to disturb the random number generator.
-    parser.add_argument('-eval', '--evaluate', action='store_true',
+    parser.add_argument('-eval', '--evaluate', action='store_true', default=True,
                         help='Evaluate only?')
-    parser.add_argument('-se', '--squeeze_excitation', action='store_true')
 
     parser.add_argument('-debug', '--debug', action='store_true',
                         help='Debug the training by reducing dataflow to 5 batches')
@@ -153,43 +119,10 @@ if __name__ == "__main__":
     parser.add_argument('--images_count_prune', type=int, default=50)
     parser.add_argument('--kernel_prune', type=int, default=1)
 
-
-    parser.add_argument('--dlayer', default=None, type=str) # d1, d2
-    parser.add_argument('--model', default='Linearity', type=str)
-    parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
-    parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
-    
-    parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
-    parser.add_argument('-cl', '--cayley', action='store_true', help="Use cayley block with conv")
-    parser.add_argument('-clp', '--cayley_pool', action='store_true', help="Use cayley block with pooling")
-    parser.add_argument('-cp', '--cayley_pair', action='store_true', help="Use cayley block after conv4, conv5")
-
-    parser.add_argument('--wpath', default=None, type=str, help="Weight path")
+    parser.add_argument('--model', default='Linearity', type=str)    
 
     parser.add_argument('--colab', action='store_true', help="Train in colab")
-    
-
     args = parser.parse_args()
-    if args.lr_decay == 1 or args.epochs < 3:  # no lr decay
-        args.lr_decay_step = args.epochs
-    else:  # 
-        args.lr_decay_step = int(args.epochs / (1 + np.log(args.overall_lr_decay) / np.log(args.lr_decay)))
-
-    # KonIQ-10k that train-val-test split provided by the owner
-    if args.dataset == 'KonIQ-10k':
-        args.train_ratio = 7058 / 10073
-        args.train_and_val_ratio = 8058 / 10073
-        if not args.resize:
-            args.resize_size_h = 768
-            args.resize_size_w = 1024
-
-    if args.beta[1] + args.beta[-1] == .0:
-        args.val_criterion = 'SROCC1'
-    if args.beta[0] + args.beta[-1] == .0:
-        args.val_criterion = 'SROCC2'
-
-    COLAB_dir = "./drive/MyDrive/KonIQ-10k"
-    
     with open(YAML_PATH, 'r') as file:
         yaml_file = yaml.safe_load(file)
     default_dir = yaml_file['dataset']['data']['KonIQ']
@@ -202,30 +135,42 @@ if __name__ == "__main__":
     default_path = yaml_file['dataset']['labels']['KonIQ']
     args.data_info = {'KonIQ-10k': COLAB_path if args.colab else default_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
-    # args.pruning = None
-
-    if not args.randomness:
-        torch.manual_seed(args.seed)  #
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        np.random.seed(args.seed)
-        random.seed(args.seed)
-
-    torch.utils.backcompat.broadcast_warning.enabled = True
-
-
-    if args.wpath:
-        args.format_str = args.wpath
-    else:
-        args.format_str = get_format_string(args)
 
     server_mnt = "~/mnt/dione/28i_mel"
     destination_path = os.path.expanduser(server_mnt)
-    if not os.path.exists('weights'):
-        os.makedirs('weights')
-    args.trained_model_file = os.path.join(destination_path, args.format_str)
-    if not os.path.exists('results'):
-        os.makedirs('results')
-    args.save_result_file = 'results/' + args.format_str
-    print(args)
-    run(args)
+    path = os.path.join(destination_path, "activation=relu-Linearity-resnet101-bs=8-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res=True-498x664+prune=0.05pls_lr=1e-06_e=5_iters=2")
+    ckpt = torch.load(path)
+
+    model = IQAModel('Linearity', arch='resnet101')
+    model.load_state_dict(ckpt['model'])
+    k = ckpt['k']
+    b = ckpt['b']
+
+    _, _, test_loader = get_data_loaders(args, train=False, val=True, test=True)
+
+    labels = None
+    outputs = None
+    model.eval()
+
+    for step, (input, label) in tqdm(enumerate(test_loader), total=len(test_loader)):
+        # print(input.shape)
+        # print(label)
+        output = model(input)[-1]*k[0] + b[0]
+        output = output.detach().numpy()
+        if labels is None and outputs is None:
+            labels = [label[0]]
+            outputs = output
+        else:
+            labels = np.hstack((labels, [label[0]]))
+            outputs = np.hstack((outputs, output))
+
+    print(outputs.shape, labels.shape)
+    srcc = scipy.stats.spearmanr(outputs[0], labels[0])
+    print(srcc)
+
+
+    
+
+
+
+
