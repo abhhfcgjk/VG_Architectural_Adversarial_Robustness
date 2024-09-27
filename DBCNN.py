@@ -78,6 +78,11 @@ class DBCNN(torch.nn.Module):
             self.features1 = nn.Sequential(*list(self.features1.children())[:-6], 
                                             self.cayley, 
                                             *list(self.features1.children())[-6:])
+            
+        if options['activation']=='relu_elu':
+            pass
+        else:
+            pass
         scnn = SCNN()
         scnn = torch.nn.DataParallel(scnn).cuda()
 
@@ -144,7 +149,7 @@ class DBCNN(torch.nn.Module):
 
 class DBCNNManager(object):
     
-    def __init__(self, options, path, pruning=0):
+    def __init__(self, options, path):
         """Prepare the network, criterion, solver, and data.
         Args:
             options, dict: Hyperparameters.
@@ -156,6 +161,7 @@ class DBCNNManager(object):
         self.cayley_flag2 = 'cayley2' if options['cayley2'] else ''
         self.cayley_flag3 = 'cayley3' if options['cayley3'] else ''
         self.backbone_flag = 'vonenet50' if options['backbone']=='vonenet50' else ''
+        
         # Network.
         self._net = torch.nn.DataParallel(DBCNN(self._path['scnn_root'], self._options), device_ids=[0]).cuda()
         if self._options['fc'] == False:
@@ -271,8 +277,6 @@ class DBCNNManager(object):
             num_total = 0
             for X, y in tqdm(self._train_loader, total=len(self._train_loader)):
                 # Data.
-                # X = torch.tensor(X.cuda())
-                # y = torch.tensor(y.cuda())
                 X = X.clone().detach().requires_grad_(True).cuda()
                 y = y.clone().detach().requires_grad_(True).cuda()
 
@@ -323,8 +327,6 @@ class DBCNNManager(object):
         tscores = []
         for X, y in data_loader:
             # Data.
-            # X = torch.tensor(X.cuda())
-            # y = torch.tensor(y.cuda())
             X = X.clone().detach().requires_grad_(True).cuda()
             y = y.clone().detach().requires_grad_(True).cuda()
 
@@ -398,6 +400,8 @@ def main():
     parser.add_argument('--backbone', default='vgg16', type=str, help='Basemodel: vgg16|vonenet50')
     parser.add_argument('--pruning', dest='pruning', type=float,
                         default=0, help='Pruning percentage.')
+    parser.add_argument('--activation', type=str, default='relu',
+                        help='Activation function in VGG16.')
     parser.add_argument('--tune_iters', dest='tune_iters', type=int,
                         default=1, help='Iters for tune')
     parser.add_argument('--cayley', action='store_true',
@@ -429,17 +433,21 @@ def main():
         'cayley2': args.cayley2,
         'cayley3': args.cayley3,
         'pruning': args.pruning,
-        'model': 'vgg16',
+        'activation': args.activation,
         'train_index': [],
         'test_index': []
     }
     cayley_status = 'cayley' if args.cayley else ''
     cayley_status2 = 'cayley2' if args.cayley2 else ''
     cayley_status3 = 'cayley3' if args.cayley3 else ''
+    activation_status = args.activation
     backbone_status = 'vonenet50' if args.backbone=='vonenet50' else ''
     path = {
         'koniq-10k': os.path.join('dataset', 'KonIQ-10k'),
-        'ckpt': f'DBCNN-cayley={args.cayley}-cayley2={args.cayley2}-cayley3={args.cayley3}.pt',
+        'ckpt': f'DBCNN-cayley={args.cayley}\
+                -cayley2={args.cayley2}\
+                -cayley3={args.cayley3}\
+                -activation={args.activation}.pt',
 
         'live': os.path.join('dataset','databaserelease2'),
         'csiq': os.path.join('dataset','CSIQ'),
@@ -453,6 +461,7 @@ def main():
                                 {cayley_status2}\
                                 {cayley_status3}\
                                 {backbone_status}\
+                                {activation_status}\
                                 net_params_best.pkl'),
         'db_model': os.path.join('db_models'),
         
