@@ -68,11 +68,16 @@ class DBCNN(torch.nn.Module):
             self.features1 = torchvision.models.vgg16(pretrained=True).features
             self.features1 = nn.Sequential(*list(self.features1.children())[:-1])
         
-        if (options['cayley'] or options['cayley2'])and(not options['backbone']=='vonenet50'):
+        if options['cayley'] or options['cayley2']:
             self.cayley = CayleyBlockPool(in_channels=512, intermed_channels=200)
             self.features1 = nn.Sequential(*list(self.features1.children())[:-2], 
                                             self.cayley, 
                                             *list(self.features1.children())[-2:])
+        elif options['cayley3']:
+            self.cayley = CayleyBlockPool(in_channels=512, intermed_channels=200)
+            self.features1 = nn.Sequential(*list(self.features1.children())[:-6], 
+                                            self.cayley, 
+                                            *list(self.features1.children())[-6:])
         scnn = SCNN()
         scnn = torch.nn.DataParallel(scnn).cuda()
 
@@ -149,7 +154,8 @@ class DBCNNManager(object):
         self._path = path
         self.cayley_flag = 'cayley' if options['cayley'] else ''
         self.cayley_flag2 = 'cayley2' if options['cayley2'] else ''
-        self.backbone_flag = 'vonenet50' if options['model']=='vonenet50' else ''
+        self.cayley_flag3 = 'cayley3' if options['cayley3'] else ''
+        self.backbone_flag = 'vonenet50' if options['backbone']=='vonenet50' else ''
         # Network.
         self._net = torch.nn.DataParallel(DBCNN(self._path['scnn_root'], self._options), device_ids=[0]).cuda()
         if self._options['fc'] == False:
@@ -291,9 +297,17 @@ class DBCNNManager(object):
                 print('*', end='')
                 pwd = os.getcwd()
                 if self._options['fc'] == True:
-                    modelpath = os.path.join(pwd,'fc_models',(self.cayley_flag + self.cayley_flag2 + self.backbone_flag + 'net_params' + '_best' + '.pkl'))
+                    modelpath = os.path.join(pwd,'fc_models',(
+                        self.cayley_flag \
+                        + self.cayley_flag2 \
+                        + self.cayley_flag3 \
+                        + self.backbone_flag + 'net_params' + '_best' + '.pkl'))
                 else:
-                    modelpath = os.path.join(pwd,'db_models',(self.cayley_flag + self.cayley_flag2 + self.backbone_flag + 'net_params' + '_best' + '.pkl'))
+                    modelpath = os.path.join(pwd,'db_models',(
+                        self.cayley_flag \
+                        + self.cayley_flag2 \
+                        + self.cayley_flag3 \
+                        + self.backbone_flag + 'net_params' + '_best' + '.pkl'))
                 torch.save(self._net.state_dict(), modelpath)
 
             print('%d\t%4.3f\t\t%4.4f\t\t%4.4f\t%4.4f' %
@@ -390,6 +404,8 @@ def main():
                         help='Use cayley block')
     parser.add_argument('--cayley2', action='store_true',
                         help='Use cayley block')
+    parser.add_argument('--cayley3', action='store_true',
+                        help='Use cayley block before conv block')
     
     args = parser.parse_args()
     if args.base_lr <= 0:
@@ -411,6 +427,7 @@ def main():
         'backbone': args.backbone,
         'cayley': args.cayley,
         'cayley2': args.cayley2,
+        'cayley3': args.cayley3,
         'pruning': args.pruning,
         'model': 'vgg16',
         'train_index': [],
@@ -418,10 +435,11 @@ def main():
     }
     cayley_status = 'cayley' if args.cayley else ''
     cayley_status2 = 'cayley2' if args.cayley2 else ''
+    cayley_status3 = 'cayley3' if args.cayley3 else ''
     backbone_status = 'vonenet50' if args.backbone=='vonenet50' else ''
     path = {
         'koniq-10k': os.path.join('dataset', 'KonIQ-10k'),
-        'ckpt': f'DBCNN-cayley={args.cayley}-cayley2={args.cayley2}.pt',
+        'ckpt': f'DBCNN-cayley={args.cayley}-cayley2={args.cayley2}-cayley3={args.cayley3}.pt',
 
         'live': os.path.join('dataset','databaserelease2'),
         'csiq': os.path.join('dataset','CSIQ'),
@@ -430,7 +448,12 @@ def main():
         'mlive': os.path.join('dataset','LIVEmultidistortiondatabase'),
         'fc_model': os.path.join('fc_models'),
         'scnn_root': os.path.join('pretrained_scnn','scnn.pkl'),
-        'fc_root': os.path.join('fc_models',f'{cayley_status}{cayley_status2}{backbone_status}net_params_best.pkl'),
+        'fc_root': os.path.join('fc_models',f'\
+                                {cayley_status}\
+                                {cayley_status2}\
+                                {cayley_status3}\
+                                {backbone_status}\
+                                net_params_best.pkl'),
         'db_model': os.path.join('db_models'),
         
     }
