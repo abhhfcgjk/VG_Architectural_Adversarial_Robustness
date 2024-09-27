@@ -15,6 +15,7 @@ from collections import OrderedDict
 
 from Cayley import CayleyBlockPool
 from VOneNet import get_model
+import activ
 
 from tqdm import tqdm
 
@@ -80,7 +81,7 @@ class DBCNN(torch.nn.Module):
                                             *list(self.features1.children())[-6:])
             
         if options['activation']=='relu_elu':
-            pass
+            activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
         else:
             pass
         scnn = SCNN()
