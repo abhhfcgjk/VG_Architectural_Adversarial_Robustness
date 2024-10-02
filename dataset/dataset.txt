@@ -1,1 +1,1 @@
-Support LIVE IQA, CSIQ, TID2013, LIVE Challenge and LIVE MD right now.
+Support KonIQ-10k, LIVE IQA, CSIQ, TID2013, LIVE Challenge and LIVE MD right now.

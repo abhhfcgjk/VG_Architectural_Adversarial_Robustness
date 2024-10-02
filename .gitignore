@@ -1,3 +1,5 @@
+.venv
+
 
 models_train/KonIQ-10k
 *.out
