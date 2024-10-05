@@ -81,7 +81,8 @@ class DBCNN(torch.nn.Module):
                                             *list(self.features1.children())[-6:])
             
         if options['activation']=='relu_elu':
-            activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
+            # activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
+            self.setup_activation(activ.ReLU_ELU)
         else:
             pass
         scnn = SCNN()
@@ -113,7 +114,8 @@ class DBCNN(torch.nn.Module):
             if self.fc.bias is not None:
                 nn.init.constant_(self.fc.bias.data, val=0)
 
-        
+    def setup_activation(self, activ_function):
+        activ.swap_all_activations(self.features1, nn.ReLU, activ_function)
 
     def forward(self, X):
         """Forward pass of the network.
@@ -162,6 +164,7 @@ class DBCNNManager(object):
         self.cayley_flag2 = 'cayley2' if options['cayley2'] else ''
         self.cayley_flag3 = 'cayley3' if options['cayley3'] else ''
         self.backbone_flag = 'vonenet50' if options['backbone']=='vonenet50' else ''
+        self.activation_flag = self._options['activation']
         
         # Network.
         self._net = torch.nn.DataParallel(DBCNN(self._path['scnn_root'], self._options), device_ids=[0]).cuda()
@@ -306,13 +309,15 @@ class DBCNNManager(object):
                         self.cayley_flag \
                         + self.cayley_flag2 \
                         + self.cayley_flag3 \
-                        + self.backbone_flag + 'net_params' + '_best' + '.pkl'))
+                        + self.backbone_flag\
+                        + self.activation_flag + 'net_params' + '_best' + '.pkl'))
                 else:
                     modelpath = os.path.join(pwd,'db_models',(
                         self.cayley_flag \
                         + self.cayley_flag2 \
                         + self.cayley_flag3 \
-                        + self.backbone_flag + 'net_params' + '_best' + '.pkl'))
+                        + self.backbone_flag\
+                        + self.activation_flag + 'net_params' + '_best' + '.pkl'))
                 torch.save(self._net.state_dict(), modelpath)
 
             print('%d\t%4.3f\t\t%4.4f\t\t%4.4f\t%4.4f' %
@@ -382,6 +387,8 @@ class DBCNNManager(object):
         return prune_params
 
 
+
+
 def main():
     """The main function."""
     import argparse
@@ -445,10 +452,10 @@ def main():
     backbone_status = 'vonenet50' if args.backbone=='vonenet50' else ''
     path = {
         'koniq-10k': os.path.join('dataset', 'KonIQ-10k'),
-        'ckpt': f'DBCNN-cayley={args.cayley}\
-                -cayley2={args.cayley2}\
-                -cayley3={args.cayley3}\
-                -activation={args.activation}.pt',
+        'ckpt': f'DBCNN-cayley={args.cayley}'\
+                f'-cayley2={args.cayley2}'\
+                f'-cayley3={args.cayley3}'\
+                f'-activation={args.activation}.pt',
 
         'live': os.path.join('dataset','databaserelease2'),
         'csiq': os.path.join('dataset','CSIQ'),
@@ -457,13 +464,10 @@ def main():
         'mlive': os.path.join('dataset','LIVEmultidistortiondatabase'),
         'fc_model': os.path.join('fc_models'),
         'scnn_root': os.path.join('pretrained_scnn','scnn.pkl'),
-        'fc_root': os.path.join('fc_models',f'\
-                                {cayley_status}\
-                                {cayley_status2}\
-                                {cayley_status3}\
-                                {backbone_status}\
-                                {activation_status}\
-                                net_params_best.pkl'),
+        'fc_root': os.path.join('fc_models', 
+                                f'{cayley_status}{cayley_status2}'\
+                                f'{cayley_status3}{backbone_status}{activation_status}'\
+                                'net_params_best.pkl'),
         'db_model': os.path.join('db_models'),
         
     }
