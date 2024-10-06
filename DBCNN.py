@@ -54,7 +54,7 @@ class DBCNN(torch.nn.Module):
         """Declare all needed layers."""
         nn.Module.__init__(self)
 
-        if options['backbone']=='vonenet50':
+        if options.get('backbone', None)=='vonenet50':
             model = get_model(model_arch='resnet50', pretrained=True, weightsdir=None,
                                 map_location='cuda')
             print(model)
@@ -69,18 +69,18 @@ class DBCNN(torch.nn.Module):
             self.features1 = torchvision.models.vgg16(pretrained=True).features
             self.features1 = nn.Sequential(*list(self.features1.children())[:-1])
         
-        if options['cayley'] or options['cayley2']:
+        if options.get('cayley', None) or options.get('cayley2',None):
             self.cayley = CayleyBlockPool(in_channels=512, intermed_channels=200)
             self.features1 = nn.Sequential(*list(self.features1.children())[:-2], 
                                             self.cayley, 
                                             *list(self.features1.children())[-2:])
-        elif options['cayley3']:
+        elif options.get('cayley3',None):
             self.cayley = CayleyBlockPool(in_channels=512, intermed_channels=200)
             self.features1 = nn.Sequential(*list(self.features1.children())[:-6], 
                                             self.cayley, 
                                             *list(self.features1.children())[-6:])
             
-        if options['activation']=='relu_elu':
+        if options.get('activation',None)=='relu_elu':
             # activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
             self.setup_activation(activ.ReLU_ELU)
         else:
@@ -92,7 +92,7 @@ class DBCNN(torch.nn.Module):
               
         scnn.load_state_dict(torch.load(scnn_root))
         self.features2 = scnn.module.features
-        if options['cayley2']:
+        if options.get('cayley2',None):
             self.cayley2 = CayleyBlockPool(in_channels=128, intermed_channels=100)
             # print(self.features2)
             self.features2 = nn.Sequential(*list(self.features2.children())[:-3], 
@@ -409,7 +409,7 @@ def main():
     parser.add_argument('--pruning', dest='pruning', type=float,
                         default=0, help='Pruning percentage.')
     parser.add_argument('--activation', type=str, default='relu',
-                        help='Activation function in VGG16.')
+                        help='Activation function in VGG16. relu|relu_elu')
     parser.add_argument('--tune_iters', dest='tune_iters', type=int,
                         default=1, help='Iters for tune')
     parser.add_argument('--cayley', action='store_true',
