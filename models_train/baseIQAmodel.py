@@ -3,6 +3,7 @@ from models_train.VOneNet import get_model
 from models_train.inceptionresnet import inceptionresnetv2
 from models_train.Cayley import get_lipschitz_model, swap_conv_to_lipschitz
 from models_train import LipSim
+from models_train.smooth_functions import Sqish
 
 from torch import nn
 import torch
@@ -326,6 +327,12 @@ class IQA(nn.Module):
             '''All activations changed to ELU'''
             swap_all_activations(self.features, nn.ReLU, nn.ELU)
             Activ = nn.ELU
+        elif activation == "sqish":
+            Activ = Sqish
+        elif activation == "Fsqish":
+            '''All activations changed to Sqish'''
+            swap_all_activations(self.features, nn.ReLU, Sqish)
+            Activ = Sqish
         else:
             '''Default activation function'''
             Activ = nn.ReLU

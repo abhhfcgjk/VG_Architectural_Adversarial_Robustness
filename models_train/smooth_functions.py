@@ -43,7 +43,7 @@ class Sqish(nn.Module):
         self.beta = nn.Parameter(torch.max(torch.tensor(1), torch.randn(1)))
         self.gamma = nn.Parameter(torch.max(torch.tensor(1), torch.randn(1)))
     
-    def forwar(self, input: Tensor) -> Tensor:
+    def forward(self, input: Tensor) -> Tensor:
         if self.inplace:
             input = Sqish_Function.apply(input, self.alpha, self.beta, self.gamma)
             return input
