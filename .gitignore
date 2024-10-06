@@ -9,6 +9,7 @@ __pycache__/
 models_train/results
 models_train/checkpoints/*
 *.pth
+*.pt
 models_train/results_in_the_paper/*.pdf
 *.pdf
 graph_data

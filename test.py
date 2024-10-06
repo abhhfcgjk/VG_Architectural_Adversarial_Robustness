@@ -24,7 +24,7 @@ class Attack:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
-        self.arch = options['arch']
+        self.arch = options['backbone']
         # if arch=='resnet101':
         #     arch = 'resnext101_32x8d'
         self.model_name = options['model']
@@ -33,13 +33,8 @@ class Attack:
         self.activation = options['activation']
         self.gradnorm_regularization = options['gradnorm_regularization']
         self.cayley = options['cayley']
-        # self.cayley_pool = options['cayley_pool']
-        self.cayley_pair = options['cayley_pair']
-        # self.prune 
-        # self.model = IQAModel(model,arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
-        #                    use_bn_end=use_bn_end,
-        #                    P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
-        #                    cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair).to(self.device)
+        self.cayley2 = options['cayley2']
+        self.cayley3 = options['cayley3']
         self.model = DBCNN(path['scnn_root'], options).to(device)
         print(self.model)
         # print(self.model)
@@ -189,9 +184,10 @@ class Attack:
         prune_status = f"+prune={self.prune}{self.prune_method}" if self.prune is not None and self.prune > 0 else ""
         cl = f'+cayley' if self.cayley else ''
         # clp = f'+cayley_pool' if self.cayley_pool else ''
-        cp = f'+cayley_pair' if self.cayley_pair else ''
+        cp = f'+cayley2' if self.cayley2 else ''
+        cbp = f'+cayley3' if self.cayley3 else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
-        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + cp,
+        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + cp + cbp,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations}
@@ -276,15 +272,19 @@ if __name__=='__main__':
                         default=1, help='PGD attack iters count.')
     parser.add_argument('--cayley', action='store_true',
                         help='Use cayley block')
+    parser.add_argument('--cayley2', action='store_true',
+                        help='Use cayley block')
+    parser.add_argument('--cayley3', action='store_true',
+                        help='Use cayley block')
     parser.add_argument('--debug', action='store_true',
                         help='DEBUG')
     args = parser.parse_args()
     options = {
         'fc': True,
         'cayley': args.cayley,
-        'cayley2': False,
-        'arch': 'VGG-16',
-        'cayley_pair': False,
+        'cayley2': args.cayley2,
+        'cayley3': args.cayley3,
+        'backbone': 'VGG-16',
         'model': 'DBCNN',
         'pruning': 0,
         'pruning_type': None,
@@ -315,7 +315,9 @@ if __name__=='__main__':
 
     exec_: Attack = Attack(path, options, device='cuda')
 
-    exec_.load_checkpoints(checkpoints_path=f'./DBCNN-cayley={args.cayley}.pt')
+    exec_.load_checkpoints(checkpoints_path=f'./DBCNN-cayley={args.cayley}'\
+                                            f'-cayley2={args.cayley2}'\
+                                            f'-cayley3={args.cayley3}.pt')
     exec_.set_load_conf(dataset_path=path['nips'],
                         resize=options['resize'],
                         crop=options['crop'],
