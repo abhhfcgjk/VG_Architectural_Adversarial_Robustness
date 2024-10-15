@@ -159,10 +159,12 @@ if __name__ == "__main__":
     parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
     parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
     
-    parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
-    parser.add_argument('-cl', '--cayley', action='store_true', help="Use cayley block with conv")
-    parser.add_argument('-clp', '--cayley_pool', action='store_true', help="Use cayley block with pooling")
-    parser.add_argument('-cp', '--cayley_pair', action='store_true', help="Use cayley block after conv4, conv5")
+    parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', 
+                        help="Use gradient-norm regularization")
+    parser.add_argument('-cl', '--cayley', action='store_true', help="Before conv4 and conv5")
+    parser.add_argument('-clp', '--cayley_pool', action='store_true', help="After conv4 and before conv5")
+    parser.add_argument('-cp', '--cayley_pair', action='store_true', 
+                        help="Use cayley block after conv4, conv5 (two CayleyBlock)")
 
     parser.add_argument('--wpath', default=None, type=str, help="Weight path")
 
