@@ -168,7 +168,6 @@ if __name__ == "__main__":
 
     parser.add_argument('--wpath', default=None, type=str, help="Weight path")
 
-    parser.add_argument('--colab', action='store_true', help="Train in colab")
     
 
     args = parser.parse_args()
@@ -190,19 +189,17 @@ if __name__ == "__main__":
     if args.beta[0] + args.beta[-1] == .0:
         args.val_criterion = 'SROCC2'
 
-    COLAB_dir = "./drive/MyDrive/KonIQ-10k"
     
     with open(YAML_PATH, 'r') as file:
         yaml_file = yaml.safe_load(file)
     default_dir = yaml_file['dataset']['data']['KonIQ']
 
-    args.im_dirs = {'KonIQ-10k': COLAB_dir if args.colab else default_dir,
+    args.im_dirs = {'KonIQ-10k': default_dir,
                     'CLIVE': 'CLIVE'
                     }  # ln -s database_path xxx
 
-    COLAB_path = "./VG_Architectural_Adversarial_Robustness/LinearityIQA/data/KonIQ-10kinfo.mat"
     default_path = yaml_file['dataset']['labels']['KonIQ']
-    args.data_info = {'KonIQ-10k': COLAB_path if args.colab else default_path,
+    args.data_info = {'KonIQ-10k': default_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
     # args.pruning = None
 
@@ -221,11 +218,9 @@ if __name__ == "__main__":
     else:
         args.format_str = get_format_string(args)
 
-    server_mnt = "~/mnt/dione/28i_mel"
-    destination_path = os.path.expanduser(server_mnt)
-    if not os.path.exists('weights'):
-        os.makedirs('weights')
-    args.trained_model_file = os.path.join(destination_path, args.format_str)
+
+    checkpints_path = "Linearity-ckpt"
+    args.trained_model_file = os.path.join(checkpints_path, args.format_str)
     if not os.path.exists('results'):
         os.makedirs('results')
     args.save_result_file = 'results/' + args.format_str

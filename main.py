@@ -133,9 +133,6 @@ if __name__ == "__main__":
 
     args.format_str = get_format_string(args)
 
-    server_mnt = "~/mnt/dione/28i_mel"
-    destination_path = os.path.expanduser(server_mnt)
-
     if args.debug:
         ic.enable()
         print("DEBUG")
@@ -143,8 +140,8 @@ if __name__ == "__main__":
         ic.disable()
 
     print("Device: ", args.device)
-    
-    args.trained_model_file = os.path.join(destination_path, args.format_str)
+    checkpints_path = "Linearity-ckpt"
+    args.trained_model_file = os.path.join(checkpints_path, args.format_str)
     print(args.trained_model_file)
     total_score = run(args)
     print(
