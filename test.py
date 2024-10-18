@@ -276,6 +276,8 @@ if __name__=='__main__':
                         help='Use cayley block')
     parser.add_argument('--cayley3', action='store_true',
                         help='Use cayley block')
+    parser.add_argument('--activation', default='relu', type=str,
+                        help='Use cayley block')
     parser.add_argument('--debug', action='store_true',
                         help='DEBUG')
     args = parser.parse_args()
@@ -288,7 +290,7 @@ if __name__=='__main__':
         'model': 'DBCNN',
         'pruning': 0,
         'pruning_type': None,
-        'activation': 'relu',
+        'activation': args.activation,
         'gradnorm_regularization': False,
         'resize': False,
         'crop': False,
@@ -308,7 +310,7 @@ if __name__=='__main__':
         'fc_model': os.path.join('fc_models'),
         'scnn_root': os.path.join('pretrained_scnn','scnn.pkl'),
         'fc_root': os.path.join('fc_models','net_params_best.pkl'),
-        'db_model': os.path.join('db_models'),   
+        'db_model': os.path.join('db_models'),
     }
 
     ic.disable()
