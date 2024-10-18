@@ -1,228 +1,240 @@
+from __future__ import print_function 
+from __future__ import division
 import torch
-from models_train.IQAdataset import get_data_loaders
-import os
+import torch.nn as nn
+import torch.optim as optim
 import numpy as np
-import random
-from argparse import ArgumentParser
-import yaml
+import torchvision
+from torchvision import datasets, models, transforms
+import matplotlib.pyplot as plt
+from PIL import Image
+import time
+import os
+import copy
+import pandas as pd
+from tqdm import tqdm, tqdm_notebook
+from scipy import stats
+print("PyTorch Version: ",torch.__version__)
+print("Torchvision Version: ",torchvision.__version__)
 
-from models_train.trainer import Trainer
+data_transforms = {
+    'train': transforms.Compose([
+#         transforms.RandomResizedCrop(input_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+#         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
-metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
-YAML_PATH = './path_config.yaml'
-
-def writer_add_scalar(writer, status, dataset, scalars, iter):
-    for metric_print in metrics_printed:
-        writer.add_scalar('{}/{}/{}'.format(status, dataset, metric_print), scalars[metric_print], iter)
-
-def get_format_string(args) -> str:
-    format_str = 'activation={}-{}-{}-bs={}-loss={}-p={}-q={}-detach-{}-{}-res={}-{}x{}' \
-        .format(args.activation, args.model, args.architecture, args.batch_size,
-            args.loss_type, args.p, args.q, args.detach,
-            args.dataset, args.resize, args.resize_size_h, args.resize_size_w)
-    # if args.feature_model:
-    #     assert args.mgamma
-    #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
-    if args.gradnorm_regularization:
-        format_str += f'-gr={args.gradnorm_regularization}'
-    if args.cayley:
-        format_str += f'-cl={args.cayley}'
-    if args.cayley_pool:
-        format_str += f'-clp={args.cayley_pool}'
-    if args.cayley_pair:
-        format_str += f'-cp={args.cayley_pair}'
-    if args.gabor:
-        format_str += f'-gabor=True'
-    if args.noise:
-        format_str += f'-noise=True'
-    return format_str
-
-def run(args):
-    Trainer.run(args)
-    # trainer.run(train_loader, max_epochs=args.epochs)
+    ]),
+    'val': transforms.Compose([
+#         transforms.Resize(input_size),
+#         transforms.CenterCrop(input_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+    ]),
+}
+def plcc(x, y):
+    """Pearson Linear Correlation Coefficient"""
+    x, y = np.float32(x), np.float32(y)
+    return stats.pearsonr(x, y)[0]
+device  = torch.device("cuda:0")
 
 
-if __name__ == "__main__":
+def train_model(model,optimizer,batch_size, num_epochs=40):
+    ids = pd.read_csv('./koniq10k_distributions_sets.csv')
+    data_dir='./images_512x384'
+    ids_train = ids[ids.set=='training']
+    ids_val = ids[ids.set=='validation'].reset_index()
+#     ids_test = ids[ids.set=='test'].reset_index()
+    since = time.time()
 
-    parser = ArgumentParser(
-        description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
-    parser.add_argument("--activation", default='relu',
-                        help='activation function')
-
-    parser.add_argument("--seed", type=int, default=19920517)
-
-    parser.add_argument('-lr', '--learning_rate', type=float, default=1e-4,
-                        help='learning rate (default: 1e-4)')
-    parser.add_argument('-bs', '--batch_size', type=int, default=8,
-                        help='batch size for training (default: 8)')
-    parser.add_argument('-flr', '--ft_lr_ratio', type=float, default=0.1,
-                        help='ft_lr_ratio (default: 0.1)')
-    parser.add_argument('-accum', '--accumulation_steps', type=int, default=1,
-                        help='accumulation_steps for training (default: 1)')
-    parser.add_argument('-e', '--epochs', type=int, default=30,
-                        help='number of epochs to train (default: 30)')
-    parser.add_argument('-wd', '--weight_decay', type=float, default=0.0,
-                        help='weight decay (default: 0.0)')
-    parser.add_argument('-lrd', '--lr_decay', type=float, default=0.1,
-                        help='lr decay (default: 0.1)')
-    parser.add_argument('-olrd', '--overall_lr_decay', type=float, default=0.01,
-                        help='overall lr decay (default: 0.01)')
-    parser.add_argument('-optl', '--opt_level', default='O1', type=str,
-                        help='opt_level for amp (default: O1)')
-    parser.add_argument('-rn', '--randomness', action='store_true',
-                        help='Allow randomness during training?')
-    parser.add_argument('-valc', '--val_criterion', default='SROCC', type=str,
-                        help='val_criterion: SROCC or PLCC (default: SROCC)')  # If using RMSE, minor modification should be made, i.e.,
-
-    parser.add_argument('-a', '--alpha', nargs=2, type=float, default=[1, 0],
-                        help='loss coefficient alpha in total loss (default: [1, 0])')
-    parser.add_argument('-b', '--beta', nargs=3, type=float, default=[.1, .1, 1],
-                        help='loss coefficients for level 6, 7, and 6+7 (default: [.1, .1, 1])')
-
-    parser.add_argument('-arch', '--architecture', default='resnext101_32x8d', type=str,
-                        help='arch name (default: resnext101_32x8d)')
-    parser.add_argument('-pl', '--pool', default='avg', type=str,
-                        help='pool method (default: avg)')
-    parser.add_argument('-ubne', '--use_bn_end', action='store_true',
-                        help='Use bn at the end of the output?')
-    parser.add_argument('-P6', '--P6', type=int, default=1,
-                        help='P6 (default: 1)')
-    parser.add_argument('-P7', '--P7', type=int, default=1,
-                        help='P7 (default: 1)')
-    parser.add_argument('-lt', '--loss_type', default='norm-in-norm', type=str,
-                        help='loss type (default: norm-in-norm)')
-    parser.add_argument('-p', '--p', type=float, default=1,
-                        help='p (default: 1)')
-    parser.add_argument('-q', '--q', type=float, default=2,
-                        help='q (default: 2)')
-    parser.add_argument('-detach', '--detach', action='store_true',
-                        help='Detach in loss?')
-    parser.add_argument('-monoreg', '--monotonicity_regularization', action='store_true',
-                        help='use monotonicity_regularization?')
-    parser.add_argument('-g', '--gamma', type=float, default=0.1,
-                        help='coefficient of monotonicity regularization (default: 0.1)')
-
-    parser.add_argument('-ds', '--dataset', default='KonIQ-10k', type=str,
-                        help='dataset name (default: KonIQ-10k)')
-    parser.add_argument('-eid', '--exp_id', default=0, type=int,
-                        help='exp id for train-val-test splits (default: 0)')
-    parser.add_argument('-tr', '--train_ratio', type=float, default=0.6,
-                        help='train ratio (default: 0.6)')
-    parser.add_argument('-tvr', '--train_and_val_ratio', type=float, default=0.8,
-                        help='train_and_val_ratio (default: 0.8)')
-
-    parser.add_argument('-rs', '--resize', action='store_true',
-                        help='Resize?')
-    parser.add_argument('-rs_h', '--resize_size_h', default=498, type=int,
-                        help='resize_size_h (default: 498)')
-    parser.add_argument('-rs_w', '--resize_size_w', default=664, type=int,
-                        help='resize_size_w (default: 664)')
-
-    parser.add_argument('-augment', '--augmentation', action='store_true',
-                        help='Data augmentation?')
-    parser.add_argument('-ag', '--angle', default=2, type=float,
-                        help='angle (default: 2)')
-    parser.add_argument('-cs_h', '--crop_size_h', default=498, type=int,
-                        help='crop_size_h (default: 498)')
-    parser.add_argument('-cs_w', '--crop_size_w', default=498, type=int,
-                        help='crop_size_w (default: 498)')
-    parser.add_argument('-hp', '--hflip_p', default=0.5, type=float,
-                        help='hfilp_p (default: 0.5)')
-
-
-
-    parser.add_argument('-logd', "--log_dir", type=str, default="runs",
-                        help="log directory for Tensorboard log output")
-    parser.add_argument('-tdt', '--test_during_training', action='store_true',
-                        help='test_during_training?')  # It is better to re-make a train_loader_for_evaluation so as not to disturb the random number generator.
-    parser.add_argument('-eval', '--evaluate', action='store_true',
-                        help='Evaluate only?')
-    parser.add_argument('-se', '--squeeze_excitation', action='store_true')
-
-    parser.add_argument('-debug', '--debug', action='store_true',
-                        help='Debug the training by reducing dataflow to 5 batches')
-    parser.add_argument('-pbar', '--pbar', action='store_true',
-                        help='Use progressbar for the training')
-
-    parser.add_argument('-prune', "--pruning", type=float,
-                        help="adversarial pruning percent")
-    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
-    parser.add_argument('--prune_iters', type=int, default=1)
-    parser.add_argument('--width_prune', type=int, default=120)
-    parser.add_argument('--height_prune', type=int, default=90)
-    parser.add_argument('--images_count_prune', type=int, default=50)
-    parser.add_argument('--kernel_prune', type=int, default=1)
-
-
-    parser.add_argument('--dlayer', default=None, type=str) # d1, d2
-    parser.add_argument('--model', default='Linearity', type=str)
-    parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
-    parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
+    val_plcc_history = []
     
-    parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', 
-                        help="Use gradient-norm regularization")
-    parser.add_argument('-cl', '--cayley', action='store_true', help="Before conv4 and conv5")
-    parser.add_argument('-clp', '--cayley_pool', action='store_true', help="After conv4 and before conv5")
-    parser.add_argument('-cp', '--cayley_pair', action='store_true', 
-                        help="Use cayley block after conv4, conv5 (two CayleyBlock)")
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_plcc = -float('inf')
 
-    parser.add_argument('--wpath', default=None, type=str, help="Weight path")
+    for epoch in tqdm_notebook(range(num_epochs)):
+        ids_train_shuffle = ids_train.sample(frac=1).reset_index()
+        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('-' * 10)
 
-    
+        # Each epoch has a training and validation phase
+        for phase in ['train','val']:
+            if phase == 'train':
+                model.train()  # Set model to training mode
+                num_batches = np.int(np.ceil(len(ids_train)/batch_size))
 
-    args = parser.parse_args()
-    if args.lr_decay == 1 or args.epochs < 3:  # no lr decay
-        args.lr_decay_step = args.epochs
-    else:  # 
-        args.lr_decay_step = int(args.epochs / (1 + np.log(args.overall_lr_decay) / np.log(args.lr_decay)))
+            else:
+                model.eval()   # Set model to evaluate mode
+                num_batches = np.int(np.ceil(len(ids_val)/batch_size))
 
-    # KonIQ-10k that train-val-test split provided by the owner
-    if args.dataset == 'KonIQ-10k':
-        args.train_ratio = 7058 / 10073
-        args.train_and_val_ratio = 8058 / 10073
-        if not args.resize:
-            args.resize_size_h = 768
-            args.resize_size_w = 1024
+            running_loss = 0.0
+            running_plcc = 0.0
+            # Iterate over data.
+#             for k in tqdm_notebook(range(0,num_batches)):
+            for k in range(0,num_batches):
 
-    if args.beta[1] + args.beta[-1] == .0:
-        args.val_criterion = 'SROCC1'
-    if args.beta[0] + args.beta[-1] == .0:
-        args.val_criterion = 'SROCC2'
+                if phase == 'train': 
+                    ids_cur=ids_train_shuffle
+                else:
+                    ids_cur=ids_val
+
+                batch_size_cur=min(batch_size,len(ids_cur)-k*batch_size)
+                img_batch=torch.zeros(batch_size_cur,3,384,512).to(device)   
+                for i in range(batch_size_cur):  
+                    img_batch[i]=data_transforms[phase](Image.open(os.path.join(data_dir,ids_cur['image_name'][k*batch_size+i])))  
+                label_batch=torch.tensor(list(ids_cur['MOS'][k*batch_size:k*batch_size+batch_size_cur])).to(device)
+
+                # zero the parameter gradients
+                optimizer.zero_grad()
+
+                # forward
+                # track history if only in train
+                with torch.set_grad_enabled(phase == 'train'):
+                    # Get model outputs and calculate loss
+                    # Special case for inception because in training it has an auxiliary output. In train
+                    #   mode we calculate the loss by summing the final output and the auxiliary output
+                    #   but in testing we only consider the final output.
+
+                    outputs = model(img_batch)
+#                     print(outputs)
+                    loss = torch.nn.MSELoss()(outputs, label_batch.unsqueeze(1))
+                    if phase=='val':
+                        plcc_batch=plcc(label_batch.detach().cpu().numpy(),outputs.squeeze(1).detach().cpu().numpy())
+#                     loss = torch.nn.MSELoss()(outputs, label_batch)
+
+                    # backward + optimize only if in training phase
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
+
+                # statistics
+                running_loss += loss.item() * img_batch.size(0)
+                if phase=='val':
+                    running_plcc += plcc_batch * img_batch.size(0)
+
+
+            if phase == 'train':
+                epoch_loss = running_loss / len(ids_train)
+                print('{} Loss: {:.4f}'.format(phase, epoch_loss))
+
+            else:
+                epoch_loss = running_loss / len(ids_val)
+                epoch_plcc = running_plcc / len(ids_val)
+                print('{} Loss: {:.4f} Plcc: {:.4f}'.format(phase, epoch_loss,epoch_plcc))
+
+            # deep copy the model
+            if phase == 'val' and epoch_plcc > best_plcc:
+                best_plcc = epoch_plcc
+                best_model_wts = copy.deepcopy(model.state_dict())
+            if phase == 'val':
+                val_plcc_history.append(epoch_plcc)
+
+        print()
+
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    print('Best val loss: {:4f}'.format(best_plcc))
+
+    # load best model weights
+    model.load_state_dict(best_model_wts)
+    return model, val_plcc_history
+
+
+
+from inceptionresnetv2 import inceptionresnetv2
+class model_qa(nn.Module):
+    def __init__(self,num_classes,**kwargs):
+        super(model_qa,self).__init__()
+        base_model = inceptionresnetv2(num_classes=1000, pretrained='imagenet')
+        self.base= nn.Sequential(*list(base_model.children())[:-1])
+        self.fc = nn.Sequential(
+            nn.Linear(1536, 2048),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(2048),
+            nn.Dropout(p=0.25),
+            nn.Linear(2048, 1024),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(1024),
+            nn.Dropout(p=0.25),
+            nn.Linear(1024, 256),
+            nn.ReLU(inplace=True),
+            nn.BatchNorm1d(256),         
+            nn.Dropout(p=0.5),
+            nn.Linear(256, num_classes),
+        )
+
+    def forward(self,x):
+        x = self.base(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+
+        return x
 
     
-    with open(YAML_PATH, 'r') as file:
-        yaml_file = yaml.safe_load(file)
-    default_dir = yaml_file['dataset']['data']['KonIQ']
-
-    args.im_dirs = {'KonIQ-10k': default_dir,
-                    'CLIVE': 'CLIVE'
-                    }  # ln -s database_path xxx
-
-    default_path = yaml_file['dataset']['labels']['KonIQ']
-    args.data_info = {'KonIQ-10k': default_path,
-                      'CLIVE': './data/CLIVEinfo.mat'}
-    # args.pruning = None
-
-    if not args.randomness:
-        torch.manual_seed(args.seed)  #
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-        np.random.seed(args.seed)
-        random.seed(args.seed)
-
-    torch.utils.backcompat.broadcast_warning.enabled = True
+model_ft=model_qa(num_classes=1) 
+model_ft=model_ft.to(device)
+ 
+    
+optimizer_1 = optim.Adam(model_ft.parameters(), lr=1e-4)
+model_ft_1, val_plcc_history_1=train_model(model_ft, optimizer_1, batch_size=16,num_epochs=40)
+torch.save(model_ft_1.state_dict(),'./model_ft_1.pth')
 
 
-    if args.wpath:
-        args.format_str = args.wpath
-    else:
-        args.format_str = get_format_string(args)
+optimizer_2 = optim.Adam(model_ft_1.parameters(), lr=1e-4/5)
+KonCept512, val_plcc_history_2=train_model(model_ft_1, optimizer_2,batch_size=16, num_epochs=20)
+torch.save(KonCept512.state_dict(),'./KonCept512.pth')
+
+### Test model on the default test set
+KonCept512 = model_qa(num_classes=1) 
+KonCept512.load_state_dict(torch.load('./KonCept512.pth'))
+KonCept512.eval().to(device)
+def srocc(xs, ys):
+    """Spearman Rank Order Correlation Coefficient"""
+    xranks = pd.Series(xs).rank()    
+    yranks = pd.Series(ys).rank()    
+    return plcc(xranks, yranks)
+def rating_metrics(y_true, y_pred, show_plot=True):    
+    """
+    Print out performance measures given ground-truth (`y_true`) and predicted (`y_pred`) scalar arrays.
+    """
+    y_true, y_pred = np.array(y_true).squeeze(), np.array(y_pred).squeeze()
+    p_plcc = np.round(plcc(y_true, y_pred),3)
+    p_srocc = np.round(srocc(y_true, y_pred),3)
+    p_mae  = np.round(np.mean(np.abs(y_true - y_pred)),3)
+    p_rmse  = np.round(np.sqrt(np.mean((y_true - y_pred)**2)),3)
+    
+    if show_plot:
+        print('SRCC: {} | PLCC: {} | MAE: {} | RMSE: {}'.\
+              format(p_srocc, p_plcc, p_mae, p_rmse))    
+        plt.plot(y_true, y_pred,'.',markersize=1)
+        plt.xlabel('ground-truth')
+        plt.ylabel('predicted')
+        plt.show()
+    return (p_srocc, p_plcc, p_mae, p_rmse)
+
+ids = pd.read_csv('./metadata/koniq10k_distributions_sets.csv')
+data_dir='./images_512x384'
+ids_train = ids[ids.set=='training'].reset_index()
+ids_val = ids[ids.set=='validation'].reset_index()
+ids_test = ids[ids.set=='test'].reset_index()
+
+batch_size=8
+num_batches = np.int(np.ceil(len(ids_test)/batch_size))
 
 
-    checkpints_path = "Linearity-ckpt"
-    args.trained_model_file = os.path.join(checkpints_path, args.format_str)
-    if not os.path.exists('results'):
-        os.makedirs('results')
-    args.save_result_file = 'results/' + args.format_str
-    print(args)
-    run(args)
+# Iterate over data.
+outputs=np.zeros((len(ids_test),1))
+for k in tqdm_notebook(range(0,num_batches)):
+    batch_size_cur=min(batch_size,len(ids_test)-k*batch_size)
+    img_batch=torch.zeros(batch_size_cur,3,384,512).to(device)   
+    for i in range(batch_size_cur):  
+        img_batch[i]=data_transforms['val'](Image.open(os.path.join(data_dir,ids_test['image_name'][k*batch_size+i])))  
+    label_batch=torch.tensor(list(ids_test['MOS'][k*batch_size:k*batch_size+batch_size_cur]))
+    outputs[k*batch_size:k*batch_size+batch_size_cur] = KonCept512(img_batch).detach().cpu().numpy()
+ 
+
+
+
+y_true = ids[ids.set=='test'].MOS.values
+rating_metrics(y_true, outputs)
