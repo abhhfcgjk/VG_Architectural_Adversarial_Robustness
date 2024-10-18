@@ -62,7 +62,7 @@ class DBCNN(torch.nn.Module):
                         model.module.vone_block,
                         model.module.bottleneck,
                         *list(model.module.model.children())[:-2],
-                        nn.Conv2d(2048, 512, kernel_size=3, stride=1, padding=1))
+                        nn.Conv2d(2048, 512, kernel_size=3, stride=1, padding=1)) # TODO change feature shape (2x)
 
         else:
             # Convolution and pooling layers of VGG-16.
@@ -124,13 +124,14 @@ class DBCNN(torch.nn.Module):
 
 
         X1 = self.features1(X)
-        # ic(self.features1)
+        ic(X1.shape)
         
         H = X1.size()[2]
         W = X1.size()[3]
         
         assert X1.size()[1] == 512
         X2 = self.features2(X)
+        ic(X2.shape)
         H2 = X2.size()[2]
         W2 = X2.size()[3]
         assert X2.size()[1] == 128        
@@ -484,7 +485,7 @@ def main():
     elif options['dataset'] == 'livec':
         index = list(range(0,1162))
     elif options['dataset'] == 'koniq-10k':
-        index = list(range(0,10073))
+        index = list(range(0,10))
     
     
 
@@ -494,7 +495,7 @@ def main():
     
     
 
-    for i in range(0,tune_iters):
+    for i in range(0,1):
         #randomly split train-test set
         random.shuffle(index)
         train_index = index[0:round(0.8*len(index))]

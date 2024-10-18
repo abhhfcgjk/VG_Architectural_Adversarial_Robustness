@@ -6,6 +6,9 @@ models_train/KonIQ-10k
 /venv
 __pycache__/
 
+fc_models/*.pkl
+db_models/*.pkl
+
 models_train/results
 models_train/checkpoints/*
 *.pth
