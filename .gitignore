@@ -18,3 +18,4 @@ runs/
 /checkpoints
 /weights/*
 /debug_img
+/results
