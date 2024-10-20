@@ -98,6 +98,7 @@ class IQA(nn.Module):
         super(IQA, self).__init__()
         self.features = None
         self.arch = arch
+        self.destination_path = kwargs.get('destination_path', '.')
         # if arch == "inceptionresnet":
         #     return
 
@@ -110,9 +111,7 @@ class IQA(nn.Module):
                                       map_location='cuda' if torch.cuda.is_available() else 'cpu').children())
         
         elif arch == 'vonenet101':
-            server_mnt = "~/mnt/dione/28i_mel"
-            destination_path = os.path.expanduser(server_mnt)
-            weightsdir =os.path.join(destination_path, 'vonenet_resnet101.pth.tar')
+            weightsdir =os.path.join(self.destination_path, 'vonenet_resnet101.pth.tar')
             ic(weightsdir)
             features = list(get_model(model_arch='resnet101', pretrained=True,weightsdir=weightsdir,
                                       map_location='cuda' if torch.cuda.is_available() else 'cpu').children(),
@@ -120,9 +119,7 @@ class IQA(nn.Module):
             ic(features)
         
         elif arch == 'lipsim':
-            server_mnt = "~/mnt/dione/28i_mel"
-            destination_path = os.path.expanduser(server_mnt)
-            weightsdir =os.path.join(destination_path, 'model.ckpt-1.pth')
+            weightsdir =os.path.join(self.destination_path, 'model.ckpt-1.pth')
             # features = list(LipSim.L2LipschitzNetwork(1).children())
             # ic(len(features))
             lipsim = LipSim.L2LipschitzNetwork(1, depth=20,depth_linear=7, num_channels=45, n_features=1024, conv_size=5)
@@ -134,9 +131,7 @@ class IQA(nn.Module):
             features = LipSim.extract_features(lipsim, step_back=2)
             ic(features)
         elif arch == 'lipsim2':
-            server_mnt = "~/mnt/dione/28i_mel"
-            destination_path = os.path.expanduser(server_mnt)
-            weightsdir =os.path.join(destination_path, 'model.ckpt-1.pth')
+            weightsdir = os.path.join(self.destination_path, 'model.ckpt-1.pth')
             # features = list(LipSim.L2LipschitzNetwork(1).children())
             # ic(len(features))
             lipsim = LipSim.L2LipschitzNetwork(1, depth=20,depth_linear=7, num_channels=45, n_features=1024, conv_size=5)
@@ -149,15 +144,8 @@ class IQA(nn.Module):
             ic(features)
 
         elif arch == "advresnet50":
-            # adversarial_path = './LinearityIQA/adversarial_trained/resnet50_imagenet_linf_4.pt'
-            # with open(YAML_PATH, 'r') as file:
-            #     yaml_file = yaml.safe_load(file)
-            # adversarial_path = yaml_file['checkpoints']['adversarial']
-
             adversarial_resnet = models.__dict__[arch.replace('adv', '')]()
-            server_mnt = "~/mnt/dione/28i_mel"
-            destination_path = os.path.expanduser(server_mnt)
-            adversarial_path =os.path.join(destination_path, 'advresnet50_imagenet_linf_4.pt')
+            adversarial_path =os.path.join(self.destination_path, 'advresnet50_imagenet_linf_4.pt')
             
             adversarial_state_dict = self.extract_adversarial_state_dict(adversarial_path)
 
@@ -165,19 +153,6 @@ class IQA(nn.Module):
             features = list(adversarial_resnet.children())
         elif arch == 'advresnet101':
             adv_resnet = models.__dict__['resnet101']()
-        #     server_mnt = "~/mnt/dione/28i_mel"
-        #     destination_path = os.path.expanduser(server_mnt)
-        #     # weightsdir =os.path.join(destination_path, 'linearity-apgd-ssim-8.pth')
-        #     weightsdir =os.path.join(destination_path, 'apgd_ssim_eps=2.pth')
-        #     sd = adv_resnet.state_dict()
-        #     ckpt = torch.load(weightsdir)['model']
-        #     # print(ckpt)
-        #     # for key in list(ckpt.keys()):
-        #     #     if not key in list(sd.keys()):
-        #     #         del ckpt[key]
-        #     ic(len(ckpt.keys()))
-        #     ic(len(sd.keys()))
-        #     adv_resnet.load_state_dict(ckpt)
             features = list(adv_resnet.children())
         elif arch == 'debiasedresnet101':
             assert "resnet101" in arch
@@ -197,12 +172,6 @@ class IQA(nn.Module):
             with open(YAML_PATH, 'r') as file:
                 yaml_file = yaml.safe_load(file)
             model_type = arch.replace("resnet50", "")
-            # if model_type == "shape" or model_type == "texture":
-            #     _path = f'./style_transfer_checkpoints/res50-{model_type}-biased.pth'
-            # elif model_type == "debiased":
-            #     _path = f'./style_transfer_checkpoints/res50-{model_type}.pth'
-            # else:
-            #     raise TypeError(f"No model type {model_type}.")
             _path = yaml_file['checkpoints'][model_type]
             
             resnet_model = models.__dict__["resnet50"]()
@@ -229,26 +198,15 @@ class IQA(nn.Module):
         elif self.arch == "inceptionresnet":
             features = features[:-1]
         elif self.arch != "vonenet50" and self.arch != "vonenet101":
-            if self.__class__.__name__ == "Linearity":
-                features = features[:-2]
-            elif self.__class__.__name__ == "KonCept":
-                features = features[:-1]
+            # if self.__class__.__name__ == "Linearity":
+            features = features[:-2]
+            # elif self.__class__.__name__ == "KonCept":
+            #     features = features[:-1]
 
         elif self.arch == "vonenet50" or self.arch == "vonenet101":
             if self.__class__.__name__ == "Linearity":
                 features[0][-1].avgpool = Identity()
             features[0][-1].fc = Identity()
-        
-        # if self.arch == 'alexnet':
-        #     in_features = [256, 256]
-        #     self.id1 = 9
-        #     self.id2 = 12
-        #     features = features[0]
-        # elif self.arch == 'vgg16':
-        #     in_features = [512, 512]
-        #     self.id1 = 23
-        #     self.id2 = 30
-        #     features = features[0]
         if self.arch == 'vonenet50' or self.arch == 'vonenet101':
             self.id1 = 4
             self.id2 = 5

@@ -85,11 +85,6 @@ class Linearity(IQA):
             swap_to_gabor(self.features)
 
         Activ = self.get_activation_module(activation)
-        # for d in list(self.features):
-        #     # ic(self.features)
-        #     ic('_________')
-        #     ic(d)
-        #     ic('_________')
         if self.arch == 'lipsim' or self.arch=='lipsim2':
             self.lipsim_pool = nn.Sequential(
                 nn.MaxPool2d(kernel_size=(16,32), stride=(2,2), padding=(0,0)),

@@ -3,11 +3,12 @@ from torch.optim import Adam, SGD, Adadelta, lr_scheduler, Optimizer
 from torch.cuda.amp.grad_scaler import GradScaler
 from torch.cuda.amp.autocast_mode import autocast
 from models_train.IQAdataset import get_data_loaders
-from models_train.IQAmodel import IQAModel
+# from models_train.IQAmodel import IQAModel
+from models_train.Linearity import Linearity
 from models_train.IQAloss import IQALoss
 from models_train.IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
 from models_train.pruning import PruneConv, l1_prune, pls_prune, ln_prune
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
 from typing import Dict
@@ -21,6 +22,7 @@ from torch import nn
 # from style_transfer.mixer import MixData
 
 from icecream import ic
+from clearml import Task, Logger
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
 # from dataclasses import dataclass
@@ -36,7 +38,7 @@ class Trainer:
         else:
             ic.disable()
         self.args = args
-        self.base_model_name = args.model
+        # self.base_model_name = args.model
         self.device = device
         self.arch = args.architecture
         self.device = device
@@ -60,7 +62,7 @@ class Trainer:
         self.kernel_prune = args.kernel_prune
         
 
-        self.model = IQAModel(args.model, 
+        self.model = Linearity(
                               arch='resnext101_32x8d' 
                                 if self.args.architecture=='apgd_ssim' or 
                                 self.args.architecture=='apgd_ssim_eps2' or 
@@ -94,17 +96,20 @@ class Trainer:
 
     def _prepair(self, train=True, val=True, test=True, use_normalize=True):
         if train or val or test:
-            self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=train, val=val,
-                                                                                    test=test, use_normalize=use_normalize,
-                                                                                    model=self.base_model_name)
-        if self.base_model_name == "Linearity":
-            self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
-                                    p=self.args.p, q=self.args.q,
-                                    monotonicity_regularization=self.args.monotonicity_regularization,
-                                    gamma=self.args.gamma, detach=self.args.detach)
-        elif self.base_model_name == "KonCept":
-            # self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
-            self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
+            self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, 
+                                                                                    train=train, 
+                                                                                    val=val,
+                                                                                    test=test, 
+                                                                                    use_normalize=use_normalize,
+                                                                                    )
+        # if self.base_model_name == "Linearity":
+        self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
+                                p=self.args.p, q=self.args.q,
+                                monotonicity_regularization=self.args.monotonicity_regularization,
+                                gamma=self.args.gamma, detach=self.args.detach)
+        # elif self.base_model_name == "KonCept":
+        #     # self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
+        #     self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
 
 
     def _prepair_train(self, train, val, test):
@@ -113,12 +118,12 @@ class Trainer:
             for param in self.model.features.parameters():
                 param.requires_grad = False
 
-        if self.base_model_name=="Linearity":
-            self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step,
-                                                 gamma=self.args.lr_decay)
-        elif self.base_model_name=="KonCept":
-            points = {0: 1e-4, 40: 1e-4/5, 60: 1e-4/10} # 70 epochs
-            self.scheduler = SimpleLRScheduler(self.optimizer, points)
+        # if self.base_model_name=="Linearity":
+        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step,
+                                                gamma=self.args.lr_decay)
+        # elif self.base_model_name=="KonCept":
+        #     points = {0: 1e-4, 40: 1e-4/5, 60: 1e-4/10} # 70 epochs
+        #     self.scheduler = SimpleLRScheduler(self.optimizer, points)
 
         self.scaler = GradScaler()
 
@@ -128,21 +133,21 @@ class Trainer:
         self._optimizer()
 
     def _optimizer(self):
-        if self.base_model_name=="Linearity":
-            self.optimizer = Adam([{'params': self.model.regression.parameters()},
-                                # The most important parameters. Maybe we need three levels of lrs
-                                {'params': self.model.dr6.parameters()},
-                                {'params': self.model.dr7.parameters()},
-                                {'params': self.model.regr6.parameters()},
-                                {'params': self.model.regr7.parameters()},
-                                {'params': self.model.features.parameters(),
-                                    'lr': self.args.learning_rate * self.args.ft_lr_ratio}],
-                                lr=self.args.learning_rate,
-                                weight_decay=self.args.weight_decay)  # Adam can be changed to other optimizers, such as SGD, Adadelta.
-        elif self.base_model_name=="KonCept":
-            self.optimizer = Adam(self.model.parameters(), lr=1e-4)
-        else:
-            raise NameError(f"No {self.base_model_name} model.")
+        # if self.base_model_name=="Linearity":
+        self.optimizer = Adam([{'params': self.model.regression.parameters()},
+                            # The most important parameters. Maybe we need three levels of lrs
+                            {'params': self.model.dr6.parameters()},
+                            {'params': self.model.dr7.parameters()},
+                            {'params': self.model.regr6.parameters()},
+                            {'params': self.model.regr7.parameters()},
+                            {'params': self.model.features.parameters(),
+                                'lr': self.args.learning_rate * self.args.ft_lr_ratio}],
+                            lr=self.args.learning_rate,
+                            weight_decay=self.args.weight_decay)  # Adam can be changed to other optimizers, such as SGD, Adadelta.
+        # elif self.base_model_name=="KonCept":
+        #     self.optimizer = Adam(self.model.parameters(), lr=1e-4)
+        # else:
+        #     raise NameError(f"No {self.base_model_name} model.")
 
     def _train_loop(self):
         train_data_len = len(self.train_loader)
@@ -218,7 +223,8 @@ class Trainer:
             'min': preds.min(),
             'max': preds.max(),
             'epoch': self.current_epoch,
-            'SROCC': self.best_val_criterion
+            'SROCC': self.best_val_criterion,
+
         }
         torch.save(checkpoint, self.args.trained_model_file)
         print('checkpoints saved')
@@ -239,7 +245,18 @@ class Trainer:
         checkpoint['max'] = preds.max()
         checkpoint['min'] = preds.min()
         checkpoint['SROCC'] = self.metric_computer.SROCC
+        checkpoint['PLCC'] = self.metric_computer.PLCC
+        checkpoint ['RMSE'] = self.metric_computer.RMSE
         torch.save(checkpoint, self.args.trained_model_file)
+        Task.current_task().upload_artifact(name="Metrics", 
+                                            artifact_object={
+                                                'model_name': "Linearity",
+                                                'min': checkpoint['min'],
+                                                'max': checkpoint['max'],
+                                                'SROCC': checkpoint['SROCC'],
+                                                'PLCC': checkpoint['PLCC'],
+                                                'RMSE': checkpoint['RMSE'],
+                                            })
 
     def _train_step(self, inputs, label, step):
         inputs = inputs.to(self.device)
@@ -317,11 +334,11 @@ class Trainer:
         return inputs, label
 
     def _get_perfomance(self, *args, **kwargs):
-        if self.base_model_name=="Linearity":
-            return IQAPerformanceLinearity(*args, **kwargs)
-        elif self.base_model_name=="KonCept":
-            return IQAPerfomanceKonCept(*args, **kwargs)
-        raise NameError(f"No {self.base_model_name} model.")
+        # if self.base_model_name=="Linearity":
+        return IQAPerformanceLinearity(*args, **kwargs)
+        # elif self.base_model_name=="KonCept":
+        #     return IQAPerfomanceKonCept(*args, **kwargs)
+        # raise NameError(f"No {self.base_model_name} model.")
 
     def prune(self):
         for i in range(self.prune_iters):
@@ -337,7 +354,7 @@ class Trainer:
             elif self.epochs == 0 and i == 0:
                 self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=False, val=True,
                                                                                     test=True, use_normalize=True,
-                                                                                    model=self.base_model_name)
+                                                                                    )
 
     def _prune_features(self):
         prune_parameters: tuple

@@ -8,6 +8,8 @@ import yaml
 
 from models_train.trainer import Trainer
 
+from clearml import Task, Logger
+
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 YAML_PATH = './path_config.yaml'
 
@@ -43,7 +45,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-
+    task = Task.init(project_name="Linearity", task_name="Linearity modification")
     parser = ArgumentParser(
         description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
     parser.add_argument("--activation", default='relu',
@@ -168,9 +170,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--wpath', default=None, type=str, help="Weight path")
 
-    
-
     args = parser.parse_args()
+    task.connect(vars(args))
+
     if args.lr_decay == 1 or args.epochs < 3:  # no lr decay
         args.lr_decay_step = args.epochs
     else:  # 

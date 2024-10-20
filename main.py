@@ -6,6 +6,7 @@ from attack_cls import Attack
 import os
 
 from icecream import ic
+from clearml import Task, Logger
 
 EPS = 1e-6
 
@@ -68,6 +69,8 @@ def run(args):
 
 
 if __name__ == "__main__":
+    task = Task.init(project_name="Linearity", task_name="Linearity modification")
+
     parser = argparse.ArgumentParser(description="Test Demo for LinearityIQA")
 
     parser.add_argument(
@@ -128,6 +131,7 @@ if __name__ == "__main__":
     parser.add_argument('--crop', action='store_true', help='Use crop for image')
 
     args = parser.parse_args()
+    task.connect(vars(args))
 
     print(args.architecture, args.pruning)
 
