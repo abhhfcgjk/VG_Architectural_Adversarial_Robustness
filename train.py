@@ -28,7 +28,7 @@ from clearml import Task, Logger
 print("PyTorch Version: ",torch.__version__)
 print("Torchvision Version: ",torchvision.__version__)
 
-task = Task.init(project_name="KonCept", task_name="test")
+task = Task.init(project_name="KonCept", task_name="Original KonCept")
 
 
 def getFileName(path, suffix):
@@ -373,4 +373,13 @@ if __name__=='__main__':
         "RMSE": manager2.rmse,
     }
     torch.save(ckpt, "./KonCept.pt")
-    task.upload_artifact(name="Checkpoints", artifact_object=ckpt)
+    artifacts = {
+        "model_name": "KonCept512",
+        "min": manager2.min,
+        "max": manager2.max,
+        "PLCC": manager2.plcc,
+        "SROCC": manager2.srocc,
+        "MAE": manager2.mae,
+        "RMSE": manager2.rmse,
+    }
+    task.upload_artifact(name="Metrics", artifact_object=artifacts)
