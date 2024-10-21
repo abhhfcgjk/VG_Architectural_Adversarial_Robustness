@@ -177,8 +177,8 @@ class ModelManager:
             plt.xlabel('ground-truth')
             plt.ylabel('predicted')
             plt.show()
-        self.srocc = p_srocc
-        self.plcc = p_plcc
+        self.srocc_score = p_srocc
+        self.plcc_score = p_plcc
         self.mae = p_mae
         self.rmse = p_rmse
         return (p_srocc, p_plcc, p_mae, p_rmse)
@@ -233,7 +233,8 @@ class ModelManager:
     #                     print(outputs)
                         loss = loss_fn(outputs, labels)
                         if phase=='val':
-                            plcc_batch=self.plcc(labels.detach().cpu().numpy(),outputs.squeeze(1).detach().cpu().numpy())
+                            plcc_batch = self.plcc(labels.detach().cpu().numpy(),
+                                                 outputs.squeeze(1).detach().cpu().numpy())
     #                     loss = torch.nn.MSELoss()(outputs, label_batch)
 
                         # backward + optimize only if in training phase
@@ -289,6 +290,8 @@ class ModelManager:
                 output = self.model(inputs)
                 y_pred.append(output.item())
                 y_true.append(labels.item())
+        print(y_pred)
+        print(y_true)
         self.max = max(y_pred)
         self.min = min(y_pred)
         return self.rating_metrics(y_true, y_pred)
@@ -367,8 +370,8 @@ if __name__=='__main__':
         "model": KonCept512.state_dict(),
         "min": manager2.min,
         "max": manager2.max,
-        "PLCC": manager2.plcc,
-        "SROCC": manager2.srocc,
+        "PLCC": manager2.plcc_score,
+        "SROCC": manager2.srocc_score,
         "MAE": manager2.mae,
         "RMSE": manager2.rmse,
     }
@@ -377,8 +380,8 @@ if __name__=='__main__':
         "model_name": "KonCept512",
         "min": manager2.min,
         "max": manager2.max,
-        "PLCC": manager2.plcc,
-        "SROCC": manager2.srocc,
+        "PLCC": manager2.plcc_score,
+        "SROCC": manager2.srocc_score,
         "MAE": manager2.mae,
         "RMSE": manager2.rmse,
     }
