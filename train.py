@@ -45,7 +45,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-    task = Task.init(project_name="Linearity", task_name="Linearity modification")
+    
     parser = ArgumentParser(
         description='Norm-in-Norm Loss with Faster Convergence and Better Performance for Image Quality Assessment')
     parser.add_argument("--activation", default='relu',
@@ -171,7 +171,11 @@ if __name__ == "__main__":
     parser.add_argument('--wpath', default=None, type=str, help="Weight path")
 
     args = parser.parse_args()
+    task_name = f"Linearity modification with {args.pruning_type} pruning" if args.pruning else "Linearity modification"
+    task = Task.init(project_name="Linearity", task_name=task_name)
     task.connect(vars(args))
+
+    
 
     if args.lr_decay == 1 or args.epochs < 3:  # no lr decay
         args.lr_decay_step = args.epochs
