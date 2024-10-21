@@ -248,15 +248,15 @@ class Trainer:
         checkpoint['PLCC'] = self.metric_computer.PLCC
         checkpoint ['RMSE'] = self.metric_computer.RMSE
         torch.save(checkpoint, self.args.trained_model_file)
-        Task.current_task().upload_artifact(name="Metrics", 
-                                            artifact_object={
-                                                'model_name': "Linearity",
-                                                'min': checkpoint['min'],
-                                                'max': checkpoint['max'],
-                                                'SROCC': checkpoint['SROCC'],
-                                                'PLCC': checkpoint['PLCC'],
-                                                'RMSE': checkpoint['RMSE'],
-                                            })
+        # Task.current_task().upload_artifact(name="Metrics", 
+        #                                     artifact_object={
+        #                                         'model_name': "Linearity",
+        #                                         'min': checkpoint['min'],
+        #                                         'max': checkpoint['max'],
+        #                                         'SROCC': checkpoint['SROCC'],
+        #                                         'PLCC': checkpoint['PLCC'],
+        #                                         'RMSE': checkpoint['RMSE'],
+        #                                     })
 
     def _train_step(self, inputs, label, step):
         inputs = inputs.to(self.device)
@@ -309,18 +309,28 @@ class Trainer:
 
         checkpoint['model'] = self.model.state_dict()
         checkpoint['SROCC'] = self.metric_computer.SROCC
+        checkpoint['PLCC'] = self.metric_computer.PLCC
+        checkpoint ['RMSE'] = self.metric_computer.RMSE
         checkpoint['min'] = self.metric_computer.preds.min()
         checkpoint['max'] = self.metric_computer.preds.max()
         metric_range = checkpoint['max'] - checkpoint['min']
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric_range:', metric_range)
         torch.save(checkpoint, self.args.trained_model_file)
+        Task.current_task().upload_artifact(name="Metrics", 
+                                            artifact_object={
+                                                'model_name': "Linearity",
+                                                'min': checkpoint['min'],
+                                                'max': checkpoint['max'],
+                                                'SROCC': checkpoint['SROCC'],
+                                                'PLCC': checkpoint['PLCC'],
+                                                'RMSE': checkpoint['RMSE'],
+                                            })
 
         print('{}, {}: {:.3f}'.format(self.args.dataset, self.metrics_printed[0], metrics[self.metrics_printed[0]]))
         np.save(self.args.save_result_file, metrics)
+        # Task.current_task().upload_artifact(name="np metrics", artifact_object=metrics)
 
-    # def __del__(self):
-    #     self.writer.close()
 
     def expand_batch(self, inputs, label, alpha=2):
         eps = alpha/255
@@ -449,23 +459,23 @@ class Trainer:
             trainer.eval()
 
 
-class SimpleLRScheduler:
-    def __init__(
-        self,
-        optimizer: Optimizer,
-        points: Dict[int, float],
-    ):
-        self.optimizer = optimizer
-        self.points = points
+# class SimpleLRScheduler:
+#     def __init__(
+#         self,
+#         optimizer: Optimizer,
+#         points: Dict[int, float],
+#     ):
+#         self.optimizer = optimizer
+#         self.points = points
 
-    def step(self, epoch: int):
-        if epoch in self.points:
-            self.lr = self.points[epoch]
-            for param_group in self.optimizer.param_groups:
-                param_group["lr"] = self.lr
+#     def step(self, epoch: int):
+#         if epoch in self.points:
+#             self.lr = self.points[epoch]
+#             for param_group in self.optimizer.param_groups:
+#                 param_group["lr"] = self.lr
 
-        print("LR=", self.lr)
-        return self.lr
+#         print("LR=", self.lr)
+#         return self.lr
 
 
 
