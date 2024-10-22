@@ -105,13 +105,15 @@ class Koniq_10k(data.Dataset):
 
 
 class ModelManager:
-    def __init__(self, model, batch_size=8,train_index=None, val_index=None, test_index=None, device='cuda'):
+    def __init__(self, model, batch_size=16, lr=1e-4, train_index=None, val_index=None, test_index=None, device='cuda'):
         assert train_index and val_index and test_index
         self.device = device
         self.model = model.to(self.device)
+        self.lr = lr
         self.data_transforms = {
             'train': transforms.Compose([
-                transforms.RandomResizedCrop((512, 384), ),
+                # transforms.RandomResizedCrop((512, 384), ),
+                transforms.Resize((512, 384)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 # transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
@@ -119,8 +121,8 @@ class ModelManager:
 
             ]),
             'val': transforms.Compose([
-                transforms.RandomResizedCrop((512, 384), ),
-        #         transforms.Resize(input_size),
+                # transforms.RandomResizedCrop((512, 384), ),
+                transforms.Resize((512, 384)),
         #         transforms.CenterCrop(input_size),
                 transforms.ToTensor(),
                 # transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
@@ -153,7 +155,7 @@ class ModelManager:
     def plcc(self, x, y):
         """Pearson Linear Correlation Coefficient"""
         x, y = np.float32(x), np.float32(y)
-        return stats.pearsonr(x, y)[0]
+        return stats.pearsonr(x,y)[0]
 
     def srocc(self, xs, ys):
         """Spearman Rank Order Correlation Coefficient"""
@@ -173,17 +175,29 @@ class ModelManager:
         if show_plot:
             print('SRCC: {} | PLCC: {} | MAE: {} | RMSE: {}'.\
                 format(p_srocc, p_plcc, p_mae, p_rmse))    
-            plt.plot(y_true, y_pred,'.',markersize=1)
-            plt.xlabel('ground-truth')
-            plt.ylabel('predicted')
-            plt.show()
+            # plt.plot(y_true, y_pred,'.',markersize=1)
+            # plt.xlabel('ground-truth')
+            # plt.ylabel('predicted')
+            # plt.show()
+
+            scatter2d = np.vstack((y_true, y_pred)).T
+            Logger.current_logger().report_scatter2d(
+                title="Correlation",
+                series="series_markers",
+                iteration=0,
+                scatter=scatter2d,
+                xaxis="ground-truth",
+                yaxis="predicted",
+                mode="markers"
+            )
         self.srocc_score = p_srocc
         self.plcc_score = p_plcc
         self.mae = p_mae
         self.rmse = p_rmse
         return (p_srocc, p_plcc, p_mae, p_rmse)
 
-    def train_model(self, optimizer, num_epochs=40):
+    def train_model(self, num_epochs=40):
+        self.optimizer = optim.Adam(self.model.parameters(), lr=self.lr)
         since = time.time()
 
         val_plcc_history = []
@@ -197,7 +211,6 @@ class ModelManager:
             # ids_train_shuffle = ids_train.sample(frac=1).reset_index()
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
             print('-' * 10)
-
             # Each epoch has a training and validation phase
             for phase in ['train','val']:
                 if phase == 'train':
@@ -214,12 +227,14 @@ class ModelManager:
                 running_plcc = 0.0
                 # Iterate over data.
     #             for k in tqdm_notebook(range(0,num_batches)):
+                loader_size = len(loader)
+                print("Loader size: ", loader_size)
                 for inputs, labels in loader:
                     labels = labels.to(self.device)
                     inputs = inputs.to(self.device)
 
                     # zero the parameter gradients
-                    optimizer.zero_grad()
+                    self.optimizer.zero_grad()
 
                     # forward
                     # track history if only in train
@@ -231,32 +246,37 @@ class ModelManager:
 
                         outputs = self.model(inputs).to(self.device)
     #                     print(outputs)
+                        # labels = labels.unsqueeze(1)
+                        outputs = outputs.squeeze(1)
+
                         loss = loss_fn(outputs, labels)
+                        # print(outputs.shape, labels.shape)
                         if phase=='val':
                             plcc_batch = self.plcc(labels.detach().cpu().numpy(),
-                                                 outputs.squeeze(1).detach().cpu().numpy())
+                                                   outputs.detach().cpu().numpy())
     #                     loss = torch.nn.MSELoss()(outputs, label_batch)
 
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             loss.backward()
-                            optimizer.step()
+                            self.optimizer.step()
 
                     # statistics
-                    running_loss += loss.item() * inputs.size(0)
+                    running_loss += loss.item()
                     if phase=='val':
-                        running_plcc += plcc_batch * inputs.size(0)
+                        running_plcc += plcc_batch
 
 
                 if phase == 'train':
-                    epoch_loss = running_loss / len(loader)
+                    epoch_loss = running_loss / loader_size
                     print('{} Loss: {:.4f}'.format(phase, epoch_loss))
                     Logger.current_logger().report_scalar(
                         "train", "loss", iteration=epoch, value=epoch_loss
                     )
                 else:
-                    epoch_loss = running_loss / len(loader)
-                    epoch_plcc = running_plcc / len(loader)
+                    epoch_loss = running_loss / loader_size
+                    epoch_plcc = running_plcc / loader_size
+                    # print(phase, epoch_loss, epoch_plcc)
                     print('{} Loss: {:.4f} Plcc: {:.4f}'.format(phase, epoch_loss,epoch_plcc))
                     Logger.current_logger().report_scalar(
                         phase, "PLCC", iteration=epoch, value=epoch_plcc
@@ -273,7 +293,7 @@ class ModelManager:
 
         time_elapsed = time.time() - since
         print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-        print('Best val loss: {:4f}'.format(best_plcc))
+        print('Best val PLCC: {:4f}'.format(best_plcc))
 
         # load best model weights
         self.model.load_state_dict(best_model_wts)
@@ -290,8 +310,7 @@ class ModelManager:
                 output = self.model(inputs)
                 y_pred.append(output.item())
                 y_true.append(labels.item())
-        print(y_pred)
-        print(y_true)
+
         self.max = max(y_pred)
         self.min = min(y_pred)
         return self.rating_metrics(y_true, y_pred)
@@ -327,6 +346,7 @@ class model_qa(nn.Module):
 
 
 if __name__=='__main__':
+    random.seed(10)
     index = list(range(0,10073))
     random.shuffle(index)
     train_index = index[0:round(0.7*len(index))]
@@ -334,30 +354,41 @@ if __name__=='__main__':
     test_index = index[round(0.8*len(index)):len(index)]
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
-    model_ft=model_qa(num_classes=1) 
-    model_ft=model_ft.to(device)
+    model_ft = model_qa(num_classes=1) 
+    model_ft = model_ft.to(device)
 
-    manager1= ModelManager(model_ft, 
+    params = {
+        "ft_epochs": 20, 
+        "ft_lr": 1e-4, 
+        "epochs": 40, 
+        "lr":1e-4/5,
+        "batch": 16
+        }
+    task.connect(params)
+
+    manager1= ModelManager(model_ft,
+                           batch_size=params["batch"],
+                           lr=params["ft_lr"],
                            train_index=train_index, 
                            val_index=val_index, 
                            test_index=test_index, 
                            device=device)
 
-    params = {"ft_epochs": 20, "ft_lr": 1e-4, "epochs": 40, "lr":1e-4/5}
-    task.connect(params)
+    
 
-    optimizer_1 = optim.Adam(model_ft.parameters(), lr=params["ft_lr"])
-    model_ft_1, val_plcc_history_1=manager1.train_model(optimizer_1, num_epochs=params["ft_epochs"])
+    # optimizer_1 = optim.Adam(model_ft.parameters(), lr=params["ft_lr"])
+    model_ft_1, val_plcc_history_1 = manager1.train_model(num_epochs=params["ft_epochs"])
     torch.save(model_ft_1.state_dict(),'./model_ft_1.pth')
 
-
     manager2 = ModelManager(model_ft_1, 
+                            batch_size=params["batch"],
+                            lr=params["lr"],
                             train_index=train_index, 
                             val_index=val_index, 
                             test_index=test_index, 
                             device=device)
-    optimizer_2 = optim.Adam(model_ft_1.parameters(), lr=params["lr"])
-    KonCept512, val_plcc_history_2=manager2.train_model(optimizer_2, num_epochs=params["epochs"])
+    # optimizer_2 = optim.Adam(model_ft_1.parameters(), lr=params["lr"])
+    KonCept512, val_plcc_history_2 = manager2.train_model(num_epochs=params["epochs"])
     torch.save(KonCept512.state_dict(),'./KonCept512.pth')
 
     ### Test model on the default test set
