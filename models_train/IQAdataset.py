@@ -19,31 +19,6 @@ class IQADataset(Dataset):
         self.use_normalize = use_normalize
         self.status = status
 
-        # self.model = model
-
-        self.data_transforms = {
-            'train': transforms.Compose([
-        #         transforms.RandomResizedCrop(input_size),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-        #         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-
-            ]),
-            'val': transforms.Compose([
-        #         transforms.Resize(input_size),
-        #         transforms.CenterCrop(input_size),
-                transforms.ToTensor(),
-                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-            ]),
-            'test': transforms.Compose([
-        #         transforms.Resize(input_size),
-        #         transforms.CenterCrop(input_size),
-                transforms.ToTensor(),
-                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-            ]),
-        }
-
         self.augment = args.augmentation
         self.angle = args.angle
         self.crop_size_h = args.crop_size_h
@@ -95,7 +70,7 @@ class IQADataset(Dataset):
         return im, (label, label_std)
 
     def transform(self, im, status, angle=2, crop_size_h=498, crop_size_w=498, hflip_p=0.5):
-        # if self.model == "Linearity":
+        
         if status == 'train' and self.augment:  # data augmentation
             angle = random.uniform(-angle, angle)
             p = random.random()
@@ -110,9 +85,7 @@ class IQADataset(Dataset):
         im = to_tensor(im)
         if self.use_normalize:
             im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        #         # im = normalize(im, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-        # elif self.model=="KonCept":
-        #     im = self.data_transforms[status](im)
+
         return im
 
 

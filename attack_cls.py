@@ -8,9 +8,13 @@ from tqdm import tqdm
 from torchvision.transforms.functional import resize, to_tensor, normalize, crop
 import iterative
 from models_train.IQAmodel import IQAModel
+from models_train.Linearity import Linearity
 
 from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision.utils import save_image
+
+# from sklearn.preprocessing import MinMaxScaler, StandardScaler
+import h5py
 from random import random
 # from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from icecream import ic
@@ -36,7 +40,7 @@ class Attack:
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
         # self.prune 
-        self.model = IQAModel(model,arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
+        self.model = Linearity(arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
                            cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair).to(self.device)
@@ -46,13 +50,13 @@ class Attack:
 
     def compute_output(self, x):
         # im = normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        if self.model_name == "Linearity":
-            return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+        # if self.model_name == "Linearity":
+        return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
             # return self.model(x)[-1].item() * self.k[0] + self.b[0]
-        elif self.model_name == "KonCept":
-            return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])).item()
+        # elif self.model_name == "KonCept":
+        #     return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])).item()
             # raise NotImplementedError()
-        raise NameError(f"No model {self.model_name}.")
+        # raise NameError(f"No model {self.model_name}.")
 
     def load_checkpoints(self, checkpoints_path="LinearityIQA/checkpoints/p1q2.pth"):
         self.checkpoint = torch.load(checkpoints_path, map_location=self.device)
@@ -70,14 +74,25 @@ class Attack:
         self.max_test = self.max_train
         self.metric_range_test = self.metric_range_train
 
-    def set_load_conf(self, dataset_path, resize, crop, resize_size_h, resize_size_w, batch_size=4):
+    def set_load_conf(self, dataset, dataset_path, resize, crop, resize_size_h, resize_size_w, batch_size=4):
+        self.dataset = dataset
         self.dataset_path = dataset_path
+        if self.dataset_path:
+            self.dataset_path = f"./{self.dataset}/"
         self.resize = resize
         self.crop = crop
         self.resize_size_h: int = resize_size_h
         self.resize_size_w: int = resize_size_w
-        self.loader = DataLoader(TestLoader(self.dataset_path, self.resize, self.crop, self.resize_size_h, self.resize_size_w),
-                                 batch_size=1)
+        self.loader = DataLoader(
+                            TestLoader(
+                                self.dataset_path, 
+                                self.resize, 
+                                self.crop, 
+                                self.resize_size_h, 
+                                self.resize_size_w
+                                ),
+                            batch_size=1
+                            )
 
     def _get_info_max_min_from_testset(self, debug=False):
         self.clear_vals = []
@@ -163,7 +178,6 @@ class Attack:
                     # save_image(img_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
 
                     attacked_val = self.compute_output(img_attacked_)
-                    # attacked_val = attacked_val[-1].item() * self.k[0] + self.b[0]
                     ic(attacked_val)
                     attacked_val = (attacked_val - self.min_test)/(self.max_test - self.min_test)
                     ic(clear_val, attacked_val)
@@ -219,13 +233,14 @@ class Attack:
         # correlation = stats.spearmanr(self.clear_vals, self.attacked_vals)
         mdif.update({'SROCC': self.checkpoint['SROCC']})
         print('SROCC:', self.checkpoint['SROCC'])
+        mdif.update({'PLCC': self.checkpoint['PLCC']})
+        print('PLCC:', self.checkpoint['PLCC'])
 
         cols = [f'eps {e}' for e in self.gains.keys()]
-        cols = ['arch', 'activation', 'attack', 'iterations'] + cols + ['SROCC']
+        cols = ['arch', 'activation', 'attack', 'iterations'] + cols + ['SROCC', 'PLCC']
         if csv_results_dir is not None:
             csv_path = os.path.join(csv_results_dir, "results.csv".format(self.activation))
             if "results.csv" not in os.listdir(csv_results_dir):
-
                 tmp = pd.DataFrame(columns=cols)
                 tmp.style.hide(axis='index')
                 print(len(tmp.index))
@@ -234,8 +249,6 @@ class Attack:
             else:
                 df = pd.read_csv(csv_path, usecols=[_ for _ in range(1, len(cols) + 1)])
                 df.loc[len(df)] = mdif
-                # df.drop(labels='Unnamed: 0',axis='columns')
-
                 df.to_csv(csv_path)
 
     @property
@@ -244,26 +257,73 @@ class Attack:
             raise AttributeError("results doesnt exist. Run self.save_results(self, csv_results_dir).")
         return self.results
 
+def default_loader(path):
+    return Image.open(path).convert('RGB')
 
 class TestLoader(Dataset):
-    def __init__(self,  dataset_path, resize,crop=False, resize_size_h=498, resize_size_w=664):
+    def __init__(self, dataset, dataset_path, resize=False, crop=False, resize_size_h=498, resize_size_w=664, **kwargs):
         # self.batch_size = batch_size
-        self.crop = crop
-        self.resize = resize
-        self.resize_size_h, self.resize_size_w = resize_size_h, resize_size_w
+        self.dataset = dataset
+        self.loader = kwargs.get("loader", default_loader)
         self.dataset_path = dataset_path
-        self.imgs_names = [_ for _ in Path(self.dataset_path).iterdir()]
+        self.resize_size_h, self.resize_size_w = resize_size_h, resize_size_w
+        self.resize = resize
+        self.crop = crop
+        if self.dataset == 'NIPS':
+            self.im_names = [path.name for path in Path(self.dataset_path).iterdir()]
+        elif self.dataset == 'KonIQ-10k':
+            datainfo = kwargs.get("data_info", None)
+            assert datainfo
+            Info = h5py.File(datainfo, 'r')
+            index = Info['index']
+            train_ratio = 0.6
+            train_and_val_ratio = 0.8
+            exp_id = 0
+            index = index[:, exp_id % index.shape[1]]
+            ref_ids = Info['ref_ids'][0, :]
+            status ='test'
+            if status == 'train':
+                index = index[0:int(train_ratio * len(index))]
+            elif status == 'val':
+                index = index[int(train_ratio * len(index)):int(train_and_val_ratio * len(index))]
+            elif status == 'test':
+                index = index[int(train_and_val_ratio * len(index)):len(index)]
+            self.index = []
+            for i in range(len(ref_ids)):
+                if ref_ids[i] in index:
+                    self.index.append(i)
+            print("# {} images: {}".format(status, len(self.index)))
+
+            self.label = Info['subjective_scores'][0, self.index].astype(np.float32)
+            self.label_std = Info['subjective_scoresSTD'][0, self.index].astype(np.float32)
+            self.im_names = [Info[Info['im_names'][0, :][i]][()].tobytes()[::2].decode() for i in self.index]
+        
+        self.ims = []
+        for im_name in tqdm(self.im_names, total=len(self.im_names)):
+            im = self.loader(os.path.join(self.dataset_path, im_name))
+            # if resize:  # resize or not?
+            #     im = resize(im, (resize_size_h, resize_size_w))  # h, w
+            self.ims.append(im)
 
     def __len__(self):
         return len(self.imgs_names)
 
-    def __getitem__(self, index):
-        image = Image.open(self.imgs_names[index]).convert("RGB")
+    def __getitem__(self, idx):
+        image = self.ims[idx] # self.loader(self.imgs_names[idx]) # Image.open(self.imgs_names[index]).convert("RGB")
+        # if self.crop:  # crop or not?
+        #     image = crop(image, 0, 0, height=self.resize_size_h, width=self.resize_size_w)
+        # elif self.resize:  # resize or not?
+        #     image = resize(image, (self.resize_size_h, self.resize_size_w))  #
+        # img = to_tensor(image).cuda()
+        img = self.transform(image)
+        img_ = img
+        # img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        return img_, img
+    
+    def transform(self, image):
         if self.crop:  # crop or not?
             image = crop(image, 0, 0, height=self.resize_size_h, width=self.resize_size_w)
         elif self.resize:  # resize or not?
             image = resize(image, (self.resize_size_h, self.resize_size_w))  #
         img = to_tensor(image).cuda()
-        img_ = img
-        # img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        return img_, img
+        return img

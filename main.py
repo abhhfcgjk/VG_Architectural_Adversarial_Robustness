@@ -22,9 +22,6 @@ def get_format_string(args):
         args.resize_size_w, #args.mixup, args.mixup_gamma,
         
     )
-    # if args.feature_model:
-    #     assert args.mgamma
-    #     format_str += f'-feature_model={args.feature_model}-gamma={args.mgamma}'
 
     if args.gradnorm_regularization:
         format_str += f'-gr={args.gradnorm_regularization}'
@@ -54,7 +51,8 @@ def run(args):
     # quit()
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
-    exec_.set_load_conf(dataset_path=args.dataset_path,
+    exec_.set_load_conf(dataset=args.dataset, 
+                        dataset_path=args.dataset_path,
                         resize=args.resize,
                         crop=args.crop,
                         resize_size_h=args.resize_size_h,
@@ -75,9 +73,9 @@ if __name__ == "__main__":
 
     parser.add_argument(
         "--architecture", "-arch",
-        default="resnet34",
+        default="resnet101",
         type=str,
-        help="arch name (default: resnet34)",
+        help="arch name (default: resnet101) vonenet50|resnet50|wideresnet50|resnet18|resnet34|resnext101_32x8d",
     )
     parser.add_argument(
         "--pool", default="avg", type=str, help="pool method (default: avg)"
@@ -110,7 +108,9 @@ if __name__ == "__main__":
     parser.add_argument("-iter", "--iterations", type=int, default=1)
     parser.add_argument("--activation", type=str, default="relu")
     parser.add_argument("--attack_type", type=str, default="PGD")
-    parser.add_argument("--dataset_path", type=str, default="./NIPS_test/")
+    parser.add_argument("--dataset", type=str, default="NIPS", help="KonIQ-10 | NIPS")
+    parser.add_argument("--dataset_path", type=str, default=None, help="./NIPS_test/ | ./KonIQ-10k/")
+    parser.add_argument("--data_info", type=str, default=None, help="./data/KonIQ-10kinfo.mat")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--csv_results_dir", type=str, default=".")
     parser.add_argument("--debug", action="store_true")

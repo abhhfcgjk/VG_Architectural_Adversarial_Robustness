@@ -81,7 +81,7 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--beta', nargs=3, type=float, default=[.1, .1, 1],
                         help='loss coefficients for level 6, 7, and 6+7 (default: [.1, .1, 1])')
 
-    parser.add_argument('-arch', '--architecture', default='resnext101_32x8d', type=str,
+    parser.add_argument('-arch', '--architecture', default='resnext101', type=str,
                         help='arch name (default: resnext101_32x8d)')
     parser.add_argument('-pl', '--pool', default='avg', type=str,
                         help='pool method (default: avg)')
