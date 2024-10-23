@@ -17,6 +17,7 @@ from torchvision.utils import save_image
 import h5py
 from random import random
 # from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
+from clearml import Task, Logger
 from icecream import ic
 
 
@@ -39,6 +40,7 @@ class Attack:
         self.cayley = cayley
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
+        self.to_save_images = 700
         # self.prune 
         self.model = Linearity(arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
                            use_bn_end=use_bn_end,
@@ -46,7 +48,9 @@ class Attack:
                            cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair).to(self.device)
         ic(self.model)
         self.model.eval()
-        # print(self.model)
+        cols = ['image_name', 'clear_val', 'attacked_eps=']
+        # self.df_attack_csv = pd.DataFrame(columns=['image_name', 'clear_val'] + \
+        #                                 [f'attacked_val_eps={int(val*255.0)}' for val in self.epsilons])
 
     def compute_output(self, x):
         # im = normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -74,22 +78,27 @@ class Attack:
         self.max_test = self.max_train
         self.metric_range_test = self.metric_range_train
 
-    def set_load_conf(self, dataset, dataset_path, resize, crop, resize_size_h, resize_size_w, batch_size=4):
+    def set_load_conf(self, dataset, dataset_path, resize, crop, resize_size_h, resize_size_w, batch_size=4, data_info=None):
+        self.df_attack_csv = pd.DataFrame(columns=['image_name', 'clear_val'] + \
+                                        [f'attacked_val_eps={int(val*255.0)}' for val in self.epsilons])
         self.dataset = dataset
         self.dataset_path = dataset_path
-        if self.dataset_path:
+        if self.dataset_path is None:
             self.dataset_path = f"./{self.dataset}/"
         self.resize = resize
         self.crop = crop
         self.resize_size_h: int = resize_size_h
         self.resize_size_w: int = resize_size_w
+
         self.loader = DataLoader(
                             TestLoader(
-                                self.dataset_path, 
-                                self.resize, 
-                                self.crop, 
-                                self.resize_size_h, 
-                                self.resize_size_w
+                                dataset=self.dataset,
+                                dataset_path=self.dataset_path, 
+                                resize=self.resize, 
+                                crop=self.crop, 
+                                resize_size_h=self.resize_size_h, 
+                                resize_size_w=self.resize_size_w,
+                                data_info=data_info
                                 ),
                             batch_size=1
                             )
@@ -97,7 +106,7 @@ class Attack:
     def _get_info_max_min_from_testset(self, debug=False):
         self.clear_vals = []
         count = 5
-        for img_, img in tqdm(
+        for img_name, img_ in tqdm(
                 self.loader,
                 total=len(self.loader),
         ):
@@ -134,35 +143,30 @@ class Attack:
         print("Range: ", self.min_test, self.max_test)
 
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
-        # self._get_info_max_min_from_testset(debug)
         self.attack_type = attack_type
         self.iterations = iterations
-        self.attacked_vals = []
-        image_num = 0
+        self.attack_type = attack_type
+        
+        if self.to_save_images is not None:
+            debug_dir = 'debug_img'
+            os.makedirs(debug_dir, exist_ok=True)
         count = 5
         self.gains = {int(x * 255): [] for x in self.epsilons}
-        for img_, img in tqdm(
-                self.loader,
+        print("ATTACK")
+        for image_num, (img_name, img_) in tqdm(
+                enumerate(self.loader),
                 total=len(self.loader),
         ):
-
-            # clear_val = (self.clear_vals[image_num] - self.min_test)/(self.max_test - self.min_test)
-                                    # iterative.norm(self.clear_vals[image_num],
-                                    #    mmin=self.min_test, mmax=self.max_test)
-
-            # ic(clear_val)
-
-            # self.clear_vals[image_num] = clear_val
+            img_name = img_name[0]
 
             clear_val = self.compute_output(img_)
-            clear_val = (clear_val - self.min_test)/(self.max_test - self.min_test)
+            clear_val = self.min_max_scale(clear_val) # (clear_val - self.min_test)/(self.max_test - self.min_test)
+            attacked_vals = {int(x * 255): None for x in self.epsilons}
 
             for _, eps in enumerate(self.epsilons):
                 img_attacked_ = iterative.attack_callback(
-                    ###############
                     img_, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
                     device=self.device,
-                    #################
                     eps=1.0, iters=iterations, delta=eps, k=self.k, b=self.b
                 )
                 # img_attacked = normalize(img_attacked_,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
@@ -173,19 +177,19 @@ class Attack:
                     # diff = img_attacked - img
                     # diff = torch.clamp(diff, min=-10 / 255, max=10 / 255)
                     # # print("DIFF:", torch.sum(diff))
-                    # img_attacked = img + diff
-                    # save_image(img, f'debug_img/clear{image_num}_{int(eps*255)}.png')
-                    # save_image(img_attacked, f'debug_img/{image_num}_{int(eps*255)}.png')
+                    # if self.to_save_images is not None and image_num % self.to_save_images==0:
+                    #     save_image(img_attacked_, f'{debug_dir}/{image_num}_{int(eps*255)}.png')
 
                     attacked_val = self.compute_output(img_attacked_)
                     ic(attacked_val)
-                    attacked_val = (attacked_val - self.min_test)/(self.max_test - self.min_test)
+                    attacked_val = self.min_max_scale(attacked_val) # (attacked_val - self.min_test)/(self.max_test - self.min_test)
                     ic(clear_val, attacked_val)
                     gain = attacked_val - clear_val
+
                     self.gains[int(eps * 255)].append(gain)
-            self.attacked_vals.append(attacked_val)  # with eps 10/255
-            image_num += 1
-            
+                    attacked_vals[int(eps * 255)] = attacked_val
+            # image_num += 1
+        
             ###########debug
             if debug:
                 # print(self.attacked_vals, self.clear_vals)
@@ -194,20 +198,75 @@ class Attack:
                 if not count:
                     break
             ##########
+            if self.to_save_images is not None and image_num % self.to_save_images==0:
+                save_image(img_, f'{debug_dir}/clear{image_num}.png')
+                save_image(img_attacked_, f'{debug_dir}/attacked{image_num}_{int(self.epsilons[-1]*255)}.png')
+                Logger.current_logger().report_media(
+                    title=self.dataset,
+                    series="clear",
+                    iteration=image_num,
+                    local_path=os.path.join(debug_dir, f"clear{image_num}.png")
+                )
+                Logger.current_logger().report_media(
+                    title=self.dataset,
+                    series="max perturbation",
+                    iteration=image_num,
+                    local_path=os.path.join(debug_dir, f"attacked{image_num}_{int(self.epsilons[-1]*255)}.png")
+                )
+                
+            frame = {
+                        'image_name': img_name,
+                        'clear_val': clear_val
+                    } | {
+                        f'attacked_val_eps={int(eps*255.0)}': attacked_vals[int(eps * 255)] for eps in self.epsilons
+                    }
+            self.df_attack_csv.loc[len(self.df_attack_csv)] = frame
+        
+        gain_graph = [[key, np.array(values).mean()] for key, values in self.gains.items()]
+        gain_graph = np.array(gain_graph)
+        Logger.current_logger().report_scatter2d(
+            title=self.arch,
+            series=self.dataset,
+            iteration=0,
+            scatter=gain_graph,
+            xaxis='eps',
+            yaxis='gain',
+            mode='lines+markers'
+        )
 
     def save_vals_to_file(self, csv_results_dir='.'):
-        se_status = "+se" if self.se else ""
-        data = pd.DataFrame(columns=['clear', 'attack'])
-        if csv_results_dir is not None:
-            for i in range(len(self.clear_vals)):
-                data.loc[len(data.index)] = [self.clear_vals[i], self.attacked_vals[i]]
+        # data = pd.DataFrame(columns=['clear', 'attack'])
 
-            result_path = "results_{}_{}_{}.csv".format(self.activation,
-                                                        self.arch + se_status,
-                                                        self.iterations)
-            csv_path = os.path.join(csv_results_dir, result_path)
-            data.to_csv(csv_path)
-            print(f"Results saved to {csv_path}")
+        assert csv_results_dir
+        cl = f'+cayley' if self.cayley else ''
+        clp = f'+cayley_pool' if self.cayley_pool else ''
+        cp = f'++cayley_pair' if self.cayley_pair else ''
+        gr = f'+gr' if self.gradnorm_regularization else ''
+        activation =  self.activation
+        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}+{activation}'
+        result_path = "{}_{}_{}={}.csv".format(
+                                            self.dataset,
+                                            arch_status,
+                                            self.attack_type,
+                                            self.iterations
+                                            )
+        csv_path = os.path.join(csv_results_dir, result_path)
+        self.df_attack_csv.to_csv(csv_path)
+        print(f"Results saved to {csv_path}")
+        Task.current_task().register_artifact(
+            name=result_path,
+            artifact=self.df_attack_csv,
+            metadata={
+                'Arch': self.arch, 
+                'Cayley': cl,
+                'Cayley pool': clp,
+                'Cayley pair': cp,
+                'Gradnorm regularization': gr,
+                'Activation': activation,
+                'Dataset': self.dataset, 
+                'PGD': self.iterations
+                }
+        )
 
     def save_results(self, csv_results_dir='.'):
         self.results = []
@@ -250,6 +309,9 @@ class Attack:
                 df = pd.read_csv(csv_path, usecols=[_ for _ in range(1, len(cols) + 1)])
                 df.loc[len(df)] = mdif
                 df.to_csv(csv_path)
+
+    def min_max_scale(self, value):
+        return (value - self.min_test)/(self.max_test - self.min_test)
 
     @property
     def res(self):
@@ -297,8 +359,10 @@ class TestLoader(Dataset):
             self.label = Info['subjective_scores'][0, self.index].astype(np.float32)
             self.label_std = Info['subjective_scoresSTD'][0, self.index].astype(np.float32)
             self.im_names = [Info[Info['im_names'][0, :][i]][()].tobytes()[::2].decode() for i in self.index]
-        
+        else:
+            raise KeyError(f"Dataset {self.dataset} does not exist.")
         self.ims = []
+        print("DATA LOADING")
         for im_name in tqdm(self.im_names, total=len(self.im_names)):
             im = self.loader(os.path.join(self.dataset_path, im_name))
             # if resize:  # resize or not?
@@ -306,7 +370,7 @@ class TestLoader(Dataset):
             self.ims.append(im)
 
     def __len__(self):
-        return len(self.imgs_names)
+        return len(self.im_names)
 
     def __getitem__(self, idx):
         image = self.ims[idx] # self.loader(self.imgs_names[idx]) # Image.open(self.imgs_names[index]).convert("RGB")
@@ -316,9 +380,9 @@ class TestLoader(Dataset):
         #     image = resize(image, (self.resize_size_h, self.resize_size_w))  #
         # img = to_tensor(image).cuda()
         img = self.transform(image)
-        img_ = img
+        img_name = self.im_names[idx]
         # img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        return img_, img
+        return img_name, img
     
     def transform(self, image):
         if self.crop:  # crop or not?

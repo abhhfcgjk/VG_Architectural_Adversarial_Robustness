@@ -47,27 +47,36 @@ def run(args):
                            gradnorm_regularization=args.gradnorm_regularization,
                            cayley=args.cayley, cayley_pool=args.cayley_pool, cayley_pair=args.cayley_pair
                            )
-    # print(exec.model.state_dict().keys())
-    # quit()
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
-    exec_.set_load_conf(dataset=args.dataset, 
-                        dataset_path=args.dataset_path,
-                        resize=args.resize,
-                        crop=args.crop,
-                        resize_size_h=args.resize_size_h,
-                        resize_size_w=args.resize_size_w)
+    datasets = {
+                'NIPS': './NIPS_test/',
+                'KonIQ-10k': './KonIQ-10k/'
+                }
+    
+    result = [None, None]
+    for i, (dataset, datset_path) in enumerate(datasets.items()):
+        exec_.set_load_conf(dataset=dataset, 
+                            dataset_path=datset_path,
+                            resize=args.resize,
+                            crop=args.crop,
+                            resize_size_h=args.resize_size_h,
+                            resize_size_w=args.resize_size_w,
+                            data_info="./data/KonIQ-10kinfo.mat")
 
-    exec_.attack(attack_type=args.attack_type,
-                 iterations=args.iterations, debug=args.debug)
+        exec_.attack(attack_type=args.attack_type,
+                    iterations=args.iterations, debug=args.debug)
 
-    exec_.save_results(args.csv_results_dir)
-
-    return np.array(exec_.res).mean()
+        exec_.save_results(args.csv_results_dir)
+        exec_.save_vals_to_file(csv_results_dir='./dataset_attack/')
+        
+        result[i] = np.array(exec_.res).mean()
+        print(result[i])
+    return result
 
 
 if __name__ == "__main__":
-    task = Task.init(project_name="Linearity", task_name="Linearity modification")
+    task = Task.init(project_name="Test", task_name="Linearity")
 
     parser = argparse.ArgumentParser(description="Test Demo for LinearityIQA")
 
@@ -108,8 +117,8 @@ if __name__ == "__main__":
     parser.add_argument("-iter", "--iterations", type=int, default=1)
     parser.add_argument("--activation", type=str, default="relu")
     parser.add_argument("--attack_type", type=str, default="PGD")
-    parser.add_argument("--dataset", type=str, default="NIPS", help="KonIQ-10 | NIPS")
-    parser.add_argument("--dataset_path", type=str, default=None, help="./NIPS_test/ | ./KonIQ-10k/")
+    # parser.add_argument("--dataset", type=str, default="NIPS", help="KonIQ-10 | NIPS")
+    # parser.add_argument("--dataset_path", type=str, default=None, help="./NIPS_test/ | ./KonIQ-10k/")
     parser.add_argument("--data_info", type=str, default=None, help="./data/KonIQ-10kinfo.mat")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--csv_results_dir", type=str, default=".")
@@ -149,7 +158,7 @@ if __name__ == "__main__":
     print(args.trained_model_file)
     total_score = run(args)
     print(
-        "Result for {} type attack: {:.4f}".format(
-            args.attack_type.capitalize(), total_score
+        "Result for {} type attack: {:.4f}, {:.4f}".format(
+            args.attack_type.capitalize(), total_score[0], total_score[1]
         )
     )
