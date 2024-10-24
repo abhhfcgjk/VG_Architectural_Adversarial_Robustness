@@ -41,6 +41,7 @@ def get_format_string(args):
     return format_str
 
 def run(args):
+
     exec_: Attack = Attack(args.model,
                            arch=args.architecture, pool=args.pool,
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
@@ -51,14 +52,12 @@ def run(args):
                            )
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
-    # datasets = {
-    #             'NIPS': './NIPS_test/',
-    #             'KonIQ-10k': './KonIQ-10k/'
-    #             }
+
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
     datasets = yaml_conf['dataset']['data']
     data_info = yaml_conf['dataset']['labels']
+    save_results_dir = yaml_conf['save']['results']
     
     result = [None, None]
     for i, (dataset, datset_path) in enumerate(datasets.items()):
@@ -73,8 +72,8 @@ def run(args):
         exec_.attack(attack_type=args.attack_type,
                     iterations=args.iterations, debug=args.debug)
 
-        # exec_.save_results(args.csv_results_dir)
-        exec_.save_vals_to_file(csv_results_dir='./dataset_attack/')
+        exec_.save_results(args.csv_results_dir)
+        exec_.save_vals_to_file(csv_results_dir=save_results_dir)
         
         result[i] = np.array(exec_.res).mean()
         print(result[i])
@@ -82,7 +81,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-    task = Task.init(project_name="Test", task_name="Linearity")
+    task = Task.init(project_name="Test", task_name="Linearity", reuse_last_task_id=False)
 
     parser = argparse.ArgumentParser(description="Test Demo for LinearityIQA")
 

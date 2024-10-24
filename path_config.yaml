@@ -11,3 +11,7 @@ dataset:
     KonIQ-10k: "./KonIQ-10k"
   labels:
     KonIQ-10k: "./data/KonIQ-10kinfo.mat"
+
+save:
+  ckpt: "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/Linearity-ckpt"
+  results: "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/Linearity-results"
