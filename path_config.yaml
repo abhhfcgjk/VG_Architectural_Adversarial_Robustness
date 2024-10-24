@@ -1,0 +1,17 @@
+checkpoints:
+  adversarial: "./checkpoints/adversarial_trained/resnet50_imagenet_linf_4.pt"
+  texture: "./checkpoints/style_transfer_checkpoints/res50-texture-biased.pth"
+  shape: "./checkpoints/style_transfer_checkpoints/res50-shape-biased.pth"
+  debiased: "./checkpoints/style_transfer_checkpoints/res50-debiased.pth"
+  debiased101: "./checkpoints/res101-debiased.pth"
+
+dataset:
+  data:
+    NIPS: "./dataset/NIPS"
+    KonIQ-10k: "./dataset/KonIQ-10k"
+  labels:
+    KonIQ-10k: "./data/KonIQ-10kinfo.mat"
+
+save:
+  ckpt: "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/DBCNN-ckpt"
+  results: "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/DBCNN-results"

@@ -18,10 +18,13 @@ from VOneNet import get_model
 import activ
 
 from tqdm import tqdm
-
+import yaml
 from icecream import ic
 
+from clearml import Task, Logger
+
 #os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+YAML_PATH = "./path_config.yaml"
 
 def pil_loader(path):
     # open path as file to avoid ResourceWarning (https://github.com/python-pillow/Pillow/issues/835)
@@ -30,21 +33,21 @@ def pil_loader(path):
         return img.convert('RGB')
 
 
-def accimage_loader(path):
-    import accimage
-    try:
-        return accimage.Image(path)
-    except IOError:
-        # Potentially a decoding problem, fall back to PIL.Image
-        return pil_loader(path)
+# def accimage_loader(path):
+#     import accimage
+#     try:
+#         return accimage.Image(path)
+#     except IOError:
+#         # Potentially a decoding problem, fall back to PIL.Image
+#         return pil_loader(path)
 
 
 def default_loader(path):
     from torchvision import get_image_backend
-    if get_image_backend() == 'accimage':
-        return accimage_loader(path)
-    else:
-        return pil_loader(path)
+    # if get_image_backend() == 'accimage':
+    #     return accimage_loader(path)
+    # else:
+    return pil_loader(path)
     
     
 
@@ -69,18 +72,18 @@ class DBCNN(torch.nn.Module):
             self.features1 = torchvision.models.vgg16(pretrained=True).features
             self.features1 = nn.Sequential(*list(self.features1.children())[:-1])
         
-        if options.get('cayley', None) or options.get('cayley2',None):
+        if options.get('cayley', None) or options.get('cayley2', None):
             self.cayley = CayleyBlockPool(in_channels=512, intermed_channels=200)
             self.features1 = nn.Sequential(*list(self.features1.children())[:-2], 
                                             self.cayley, 
                                             *list(self.features1.children())[-2:])
-        elif options.get('cayley3',None):
+        elif options.get('cayley3', None) or options.get('cayley4', None):
             self.cayley = CayleyBlockPool(in_channels=512, intermed_channels=200)
             self.features1 = nn.Sequential(*list(self.features1.children())[:-6], 
                                             self.cayley, 
                                             *list(self.features1.children())[-6:])
             
-        if options.get('activation',None)=='relu_elu':
+        if options.get('activation', None)=='relu_elu':
             # activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
             self.setup_activation(activ.ReLU_ELU)
         else:
@@ -94,10 +97,14 @@ class DBCNN(torch.nn.Module):
         self.features2 = scnn.module.features
         if options.get('cayley2',None):
             self.cayley2 = CayleyBlockPool(in_channels=128, intermed_channels=100)
-            # print(self.features2)
             self.features2 = nn.Sequential(*list(self.features2.children())[:-3], 
                                             self.cayley2, 
                                             *list(self.features2.children())[-3:])
+        elif options.get('cayley4',None):
+            self.cayley4 = CayleyBlockPool(in_channels=64, intermed_channels=64)
+            self.features2 = nn.Sequential(*list(self.features2.children())[:-9], 
+                                            self.cayley4, 
+                                            *list(self.features2.children())[-9:])
             # print(self.features2)
         
         # Linear classifier.
@@ -164,6 +171,7 @@ class DBCNNManager(object):
         self.cayley_flag = 'cayley' if options['cayley'] else ''
         self.cayley_flag2 = 'cayley2' if options['cayley2'] else ''
         self.cayley_flag3 = 'cayley3' if options['cayley3'] else ''
+        self.cayley_flag4 = 'cayley4' if options['cayley4'] else ''
         self.backbone_flag = 'vonenet50' if options['backbone']=='vonenet50' else ''
         self.activation_flag = self._options['activation']
         
@@ -299,7 +307,15 @@ class DBCNNManager(object):
                 loss.backward()
                 self._solver.step()
             train_srcc, _ = stats.spearmanr(pscores,tscores)
-            test_srcc, test_plcc = self._consitency(self._test_loader)
+            test_srcc, test_plcc, test_mae, test_rmse = self._consitency(self._test_loader)
+
+            Logger.current_logger().report_scalar(
+                "train", "loss", iteration=t, value=np.array(epoch_loss).mean()
+            )
+            Logger.current_logger().report_scalar(
+                "train", "PLCC", iteration=t, value=train_srcc
+            )
+
             if test_srcc > best_srcc:
                 best_srcc = test_srcc
                 best_epoch = t + 1
@@ -310,6 +326,7 @@ class DBCNNManager(object):
                         self.cayley_flag \
                         + self.cayley_flag2 \
                         + self.cayley_flag3 \
+                        + self.cayley_flag4 \
                         + self.backbone_flag\
                         + self.activation_flag + 'net_params' + '_best' + '.pkl'))
                 else:
@@ -317,6 +334,7 @@ class DBCNNManager(object):
                         self.cayley_flag \
                         + self.cayley_flag2 \
                         + self.cayley_flag3 \
+                        + self.cayley_flag4 \
                         + self.backbone_flag\
                         + self.activation_flag + 'net_params' + '_best' + '.pkl'))
                 torch.save(self._net.state_dict(), modelpath)
@@ -325,7 +343,7 @@ class DBCNNManager(object):
                   (t+1, sum(epoch_loss) / len(epoch_loss), train_srcc, test_srcc, test_plcc))           
 
         print('Best at epoch %d, test srcc %f' % (best_epoch, best_srcc))
-        return best_srcc
+        return best_srcc, test_plcc, test_mae, test_rmse
 
     def _consitency(self, data_loader):
         self._net.train(False)
@@ -334,23 +352,28 @@ class DBCNNManager(object):
         tscores = []
         for X, y in data_loader:
             # Data.
-            X = X.clone().detach().requires_grad_(True).cuda()
-            y = y.clone().detach().requires_grad_(True).cuda()
+            X = X.clone().detach().cuda()
+            y = y.clone().detach().cuda()
 
             # Prediction.
-            score = self._net(X)
-            pscores = pscores +  score[0].cpu().tolist()
-            tscores = tscores + y.cpu().tolist()
+            with torch.no_grad():
+                score = self._net(X)
+                pscores = pscores +  score[0].cpu().tolist()
+                tscores = tscores + y.cpu().tolist()
 
             self.test_max = max(pscores)
             self.test_min = min(pscores)
             
             num_total += y.size(0)
+        pscores = np.array(pscores)
+        tscores = np.array(tscores)
         test_srcc, _ = stats.spearmanr(pscores,tscores)
         test_plcc, _ = stats.pearsonr(pscores,tscores)
+        p_mae  = np.round(np.mean(np.abs(tscores - pscores)),3)
+        p_rmse  = np.round(np.sqrt(np.mean((tscores - pscores)**2)),3)
         self.srcc = test_srcc
         self._net.train(True)  # Set the model to training phase
-        return test_srcc, test_plcc
+        return test_srcc, test_plcc, p_mae, p_rmse
     
     def print_sparcity(prune_list: Tuple):
         """only for resnet"""
@@ -387,12 +410,9 @@ class DBCNNManager(object):
             prune.remove(module, name)
         return prune_params
 
-
-
-
-def main():
-    """The main function."""
+if __name__ == '__main__':
     import argparse
+    
     parser = argparse.ArgumentParser(
         description='Train DB-CNN for BIQA.')
     parser.add_argument('--base_lr', dest='base_lr', type=float, default=1e-5,
@@ -419,6 +439,10 @@ def main():
                         help='Use cayley block')
     parser.add_argument('--cayley3', action='store_true',
                         help='Use cayley block before conv block')
+    parser.add_argument('--cayley4', action='store_true',
+                        help='Use cayley block before conv block in VGG16 and SCNN')
+    parser.add_argument('--debug', action='store_true',
+                        help='DEBUG')
     
     args = parser.parse_args()
     if args.base_lr <= 0:
@@ -441,6 +465,7 @@ def main():
         'cayley': args.cayley,
         'cayley2': args.cayley2,
         'cayley3': args.cayley3,
+        'cayley4': args.cayley4,
         'pruning': args.pruning,
         'activation': args.activation,
         'train_index': [],
@@ -449,25 +474,37 @@ def main():
     cayley_status = 'cayley' if args.cayley else ''
     cayley_status2 = 'cayley2' if args.cayley2 else ''
     cayley_status3 = 'cayley3' if args.cayley3 else ''
+    cayley_status4 = 'cayley4' if args.cayley4 else ''
     activation_status = args.activation
     backbone_status = 'vonenet50' if args.backbone=='vonenet50' else ''
+
+    task = Task.init(project_name="DBCNN", 
+                     task_name=f"DBCNN {cayley_status} {cayley_status2} {cayley_status3} {cayley_status4}".strip(), 
+                     reuse_last_task_id=False)
+
+    with open(YAML_PATH, 'r') as file:
+        yaml_conf = yaml.safe_load(file)
+
     path = {
-        'koniq-10k': os.path.join('dataset', 'KonIQ-10k'),
-        'ckpt': f'DBCNN-cayley={args.cayley}'\
+        'koniq-10k': yaml_conf['dataset']['data']['KonIQ-10k'],
+        'ckpt': os.path.join(yaml_conf['save']['ckpt'],
+                f'DBCNN-cayley={args.cayley}'\
                 f'-cayley2={args.cayley2}'\
                 f'-cayley3={args.cayley3}'\
-                f'-activation={args.activation}.pt',
+                f'-cayley4={args.cayley4}'\
+                f'-activation={args.activation}.pt'
+                ),
 
-        'live': os.path.join('dataset','databaserelease2'),
-        'csiq': os.path.join('dataset','CSIQ'),
-        'tid2013': os.path.join('dataset','TID2013'),
-        'livec': os.path.join('dataset','ChallengeDB_release'),
-        'mlive': os.path.join('dataset','LIVEmultidistortiondatabase'),
+        # 'live': os.path.join('dataset','databaserelease2'),
+        # 'csiq': os.path.join('dataset','CSIQ'),
+        # 'tid2013': os.path.join('dataset','TID2013'),
+        # 'livec': os.path.join('dataset','ChallengeDB_release'),
+        # 'mlive': os.path.join('dataset','LIVEmultidistortiondatabase'),
         'fc_model': os.path.join('fc_models'),
         'scnn_root': os.path.join('pretrained_scnn','scnn.pkl'),
         'fc_root': os.path.join('fc_models', 
                                 f'{cayley_status}{cayley_status2}'\
-                                f'{cayley_status3}{backbone_status}{activation_status}'\
+                                f'{cayley_status3}{cayley_status4}{backbone_status}{activation_status}'\
                                 'net_params_best.pkl'),
         'db_model': os.path.join('db_models'),
         
@@ -485,22 +522,35 @@ def main():
     elif options['dataset'] == 'livec':
         index = list(range(0,1162))
     elif options['dataset'] == 'koniq-10k':
-        index = list(range(0,10))
+        if args.debug:
+            index = list(range(0, 5*options['batch_size']))
+            options['epochs'] = 3
+            path['ckpt'] =  f'DBCNN-cayley={args.cayley}'\
+                            f'-cayley2={args.cayley2}'\
+                            f'-cayley3={args.cayley3}'\
+                            f'-cayley4={args.cayley4}'\
+                            f'-activation={args.activation}.pt'
+            
+        else:
+            index = list(range(0,10073))
     
-    
-
-    tune_iters = args.tune_iters # 2 # 10
+    if args.debug:
+        tune_iters = 1 # 2 # 10
+    else:
+        tune_iters = args.tune_iters
     lr_backup = options['base_lr']
     srcc_all = np.zeros((1,tune_iters),dtype=np.float32)
     
     
 
-    for i in range(0,1):
+    for i in range(0, tune_iters):
         #randomly split train-test set
-        random.shuffle(index)
-        train_index = index[0:round(0.8*len(index))]
+        # random.shuffle(index)
+        random.seed(10)
+        train_index = index[0:round(0.7*len(index))]
         test_index = index[round(0.8*len(index)):len(index)]
-    
+        print(f"Train set size: {len(train_index)}, Test set size: {len(test_index)}")
+
         options['train_index'] = train_index
         options['test_index'] = test_index
         #train the fully connected layer only
@@ -513,23 +563,31 @@ def main():
         options['fc'] = False
         options['base_lr'] = lr_backup
         manager = DBCNNManager(options, path)
-        best_srcc = manager.train()
+        best_srcc, plcc, mae, rmse = manager.train()
         
         checkpoints = {
             'model': manager._net.state_dict(),
-            'SRCC': best_srcc,
             'max': manager.test_max,
-            'min': manager.test_min
+            'min': manager.test_min,
+            "PLCC": plcc,
+            "SROCC": best_srcc,
+            "MAE": mae,
+            "RMSE": rmse,
         }
         torch.save(checkpoints, path['ckpt'])
 
         srcc_all[0][i] = best_srcc
         
     srcc_mean = np.mean(srcc_all)
+    artifacts = {
+            'model_name': "DBCNN",
+            'max': manager.test_max,
+            'min': manager.test_min,
+            "PLCC": plcc,
+            "SROCC": best_srcc,
+            "MAE": mae,
+            "RMSE": rmse,
+    }
+    task.upload_artifact(name="Metrics", artifact_object=artifacts)
     print(srcc_all)
-    print('average srcc:%4.4f' % (srcc_mean))  
-    return best_srcc
-
-
-if __name__ == '__main__':
-    main()
+    print('average srcc:%4.4f' % (srcc_mean))
