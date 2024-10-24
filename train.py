@@ -28,7 +28,7 @@ from clearml import Task, Logger
 print("PyTorch Version: ",torch.__version__)
 print("Torchvision Version: ",torchvision.__version__)
 
-task = Task.init(project_name="KonCept", task_name="Original KonCept")
+task = Task.init(project_name="KonCept", task_name="Original KonCept", reuse_last_task_id=False)
 
 
 def getFileName(path, suffix):
@@ -112,33 +112,33 @@ class ModelManager:
         self.lr = lr
         self.data_transforms = {
             'train': transforms.Compose([
-                # transforms.RandomResizedCrop((512, 384), ),
-                transforms.Resize((512, 384)),
+                transforms.RandomResizedCrop((512, 384), ),
+                # transforms.Resize((512, 384)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                # transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+                # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
             ]),
             'val': transforms.Compose([
                 # transforms.RandomResizedCrop((512, 384), ),
-                transforms.Resize((512, 384)),
+                # transforms.Resize((512, 384)),
         #         transforms.CenterCrop(input_size),
                 transforms.ToTensor(),
-                # transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+                # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
         }
         self.batch_size = batch_size
         dataset_path = os.path.join('dataset', 'KonIQ-10k')
         train_data = Koniq_10k(
-                root=dataset_path, loader = default_loader, index=train_index,
+                root=dataset_path, loader=default_loader, index=train_index,
                 transform=self.data_transforms['train'])
         val_data = Koniq_10k(
-                root=dataset_path, loader = default_loader, index=val_index,
+                root=dataset_path, loader=default_loader, index=val_index,
                 transform=self.data_transforms['val'])
         test_data = Koniq_10k(
-                root=dataset_path, loader = default_loader, index=test_index,
+                root=dataset_path, loader=default_loader, index=test_index,
                 transform=self.data_transforms['val'])
         
         self._train_loader = data.DataLoader(
@@ -174,16 +174,12 @@ class ModelManager:
         
         if show_plot:
             print('SRCC: {} | PLCC: {} | MAE: {} | RMSE: {}'.\
-                format(p_srocc, p_plcc, p_mae, p_rmse))    
-            # plt.plot(y_true, y_pred,'.',markersize=1)
-            # plt.xlabel('ground-truth')
-            # plt.ylabel('predicted')
-            # plt.show()
+                format(p_srocc, p_plcc, p_mae, p_rmse))
 
             scatter2d = np.vstack((y_true, y_pred)).T
             Logger.current_logger().report_scatter2d(
                 title="Correlation",
-                series="series_markers",
+                series="predict correlation",
                 iteration=0,
                 scatter=scatter2d,
                 xaxis="ground-truth",
@@ -208,7 +204,6 @@ class ModelManager:
         loss_fn = torch.nn.MSELoss()
 
         for epoch in tqdm(range(num_epochs), total=num_epochs):
-            # ids_train_shuffle = ids_train.sample(frac=1).reset_index()
             print('Epoch {}/{}'.format(epoch, num_epochs - 1))
             print('-' * 10)
             # Each epoch has a training and validation phase
@@ -216,7 +211,6 @@ class ModelManager:
                 if phase == 'train':
                     loader = self._train_loader
                     self.model.train()  # Set model to training mode
-                    # num_batches = np.int(np.ceil(len(ids_train)/batch_size))
 
                 else:
                     loader = self._val_loader
@@ -245,16 +239,12 @@ class ModelManager:
                         #   but in testing we only consider the final output.
 
                         outputs = self.model(inputs).to(self.device)
-    #                     print(outputs)
-                        # labels = labels.unsqueeze(1)
                         outputs = outputs.squeeze(1)
 
                         loss = loss_fn(outputs, labels)
-                        # print(outputs.shape, labels.shape)
                         if phase=='val':
                             plcc_batch = self.plcc(labels.detach().cpu().numpy(),
                                                    outputs.detach().cpu().numpy())
-    #                     loss = torch.nn.MSELoss()(outputs, label_batch)
 
                         # backward + optimize only if in training phase
                         if phase == 'train':
