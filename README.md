@@ -26,12 +26,28 @@ Make the softlink to KonIQ-10k folder
 cd VG_Architectural_Adversarial_Robustness
 ln -s <KonIQ-10k folder> ./dataset/KonIQ-10k
 ```
+Install ClearML
+```bash
+pip install clearml
+clearml-init
+# insert config
+```
 Build environment and run train script
 ```bash
 nohup uv run DBCNN.py > DBCNN.out&
+```
+```bash
 nohup uv run DBCNN.py --cayley > DBCNN_cayley.out&
+```
+```bash
 nohup uv run DBCNN.py --cayley2 > DBCNN_cayley2.out&
+```
+```bash
 nohup uv run DBCNN.py --cayley3 > DBCNN_cayley3.out&
+```
+```bash
 nohup uv run DBCNN.py --cayley4 > DBCNN_cayley3.out&
+```
+```bash
 nohup uv run DBCNN.py --activation relu_elu > DBCNN_relu_elu.out&
 ```
