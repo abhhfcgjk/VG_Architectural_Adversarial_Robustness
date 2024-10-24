@@ -71,6 +71,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -
 ```
 ## Testing
 ```
+CUDA_VISIBLE_DEVICES=1 nohup uv run main.py -arch resnet101 --activation relu --device cuda --csv_results_dir rs -iter 1 &
 python main.py --dataset_path ./NIPS_test/ -arch resnet50 --activation Fsilu --device cuda --csv_results_dir rs -iter 1 --model KonCept
 python main.py --dataset_path ./NIPS_test/ --resize -arch resnet34 --activation silu --device cuda --csv_results_dir rs -iter 10
 python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 -prune 0.1 -t_prune pls
