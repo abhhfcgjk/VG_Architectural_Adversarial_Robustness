@@ -198,13 +198,13 @@ if __name__ == "__main__":
     
     with open(YAML_PATH, 'r') as file:
         yaml_file = yaml.safe_load(file)
-    default_dir = yaml_file['dataset']['data']['KonIQ']
+    default_dir = yaml_file['dataset']['data']['KonIQ-10k']
 
     args.im_dirs = {'KonIQ-10k': default_dir,
                     'CLIVE': 'CLIVE'
                     }  # ln -s database_path xxx
 
-    default_path = yaml_file['dataset']['labels']['KonIQ']
+    default_path = yaml_file['dataset']['labels']['KonIQ-10k']
     args.data_info = {'KonIQ-10k': default_path,
                       'CLIVE': './data/CLIVEinfo.mat'}
     # args.pruning = None

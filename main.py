@@ -6,9 +6,11 @@ from attack_cls import Attack
 import os
 
 from icecream import ic
+import yaml
 from clearml import Task, Logger
 
 EPS = 1e-6
+YAML_PATH = './path_config.yaml'
 
 def get_format_string(args):
     format_str = 'activation={}-{}-{}-bs={}-loss=norm-in-norm-p=1.0-q=2.0-detach-False-KonIQ-10k-res={}-{}x{}' \
@@ -49,10 +51,14 @@ def run(args):
                            )
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
-    datasets = {
-                'NIPS': './NIPS_test/',
-                'KonIQ-10k': './KonIQ-10k/'
-                }
+    # datasets = {
+    #             'NIPS': './NIPS_test/',
+    #             'KonIQ-10k': './KonIQ-10k/'
+    #             }
+    with open(YAML_PATH, 'r') as file:
+        yaml_conf = yaml.safe_load(file)
+    datasets = yaml_conf['dataset']['data']
+    data_info = yaml_conf['dataset']['labels']
     
     result = [None, None]
     for i, (dataset, datset_path) in enumerate(datasets.items()):
@@ -62,12 +68,12 @@ def run(args):
                             crop=args.crop,
                             resize_size_h=args.resize_size_h,
                             resize_size_w=args.resize_size_w,
-                            data_info="./data/KonIQ-10kinfo.mat")
+                            data_info=data_info['KonIQ-10k'])
 
         exec_.attack(attack_type=args.attack_type,
                     iterations=args.iterations, debug=args.debug)
 
-        exec_.save_results(args.csv_results_dir)
+        # exec_.save_results(args.csv_results_dir)
         exec_.save_vals_to_file(csv_results_dir='./dataset_attack/')
         
         result[i] = np.array(exec_.res).mean()

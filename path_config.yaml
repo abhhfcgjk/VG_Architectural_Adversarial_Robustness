@@ -7,7 +7,7 @@ checkpoints:
 
 dataset:
   data:
-    KonIQ: "./KonIQ-10k"
     NIPS: "./NIPS_test"
+    KonIQ-10k: "./KonIQ-10k"
   labels:
-    KonIQ: "./data/KonIQ-10kinfo.mat"
+    KonIQ-10k: "./data/KonIQ-10kinfo.mat"

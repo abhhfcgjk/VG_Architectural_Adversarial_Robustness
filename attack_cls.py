@@ -316,7 +316,8 @@ class Attack:
     @property
     def res(self):
         if 'results' not in vars(self).keys():
-            raise AttributeError("results doesnt exist. Run self.save_results(self, csv_results_dir).")
+            return None
+            # raise AttributeError("results doesnt exist. Run self.save_results(self, csv_results_dir).")
         return self.results
 
 def default_loader(path):
