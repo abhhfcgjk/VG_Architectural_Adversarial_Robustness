@@ -56,7 +56,7 @@ def run(args):
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
     datasets = yaml_conf['dataset']['data']
-    datasets = {"KonIQ-10k": "./KonIQ-10k"}
+    # datasets = {"KonIQ-10k": "./KonIQ-10k"}
     data_info = yaml_conf['dataset']['labels']
     save_results_dir = yaml_conf['save']['results']
     
@@ -163,8 +163,9 @@ if __name__ == "__main__":
     args.trained_model_file = os.path.join(checkpints_path, args.format_str)
     print(args.trained_model_file)
     total_score = run(args)
-    print(
-        "Result for {} type attack: {:.4f}, {:.4f}".format(
-            args.attack_type.capitalize(), total_score[0], total_score[1]
+    if total_score[0] is not None and total_score[1] is not None:
+        print(
+            "Result for {} type attack: {:.4f}, {:.4f}".format(
+                args.attack_type.capitalize(), total_score[0], total_score[1]
+            )
         )
-    )

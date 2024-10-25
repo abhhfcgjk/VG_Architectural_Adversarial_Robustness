@@ -1437,7 +1437,7 @@ requires-dist = [
     { name = "colorama", specifier = "==0.4.6" },
     { name = "contourpy", specifier = "==1.2.1" },
     { name = "cycler", specifier = "==0.12.1" },
-    { name = "einops" },
+    { name = "einops", specifier = "==0.8.0" },
     { name = "executing", specifier = "==2.0.1" },
     { name = "filelock", specifier = "==3.15.4" },
     { name = "fonttools", specifier = "==4.53.1" },
