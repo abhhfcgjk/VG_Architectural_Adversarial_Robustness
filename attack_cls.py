@@ -242,8 +242,9 @@ class Attack:
         clp = f'+cayley_pool' if self.cayley_pool else ''
         cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
+        prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}+{activation}'
+        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{prune}+{activation}'
         result_path = "{}_{}_{}={}.csv".format(
                                             self.dataset,
                                             arch_status,

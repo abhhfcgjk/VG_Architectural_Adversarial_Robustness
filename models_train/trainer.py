@@ -291,6 +291,7 @@ class Trainer:
         if self.args.evaluate:
             self._prepair(train=False, val=True, test=True)
 
+        print(self.args.trained_model_file)
         checkpoint = torch.load(self.args.trained_model_file)
         # results = {}
         # print(checkpoint['model'])
@@ -450,6 +451,11 @@ class Trainer:
         trainer = cls(device, args)
         # print(args.evaluate)
         if args.evaluate:
+            if args.pruning:
+                form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(args.trained_model_file, args.pruning,
+                                                                args.pruning_type, args.learning_rate,
+                                                                args.epochs, args.prune_iters)
+                args.trained_model_file = form
             trainer.eval()
         elif args.pruning:
             trainer.prune()
