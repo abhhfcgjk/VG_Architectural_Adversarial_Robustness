@@ -25,11 +25,6 @@ ssl._create_default_https_context = ssl._create_unverified_context
 
 from clearml import Task, Logger
 
-print("PyTorch Version: ",torch.__version__)
-print("Torchvision Version: ",torchvision.__version__)
-
-task = Task.init(project_name="KonCept", task_name="Original KonCept", reuse_last_task_id=False)
-
 
 def getFileName(path, suffix):
     filename = []
@@ -112,21 +107,19 @@ class ModelManager:
         self.lr = lr
         self.data_transforms = {
             'train': transforms.Compose([
-                transforms.RandomResizedCrop((512, 384), ),
-                # transforms.Resize((512, 384)),
+                # transforms.RandomResizedCrop((512, 384), ),
+                transforms.Resize((512, 384)),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
-                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-                # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
             ]),
             'val': transforms.Compose([
                 # transforms.RandomResizedCrop((512, 384), ),
-                # transforms.Resize((512, 384)),
-        #         transforms.CenterCrop(input_size),
+                transforms.Resize((512, 384)),
+                # transforms.CenterCrop(input_size),
                 transforms.ToTensor(),
-                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-                # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
         }
         self.batch_size = batch_size
@@ -336,6 +329,10 @@ class model_qa(nn.Module):
 
 
 if __name__=='__main__':
+    print("PyTorch Version: ",torch.__version__)
+    print("Torchvision Version: ",torchvision.__version__)
+
+    task = Task.init(project_name="KonCept", task_name="Original KonCept", reuse_last_task_id=False)
     random.seed(10)
     index = list(range(0,10073))
     random.shuffle(index)
