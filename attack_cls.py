@@ -201,18 +201,18 @@ class Attack:
             if self.to_save_images is not None and image_num % self.to_save_images==0:
                 save_image(img_, f'{debug_dir}/clear{image_num}.png')
                 save_image(img_attacked_, f'{debug_dir}/attacked{image_num}_{int(self.epsilons[-1]*255)}.png')
-                Logger.current_logger().report_media(
-                    title=self.dataset,
-                    series="clear",
-                    iteration=image_num,
-                    local_path=os.path.join(debug_dir, f"clear{image_num}.png")
-                )
-                Logger.current_logger().report_media(
-                    title=self.dataset,
-                    series="max perturbation",
-                    iteration=image_num,
-                    local_path=os.path.join(debug_dir, f"attacked{image_num}_{int(self.epsilons[-1]*255)}.png")
-                )
+                # Logger.current_logger().report_media(
+                #     title=self.dataset,
+                #     series="clear",
+                #     iteration=image_num,
+                #     local_path=os.path.join(debug_dir, f"clear{image_num}.png")
+                # )
+                # Logger.current_logger().report_media(
+                #     title=self.dataset,
+                #     series="max perturbation",
+                #     iteration=image_num,
+                #     local_path=os.path.join(debug_dir, f"attacked{image_num}_{int(self.epsilons[-1]*255)}.png")
+                # )
                 
             frame = {
                         'image_name': img_name,
