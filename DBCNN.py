@@ -194,11 +194,18 @@ class DBCNNManager(object):
             self._solver = torch.optim.SGD(
                     self._net.module.fc.parameters(), lr=self._options['base_lr'],
                     momentum=0.9, weight_decay=self._options['weight_decay'])
+            self._scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                    self._solver,
+                    milestones=[1000],
+                    gamma=1.)
         else:
             self._solver = torch.optim.Adam(
                     self._net.module.parameters(), lr=self._options['base_lr'],
                     weight_decay=self._options['weight_decay'])
-
+            self._scheduler = torch.optim.lr_scheduler.MultiStepLR(
+                    self._solver,
+                    milestones=[1000],
+                    gamma=1.)
         
         if (self._options['dataset'] == 'live') | (self._options['dataset'] == 'livec'):
             if self._options['dataset'] == 'live':
@@ -306,6 +313,7 @@ class DBCNNManager(object):
                 # Backward pass.
                 loss.backward()
                 self._solver.step()
+            self._scheduler.step()
             train_srcc, _ = stats.spearmanr(pscores,tscores)
             test_srcc, test_plcc, test_mae, test_rmse = self._consitency(self._test_loader)
 
@@ -444,6 +452,7 @@ if __name__ == '__main__':
     parser.add_argument('--debug', action='store_true',
                         help='DEBUG')
     
+    
     args = parser.parse_args()
     if args.base_lr <= 0:
         raise AttributeError('--base_lr parameter must >0.')
@@ -532,6 +541,7 @@ if __name__ == '__main__':
                             f'-activation={args.activation}.pt'
             
         else:
+            ic.disable()
             index = list(range(0,10073))
     
     if args.debug:
@@ -546,7 +556,7 @@ if __name__ == '__main__':
     for i in range(0, tune_iters):
         #randomly split train-test set
         # random.shuffle(index)
-        random.seed(10)
+        
         train_index = index[0:round(0.7*len(index))]
         test_index = index[round(0.8*len(index)):len(index)]
         print(f"Train set size: {len(train_index)}, Test set size: {len(test_index)}")
