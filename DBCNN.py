@@ -21,7 +21,7 @@ from tqdm import tqdm
 import yaml
 from icecream import ic
 
-from clearml import Task, Logger
+# from clearml import Task, Logger
 
 #os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 YAML_PATH = "./path_config.yaml"
@@ -317,12 +317,12 @@ class DBCNNManager(object):
             train_srcc, _ = stats.spearmanr(pscores,tscores)
             test_srcc, test_plcc, test_mae, test_rmse = self._consitency(self._test_loader)
 
-            Logger.current_logger().report_scalar(
-                "train", "loss", iteration=t, value=np.array(epoch_loss).mean()
-            )
-            Logger.current_logger().report_scalar(
-                "train", "PLCC", iteration=t, value=train_srcc
-            )
+            # Logger.current_logger().report_scalar(
+            #     "train", "loss", iteration=t, value=np.array(epoch_loss).mean()
+            # )
+            # Logger.current_logger().report_scalar(
+            #     "train", "PLCC", iteration=t, value=train_srcc
+            # )
 
             if test_srcc > best_srcc:
                 best_srcc = test_srcc
@@ -487,9 +487,9 @@ if __name__ == '__main__':
     activation_status = args.activation
     backbone_status = 'vonenet50' if args.backbone=='vonenet50' else ''
 
-    task = Task.init(project_name="DBCNN", 
-                     task_name=f"DBCNN {cayley_status} {cayley_status2} {cayley_status3} {cayley_status4}".strip(), 
-                     reuse_last_task_id=False)
+    # task = Task.init(project_name="DBCNN", 
+    #                  task_name=f"DBCNN {cayley_status} {cayley_status2} {cayley_status3} {cayley_status4}".strip(), 
+    #                  reuse_last_task_id=False)
 
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
@@ -598,6 +598,6 @@ if __name__ == '__main__':
             "MAE": mae,
             "RMSE": rmse,
     }
-    task.upload_artifact(name="Metrics", artifact_object=artifacts)
+    # task.upload_artifact(name="Metrics", artifact_object=artifacts)
     print(srcc_all)
     print('average srcc:%4.4f' % (srcc_mean))
