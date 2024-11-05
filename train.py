@@ -23,7 +23,7 @@ import ssl
 
 ssl._create_default_https_context = ssl._create_unverified_context
 
-from clearml import Task, Logger
+# from clearml import Task, Logger
 
 
 def getFileName(path, suffix):
@@ -107,19 +107,21 @@ class ModelManager:
         self.lr = lr
         self.data_transforms = {
             'train': transforms.Compose([
-                # transforms.RandomResizedCrop((512, 384), ),
-                transforms.Resize((512, 384)),
-                transforms.RandomHorizontalFlip(),
+                transforms.RandomResizedCrop((384,512), ),
+                #transforms.Resize((384,512)),
+                transforms.RandomHorizontalFlip(p=0.5),
                 transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+                #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
             ]),
             'val': transforms.Compose([
-                # transforms.RandomResizedCrop((512, 384), ),
-                transforms.Resize((512, 384)),
+                # transforms.RandomResizedCrop(((384,512)), ),
+                transforms.Resize((384,512)),
                 # transforms.CenterCrop(input_size),
                 transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+                #transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
         }
         self.batch_size = batch_size
@@ -170,15 +172,15 @@ class ModelManager:
                 format(p_srocc, p_plcc, p_mae, p_rmse))
 
             scatter2d = np.vstack((y_true, y_pred)).T
-            Logger.current_logger().report_scatter2d(
-                title="Correlation",
-                series="predict correlation",
-                iteration=0,
-                scatter=scatter2d,
-                xaxis="ground-truth",
-                yaxis="predicted",
-                mode="markers"
-            )
+            # Logger.current_logger().report_scatter2d(
+            #     title="Correlation",
+            #     series="predict correlation",
+            #     iteration=0,
+            #     scatter=scatter2d,
+            #     xaxis="ground-truth",
+            #     yaxis="predicted",
+            #     mode="markers"
+            # )
         self.srocc_score = p_srocc
         self.plcc_score = p_plcc
         self.mae = p_mae
@@ -253,17 +255,17 @@ class ModelManager:
                 if phase == 'train':
                     epoch_loss = running_loss / loader_size
                     print('{} Loss: {:.4f}'.format(phase, epoch_loss))
-                    Logger.current_logger().report_scalar(
-                        "train", "loss", iteration=epoch, value=epoch_loss
-                    )
+                    # Logger.current_logger().report_scalar(
+                    #     "train", "loss", iteration=epoch, value=epoch_loss
+                    # )
                 else:
                     epoch_loss = running_loss / loader_size
                     epoch_plcc = running_plcc / loader_size
                     # print(phase, epoch_loss, epoch_plcc)
                     print('{} Loss: {:.4f} Plcc: {:.4f}'.format(phase, epoch_loss,epoch_plcc))
-                    Logger.current_logger().report_scalar(
-                        phase, "PLCC", iteration=epoch, value=epoch_plcc
-                    )
+                    # Logger.current_logger().report_scalar(
+                    #     phase, "PLCC", iteration=epoch, value=epoch_plcc
+                    # )
 
                 # deep copy the model
                 if phase == 'val' and epoch_plcc > best_plcc:
@@ -322,9 +324,9 @@ class model_qa(nn.Module):
 
     def forward(self,x):
         x = self.base(x)
+        x = nn.functional.avg_pool2d(x, x.size()[-2:])
         x = x.view(x.size(0), -1)
         x = self.fc(x)
-
         return x
 
 
@@ -332,30 +334,34 @@ if __name__=='__main__':
     print("PyTorch Version: ",torch.__version__)
     print("Torchvision Version: ",torchvision.__version__)
 
-    task = Task.init(project_name="KonCept", task_name="Original KonCept", reuse_last_task_id=False)
+    # task = Task.init(project_name="KonCept", task_name="Original KonCept", reuse_last_task_id=False)
     random.seed(10)
     index = list(range(0,10073))
-    random.shuffle(index)
     train_index = index[0:round(0.7*len(index))]
     val_index = index[round(0.7*len(index)):round(0.8*len(index))]
     test_index = index[round(0.8*len(index)):len(index)]
+    print('train:', len(train_index), 
+          'val:', len(val_index), 
+          'test:', len(test_index))
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model_ft = model_qa(num_classes=1) 
     model_ft = model_ft.to(device)
 
     params = {
-        "ft_epochs": 20, 
-        "ft_lr": 1e-4, 
-        "epochs": 40, 
-        "lr":1e-4/5,
+        "ft1_epochs": 40, 
+        "ft1_lr": 1e-4, 
+        "ft2_epochs": 20, 
+        "ft2_lr":1e-5*5,
+        "epochs": 10, 
+        "lr":1e-5,
         "batch": 16
         }
-    task.connect(params)
+    # task.connect(params)
 
-    manager1= ModelManager(model_ft,
+    manager1 = ModelManager(model_ft,
                            batch_size=params["batch"],
-                           lr=params["ft_lr"],
+                           lr=params["ft1_lr"],
                            train_index=train_index, 
                            val_index=val_index, 
                            test_index=test_index, 
@@ -364,10 +370,22 @@ if __name__=='__main__':
     
 
     # optimizer_1 = optim.Adam(model_ft.parameters(), lr=params["ft_lr"])
-    model_ft_1, val_plcc_history_1 = manager1.train_model(num_epochs=params["ft_epochs"])
+    model_ft_1, val_plcc_history_1 = manager1.train_model(num_epochs=params["ft1_epochs"])
     torch.save(model_ft_1.state_dict(),'./model_ft_1.pth')
+    
+    manager2 = ModelManager(model_ft_1,
+                           batch_size=params["batch"],
+                           lr=params["ft2_lr"],
+                           train_index=train_index, 
+                           val_index=val_index, 
+                           test_index=test_index, 
+                           device=device)
 
-    manager2 = ModelManager(model_ft_1, 
+    model_ft_2, val_plcc_history_2 = manager2.train_model(num_epochs=params["ft2_epochs"])
+    torch.save(model_ft_2.state_dict(),'./model_ft_2.pth')
+
+
+    manager = ModelManager(model_ft_2, 
                             batch_size=params["batch"],
                             lr=params["lr"],
                             train_index=train_index, 
@@ -375,32 +393,34 @@ if __name__=='__main__':
                             test_index=test_index, 
                             device=device)
     # optimizer_2 = optim.Adam(model_ft_1.parameters(), lr=params["lr"])
-    KonCept512, val_plcc_history_2 = manager2.train_model(num_epochs=params["epochs"])
+    KonCept512, val_plcc_history_2 = manager.train_model(num_epochs=params["epochs"])
     torch.save(KonCept512.state_dict(),'./KonCept512.pth')
+
+
 
     ### Test model on the default test set
     KonCept512 = model_qa(num_classes=1) 
     KonCept512.load_state_dict(torch.load('./KonCept512.pth'))
     KonCept512.eval().to(device)
     
-    manager2.test_model()
+    manager.test_model()
     ckpt = {
         "model": KonCept512.state_dict(),
-        "min": manager2.min,
-        "max": manager2.max,
-        "PLCC": manager2.plcc_score,
-        "SROCC": manager2.srocc_score,
-        "MAE": manager2.mae,
-        "RMSE": manager2.rmse,
+        "min": manager.min,
+        "max": manager.max,
+        "PLCC": manager.plcc_score,
+        "SROCC": manager.srocc_score,
+        "MAE": manager.mae,
+        "RMSE": manager.rmse,
     }
     torch.save(ckpt, "./KonCept.pt")
     artifacts = {
         "model_name": "KonCept512",
-        "min": manager2.min,
-        "max": manager2.max,
-        "PLCC": manager2.plcc_score,
-        "SROCC": manager2.srocc_score,
-        "MAE": manager2.mae,
-        "RMSE": manager2.rmse,
+        "min": manager.min,
+        "max": manager.max,
+        "PLCC": manager.plcc_score,
+        "SROCC": manager.srocc_score,
+        "MAE": manager.mae,
+        "RMSE": manager.rmse,
     }
-    task.upload_artifact(name="Metrics", artifact_object=artifacts)
+    # task.upload_artifact(name="Metrics", artifact_object=artifacts)
