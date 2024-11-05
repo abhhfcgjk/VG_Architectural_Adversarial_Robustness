@@ -173,7 +173,11 @@ class DBCNNManager(object):
         self.cayley_flag3 = 'cayley3' if options['cayley3'] else ''
         self.cayley_flag4 = 'cayley4' if options['cayley4'] else ''
         self.backbone_flag = 'vonenet50' if options['backbone']=='vonenet50' else ''
+        self.h_gradnorm_regularization = 6/255
+        self.weight_gradnorm_regularization = 1e-1
         self.activation_flag = self._options['activation']
+        self.gradnorm_regularization = options.get('gradient_regularization', False)
+        self.gr_flag = 'gr' if self.gradnorm_regularization else ''
         
         # Network.
         self._net = torch.nn.DataParallel(DBCNN(self._path['scnn_root'], self._options), device_ids=[0]).cuda()
@@ -305,6 +309,9 @@ class DBCNNManager(object):
                 # Forward pass.
                 score = self._net(X)
                 loss = self._criterion(score, y.view(len(score),1).detach())
+                if self.gradnorm_regularization:
+                    grad_loss = self.gradnorm_regularize(X)
+                    loss += self.weight_gradnorm_regularization*grad_loss
                 epoch_loss.append(loss.item())
                 # Prediction.
                 num_total += y.size(0)
@@ -335,6 +342,7 @@ class DBCNNManager(object):
                         + self.cayley_flag2 \
                         + self.cayley_flag3 \
                         + self.cayley_flag4 \
+                        + self.gr_flag\
                         + self.backbone_flag\
                         + self.activation_flag + 'net_params' + '_best' + '.pkl'))
                 else:
@@ -343,6 +351,7 @@ class DBCNNManager(object):
                         + self.cayley_flag2 \
                         + self.cayley_flag3 \
                         + self.cayley_flag4 \
+                        + self.gr_flag\
                         + self.backbone_flag\
                         + self.activation_flag + 'net_params' + '_best' + '.pkl'))
                 torch.save(self._net.state_dict(), modelpath)
@@ -394,6 +403,30 @@ class DBCNNManager(object):
             print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
                                                          getattr(module, attr).shape, percentage))
 
+
+    def gradnorm_regularize(self, images):
+        images = images.cuda()
+        images.requires_grad_(True)
+
+        pred_cur = self._net(images)
+        ic(pred_cur)
+        dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
+        dx = dx[0]
+        images.requires_grad_(False)
+
+        v = dx.view(dx.shape[0], -1)
+        v = torch.sign(v)
+
+        v = v.view(dx.shape).detach()
+        x2 = images + self.h_gradnorm_regularization*v
+
+        pred_pert = self._net(x2)
+
+        dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
+        loss = dl.pow(2).mean()/2
+
+        return loss
+
     def get_prune_features(self) -> List:
         prune_params_list = []
 
@@ -441,6 +474,8 @@ if __name__ == '__main__':
                         help='Activation function in VGG16. relu|relu_elu')
     parser.add_argument('--tune_iters', dest='tune_iters', type=int,
                         default=1, help='Iters for tune')
+    parser.add_argument('--gradient_regularization', '-gr', action='store_true',
+                        help='Use gradient regularization')
     parser.add_argument('--cayley', action='store_true',
                         help='Use cayley block')
     parser.add_argument('--cayley2', action='store_true',
@@ -478,7 +513,8 @@ if __name__ == '__main__':
         'pruning': args.pruning,
         'activation': args.activation,
         'train_index': [],
-        'test_index': []
+        'test_index': [],
+        'gradient_regularization': args.gradient_regularization,
     }
     cayley_status = 'cayley' if args.cayley else ''
     cayley_status2 = 'cayley2' if args.cayley2 else ''
@@ -486,6 +522,7 @@ if __name__ == '__main__':
     cayley_status4 = 'cayley4' if args.cayley4 else ''
     activation_status = args.activation
     backbone_status = 'vonenet50' if args.backbone=='vonenet50' else ''
+    gr_status = 'gr' if args.gradient_regularization else ''
 
     # task = Task.init(project_name="DBCNN", 
     #                  task_name=f"DBCNN {cayley_status} {cayley_status2} {cayley_status3} {cayley_status4}".strip(), 
@@ -501,6 +538,7 @@ if __name__ == '__main__':
                 f'-cayley2={args.cayley2}'\
                 f'-cayley3={args.cayley3}'\
                 f'-cayley4={args.cayley4}'\
+                f'-gr={args.gradient_regularization}'\
                 f'-activation={args.activation}.pt'
                 ),
 
@@ -513,7 +551,7 @@ if __name__ == '__main__':
         'scnn_root': os.path.join('pretrained_scnn','scnn.pkl'),
         'fc_root': os.path.join('fc_models', 
                                 f'{cayley_status}{cayley_status2}'\
-                                f'{cayley_status3}{cayley_status4}{backbone_status}{activation_status}'\
+                                f'{cayley_status3}{cayley_status4}{gr_status}{backbone_status}{activation_status}'\
                                 'net_params_best.pkl'),
         'db_model': os.path.join('db_models'),
         
@@ -538,6 +576,7 @@ if __name__ == '__main__':
                             f'-cayley2={args.cayley2}'\
                             f'-cayley3={args.cayley3}'\
                             f'-cayley4={args.cayley4}'\
+                            f'-gr={args.gradient_regularization}'\
                             f'-activation={args.activation}.pt'
             
         else:
