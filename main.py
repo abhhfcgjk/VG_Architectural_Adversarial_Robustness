@@ -7,7 +7,7 @@ import os
 
 from icecream import ic
 import yaml
-from clearml import Task, Logger
+# from clearml import Task, Logger
 
 EPS = 1e-6
 YAML_PATH = './path_config.yaml'
@@ -83,7 +83,7 @@ def run(args):
 
 
 if __name__ == "__main__":
-    task = Task.init(project_name="Test", task_name="Linearity", reuse_last_task_id=False)
+    # task = Task.init(project_name="Test", task_name="Linearity", reuse_last_task_id=False)
 
     parser = argparse.ArgumentParser(description="Test Demo for LinearityIQA")
 
@@ -147,7 +147,7 @@ if __name__ == "__main__":
     parser.add_argument('--crop', action='store_true', help='Use crop for image')
 
     args = parser.parse_args()
-    task.connect(vars(args))
+    # task.connect(vars(args))
 
     print(args.architecture, args.pruning)
 

@@ -17,7 +17,7 @@ from torchvision.utils import save_image
 import h5py
 from random import random
 # from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
-from clearml import Task, Logger
+# from clearml import Task, Logger
 from icecream import ic
 
 
@@ -160,7 +160,7 @@ class Attack:
             img_name = img_name[0]
 
             clear_val = self.compute_output(img_)
-            clear_val = self.min_max_scale(clear_val) # (clear_val - self.min_test)/(self.max_test - self.min_test)
+            # clear_val = self.min_max_scale(clear_val) # (clear_val - self.min_test)/(self.max_test - self.min_test)
             attacked_vals = {int(x * 255): None for x in self.epsilons}
 
             for _, eps in enumerate(self.epsilons):
@@ -182,7 +182,7 @@ class Attack:
 
                     attacked_val = self.compute_output(img_attacked_)
                     ic(attacked_val)
-                    attacked_val = self.min_max_scale(attacked_val) # (attacked_val - self.min_test)/(self.max_test - self.min_test)
+                    # attacked_val = self.min_max_scale(attacked_val) # (attacked_val - self.min_test)/(self.max_test - self.min_test)
                     ic(clear_val, attacked_val)
                     gain = attacked_val - clear_val
 
@@ -224,15 +224,15 @@ class Attack:
         
         gain_graph = [[key, np.array(values).mean()] for key, values in self.gains.items()]
         gain_graph = np.array(gain_graph)
-        Logger.current_logger().report_scatter2d(
-            title=self.arch,
-            series=self.dataset,
-            iteration=0,
-            scatter=gain_graph,
-            xaxis='eps',
-            yaxis='gain',
-            mode='lines+markers'
-        )
+        # Logger.current_logger().report_scatter2d(
+        #     title=self.arch,
+        #     series=self.dataset,
+        #     iteration=0,
+        #     scatter=gain_graph,
+        #     xaxis='eps',
+        #     yaxis='gain',
+        #     mode='lines+markers'
+        # )
 
     def save_vals_to_file(self, csv_results_dir='.'):
         # data = pd.DataFrame(columns=['clear', 'attack'])
@@ -254,20 +254,20 @@ class Attack:
         csv_path = os.path.join(csv_results_dir, result_path)
         self.df_attack_csv.to_csv(csv_path)
         print(f"Results saved to {csv_path}")
-        Task.current_task().register_artifact(
-            name=result_path,
-            artifact=self.df_attack_csv,
-            metadata={
-                'Arch': self.arch, 
-                'Cayley': cl,
-                'Cayley pool': clp,
-                'Cayley pair': cp,
-                'Gradnorm regularization': gr,
-                'Activation': activation,
-                'Dataset': self.dataset, 
-                'PGD': self.iterations
-                }
-        )
+        # Task.current_task().register_artifact(
+        #     name=result_path,
+        #     artifact=self.df_attack_csv,
+        #     metadata={
+        #         'Arch': self.arch, 
+        #         'Cayley': cl,
+        #         'Cayley pool': clp,
+        #         'Cayley pair': cp,
+        #         'Gradnorm regularization': gr,
+        #         'Activation': activation,
+        #         'Dataset': self.dataset, 
+        #         'PGD': self.iterations
+        #         }
+        # )
 
     def save_results(self, csv_results_dir='.'):
         self.results = []
