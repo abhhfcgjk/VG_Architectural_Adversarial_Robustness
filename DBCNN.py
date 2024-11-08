@@ -4,6 +4,7 @@ from typing import List, Tuple
 import torch
 import torchvision
 import torch.nn as nn
+from torch.amp import GradScaler, autocast
 from SCNN import SCNN
 from PIL import Image
 from scipy import stats
@@ -15,6 +16,7 @@ from collections import OrderedDict
 
 from Cayley import CayleyBlockPool
 from VOneNet import get_model
+from VOneNet.modules import Identity
 import activ
 
 from tqdm import tqdm
@@ -57,15 +59,27 @@ class DBCNN(torch.nn.Module):
         """Declare all needed layers."""
         nn.Module.__init__(self)
 
-        if options.get('backbone', None)=='vonenet50':
-            model = get_model(model_arch='resnet50', pretrained=True, weightsdir=None,
-                                map_location='cuda')
-            print(model)
-            self.features1 = nn.Sequential(
-                        model.module.vone_block,
-                        model.module.bottleneck,
-                        *list(model.module.model.children())[:-2],
-                        nn.Conv2d(2048, 512, kernel_size=3, stride=1, padding=1)) # TODO change feature shape (2x)
+        if options.get('backbone', None)=='vonenet':
+
+            with open(YAML_PATH, 'r') as file:
+                yaml_conf = yaml.safe_load(file)
+            weights_dir = yaml_conf['checkpoints']['vonenet-vgg16']
+            model = get_model(
+                model_arch='vgg16', 
+                pretrained=True, 
+                weightsdir=weights_dir,
+                map_location='cuda')
+            
+            self.features1 = nn.Sequential(OrderedDict([
+                ('vone_block', model.module.vone_block),
+                ('bottleneck', model.module.bottleneck),
+                ('model', model.module.model.features[:-1])
+            ]))
+
+            print(self.features1)
+            
+            # self.features1 = nn.Sequential(*list(self.features1.children())[:-1])
+            # print(self.features1)
 
         else:
             # Convolution and pooling layers of VGG-16.
@@ -132,7 +146,7 @@ class DBCNN(torch.nn.Module):
 
         X1 = self.features1(X)
         ic(X1.shape)
-        
+
         H = X1.size()[2]
         W = X1.size()[3]
         
@@ -172,7 +186,7 @@ class DBCNNManager(object):
         self.cayley_flag2 = 'cayley2' if options['cayley2'] else ''
         self.cayley_flag3 = 'cayley3' if options['cayley3'] else ''
         self.cayley_flag4 = 'cayley4' if options['cayley4'] else ''
-        self.backbone_flag = 'vonenet50' if options['backbone']=='vonenet50' else ''
+        self.backbone_flag = 'vonenet' if options['backbone']=='vonenet' else ''
         self.h_gradnorm_regularization = 6/255
         self.weight_gradnorm_regularization = 1e-1
         self.activation_flag = self._options['activation']
@@ -210,6 +224,7 @@ class DBCNNManager(object):
                     self._solver,
                     milestones=[1000],
                     gamma=1.)
+        self._scaler = GradScaler()
         
         if (self._options['dataset'] == 'live') | (self._options['dataset'] == 'livec'):
             if self._options['dataset'] == 'live':
@@ -306,20 +321,23 @@ class DBCNNManager(object):
 
                 # Clear the existing gradients.
                 self._solver.zero_grad()
-                # Forward pass.
-                score = self._net(X)
-                loss = self._criterion(score, y.view(len(score),1).detach())
-                if self.gradnorm_regularization:
-                    grad_loss = self.gradnorm_regularize(X)
-                    loss += self.weight_gradnorm_regularization*grad_loss
+
+                with autocast(device_type='cuda', dtype=torch.float16):
+                    # Forward pass.
+                    score = self._net(X)
+                    loss = self._criterion(score, y.view(len(score),1).detach())
+                    if self.gradnorm_regularization:
+                        grad_loss = self.gradnorm_regularize(X)
+                        loss += self.weight_gradnorm_regularization*grad_loss
                 epoch_loss.append(loss.item())
                 # Prediction.
                 num_total += y.size(0)
                 pscores = pscores +  score.cpu().tolist()
                 tscores = tscores + y.cpu().tolist()
                 # Backward pass.
-                loss.backward()
-                self._solver.step()
+                self._scaler.scale(loss).backward()
+                self._scaler.step(self._solver)
+                self._scaler.update()
             self._scheduler.step()
             train_srcc, _ = stats.spearmanr(pscores,tscores)
             test_srcc, test_plcc, test_mae, test_rmse = self._consitency(self._test_loader)
@@ -405,9 +423,7 @@ class DBCNNManager(object):
 
 
     def gradnorm_regularize(self, images):
-        images = images.cuda()
-        images.requires_grad_(True)
-
+        images = images.clone().detach().requires_grad_(True).cuda()
         pred_cur = self._net(images)
         ic(pred_cur)
         dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
@@ -467,7 +483,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataset',dest='dataset',type=str,default='koniq-10k',
                         help='dataset: live|csiq|tid2013|livec|mlive|koniq-10k')
     
-    parser.add_argument('--backbone', default='vgg16', type=str, help='Basemodel: vgg16|vonenet50')
+    parser.add_argument('--backbone', default='vgg16', type=str, help='Basemodel: vgg16|vonenet')
     parser.add_argument('--pruning', dest='pruning', type=float,
                         default=0, help='Pruning percentage.')
     parser.add_argument('--activation', type=str, default='relu',
@@ -521,7 +537,7 @@ if __name__ == '__main__':
     cayley_status3 = 'cayley3' if args.cayley3 else ''
     cayley_status4 = 'cayley4' if args.cayley4 else ''
     activation_status = args.activation
-    backbone_status = 'vonenet50' if args.backbone=='vonenet50' else ''
+    backbone_status = 'vonenet' if args.backbone=='vonenet' else ''
     gr_status = 'gr' if args.gradient_regularization else ''
 
     # task = Task.init(project_name="DBCNN", 
@@ -596,7 +612,7 @@ if __name__ == '__main__':
         #randomly split train-test set
         # random.shuffle(index)
         
-        train_index = index[0:round(0.7*len(index))]
+        train_index = index[0:round(0.8*len(index))]
         test_index = index[round(0.8*len(index)):len(index)]
         print(f"Train set size: {len(train_index)}, Test set size: {len(test_index)}")
 

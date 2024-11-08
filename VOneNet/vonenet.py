@@ -1,11 +1,11 @@
 
 from collections import OrderedDict
 from torch import nn
-from .modules import VOneBlock, OneNet
-from .back_ends import ResNetBackEnd, Bottleneck, AlexNetBackEnd, CORnetSBackEnd
+from .modules import VOneBlock
+from .back_ends import ResNetBackEnd, Bottleneck, AlexNetBackEnd, CORnetSBackEnd, vgg16
 from .params import generate_gabor_param
 import numpy as np
-
+import torchvision
 
 
 def VOneNet(sf_corr=0.75, sf_max=9, sf_min=0, rand_param=False, gabor_seed=0,
@@ -45,7 +45,7 @@ def VOneNet(sf_corr=0.75, sf_max=9, sf_min=0, rand_param=False, gabor_seed=0,
         if model_arch.lower() == 'resnet50':
             print('Model: ', 'VOneResnet50')
             model_back_end = ResNetBackEnd(block=Bottleneck, layers=[3, 4, 6, 3])
-        elif model_arch.lower() == 'resnet101':
+        if model_arch.lower() == 'resnet101':
             print('Model: ', 'VOneResnet101')
             model_back_end = ResNetBackEnd(block=Bottleneck, layers=[3, 4, 23, 3])
         elif model_arch.lower() == 'alexnet':
@@ -54,13 +54,15 @@ def VOneNet(sf_corr=0.75, sf_max=9, sf_min=0, rand_param=False, gabor_seed=0,
         elif model_arch.lower() == 'cornets':
             print('Model: ', 'VOneCORnet-S')
             model_back_end = CORnetSBackEnd()
+        elif model_arch.lower() == 'vgg16':
+            print('Model: ', 'VGG16')
+            model_back_end = vgg16()
 
         model = nn.Sequential(OrderedDict([
             ('vone_block', vone_block),
             ('bottleneck', bottleneck),
             ('model', model_back_end),
         ]))
-        # model = OneNet(vone_block, bottleneck, model_back_end).model
     else:
         print('Model: ', 'VOneNet')
         model = vone_block

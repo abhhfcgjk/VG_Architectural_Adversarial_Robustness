@@ -4,6 +4,7 @@ checkpoints:
   shape: "./checkpoints/style_transfer_checkpoints/res50-shape-biased.pth"
   debiased: "./checkpoints/style_transfer_checkpoints/res50-debiased.pth"
   debiased101: "./checkpoints/res101-debiased.pth"
+  vonenet-vgg16: "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/vonenet_vgg16.tar"
 
 dataset:
   data:

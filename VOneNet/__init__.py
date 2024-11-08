@@ -17,7 +17,40 @@ class Wrapper(Module):
         self.module = model
 
 
-def get_model(model_arch='resnet50', pretrained=True, map_location='cpu', weightsdir='qwerty', **kwargs):
+def get_vgg16(pretrained=True, map_location='cuda', model_arch=None,  weightsdir=None, **kwargs):
+    assert weightsdir is not None
+    
+    if pretrained:
+        ckpt_data = torch.load(weightsdir, map_location=map_location)
+
+        stride = ckpt_data['flags']['stride']
+        simple_channels = ckpt_data['flags']['simple_channels']
+        complex_channels = ckpt_data['flags']['complex_channels']
+        k_exc = ckpt_data['flags']['k_exc']
+
+        noise_mode = ckpt_data['flags']['noise_mode']
+        noise_scale = ckpt_data['flags']['noise_scale']
+        noise_level = ckpt_data['flags']['noise_level']
+
+        print(ckpt_data['flags'])
+        model_id = ckpt_data['flags']['arch'].replace('_','').lower()
+        
+        model = globals()[f'VOneNet'](model_arch=model_id, stride=stride, k_exc=k_exc,
+                                    simple_channels=simple_channels, complex_channels=complex_channels,
+                                    noise_mode=noise_mode, noise_scale=noise_scale, noise_level=noise_level)
+        
+        model = Wrapper(model)
+        model.load_state_dict(ckpt_data['state_dict'])
+        model = model.module
+        model = nn.DataParallel(model)
+    else:
+        model = globals()[f'VOneNet'](model_arch=model_arch, **kwargs)
+        model = nn.DataParallel(model)
+
+    model.to(map_location)
+    return model
+
+def get_model(model_arch='resnet50', pretrained=True, map_location='cpu', weightsdir=None, **kwargs):
     """
     Returns a VOneNet model.
     Select pretrained=True for returning one of the 3 pretrained models.
@@ -42,7 +75,7 @@ def get_model(model_arch='resnet50', pretrained=True, map_location='cpu', weight
             # destination_path = os.path.expanduser(server_mnt)
             # weightsdir_path = os.path.join(destination_path, weightsdir)
             weightsdir_path = weightsdir
-            model_id = 'resnet101'
+            model_id = model_arch
         
 
         ckpt_data = torch.load(weightsdir_path, map_location=map_location)
