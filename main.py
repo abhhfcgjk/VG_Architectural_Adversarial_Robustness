@@ -56,7 +56,7 @@ def run(args):
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
     datasets = yaml_conf['dataset']['data']
-    # datasets = {"KonIQ-10k": "./KonIQ-10k"}
+    datasets = {"KonIQ-10k": "./KonIQ-10k"}
     # datasets = {"NIPS": "./NIPS_test"}
     data_info = yaml_conf['dataset']['labels']
     save_results_dir = yaml_conf['save']['results']
