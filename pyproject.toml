@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "einops",
     "clearml==1.16.4",
     "absl-py==2.1.0",
     "asttokens==2.4.1",

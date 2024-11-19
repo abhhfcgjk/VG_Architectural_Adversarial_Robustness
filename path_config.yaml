@@ -11,7 +11,7 @@ dataset:
     NIPS: "./dataset/NIPS"
     KonIQ-10k: "./dataset/KonIQ-10k"
   labels:
-    KonIQ-10k: "./data/KonIQ-10kinfo.mat"
+    KonIQ-10k: "./dataset/KonIQ-10k/koniq10k_scores_and_distributions.csv"
 
 save:
   ckpt: "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/DBCNN-ckpt"

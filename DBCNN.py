@@ -4,7 +4,7 @@ from typing import List, Tuple
 import torch
 import torchvision
 import torch.nn as nn
-from torch.amp import GradScaler, autocast
+# from torch.amp import GradScaler, autocast
 from SCNN import SCNN
 from PIL import Image
 from scipy import stats
@@ -224,7 +224,7 @@ class DBCNNManager(object):
                     self._solver,
                     milestones=[1000],
                     gamma=1.)
-        self._scaler = GradScaler()
+        # self._scaler = GradScaler()
         
         if (self._options['dataset'] == 'live') | (self._options['dataset'] == 'livec'):
             if self._options['dataset'] == 'live':
@@ -322,22 +322,24 @@ class DBCNNManager(object):
                 # Clear the existing gradients.
                 self._solver.zero_grad()
 
-                with autocast(device_type='cuda', dtype=torch.float16):
+                # with autocast(device_type='cuda', dtype=torch.float16):
                     # Forward pass.
-                    score = self._net(X)
-                    loss = self._criterion(score, y.view(len(score),1).detach())
-                    if self.gradnorm_regularization:
-                        grad_loss = self.gradnorm_regularize(X)
-                        loss += self.weight_gradnorm_regularization*grad_loss
+                score = self._net(X)
+                loss = self._criterion(score, y.view(len(score),1).detach())
+                if self.gradnorm_regularization:
+                    grad_loss = self.gradnorm_regularize(X)
+                    loss += self.weight_gradnorm_regularization*grad_loss
                 epoch_loss.append(loss.item())
                 # Prediction.
                 num_total += y.size(0)
                 pscores = pscores +  score.cpu().tolist()
                 tscores = tscores + y.cpu().tolist()
                 # Backward pass.
-                self._scaler.scale(loss).backward()
-                self._scaler.step(self._solver)
-                self._scaler.update()
+                loss.backward()
+                self._solver.step()
+                # self._scaler.scale(loss).backward()
+                # self._scaler.step(self._solver)
+                # self._scaler.update()
             self._scheduler.step()
             train_srcc, _ = stats.spearmanr(pscores,tscores)
             test_srcc, test_plcc, test_mae, test_rmse = self._consitency(self._test_loader)

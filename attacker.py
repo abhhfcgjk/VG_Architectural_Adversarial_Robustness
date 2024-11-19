@@ -13,6 +13,7 @@ from DBCNN import DBCNN
 from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision.utils import save_image
 from random import random
+import csv
 # from LinearityIQA.activ import ReLU_to_SILU, ReLU_to_ReLUSiLU
 from icecream import ic
 
@@ -32,10 +33,11 @@ class Attack:
         self.prune_method = options['pruning_type']
         self.activation = options['activation']
         self.gradnorm_regularization = options['gradnorm_regularization']
-        self.cayley = options['cayley']
-        self.cayley2 = options['cayley2']
-        self.cayley3 = options['cayley3']
-        self.model = DBCNN(path['scnn_root'], options).to(device)
+        self.cayley = options.get('cayley', None)
+        self.cayley2 = options.get('cayley2', None)
+        self.cayley3 = options.get('cayley3', None)
+        self.cayley4 = options.get('cayley4', None)
+        self.model = torch.nn.Parallel(DBCNN(path['scnn_root'], options)).to(device)
         print(self.model)
         # print(self.model)
 
@@ -53,32 +55,8 @@ class Attack:
 
     def load_checkpoints(self, checkpoints_path="./DBCNN.pt"):
         self.checkpoint = torch.load(checkpoints_path, map_location=self.device)
-        # ic(self.checkpoint['model']['cayley_block6.conv_cayley.alpha'])
-        # ic(self.model.state_dict().keys())
-        # print(self.model.state_dict().keys())
-        print(self.checkpoint['model'].keys())
-        # self.checkpoint['model']['']
-# 'features1.27.conv_in.weight', 'features1.27.conv_in.bias', 'features1.27.conv_cayley.weight', 'features1.27.conv_cayley.bias', 'features1.27.conv_cayley.alpha'
-        
-        # self.checkpoint['model']['module.features1.27.conv_cayley.alpha'] = self.checkpoint['model']['module.features1.28.conv_cayley.alpha']
-        # self.checkpoint['model']['module.features1.27.conv_cayley.bias'] = self.checkpoint['model']['module.features1.28.conv_cayley.bias']
-        # self.checkpoint['model']['module.features1.27.conv_cayley.weight'] = self.checkpoint['model']['module.features1.28.conv_cayley.weight']
-        # self.checkpoint['model']['module.features1.27.conv_in.bias'] = self.checkpoint['model']['module.features1.28.conv_in.bias']
-        # self.checkpoint['model']['module.features1.27.conv_in.weight'] = self.checkpoint['model']['module.features1.28.conv_in.weight']
-        
-        # del self.checkpoint['model']['module.features1.28.conv_cayley.alpha']
-        # del self.checkpoint['model']['module.features1.28.conv_cayley.bias']
-        # del self.checkpoint['model']['module.features1.28.conv_cayley.weight']
-        # del self.checkpoint['model']['module.features1.28.conv_in.bias']
-        # del self.checkpoint['model']['module.features1.28.conv_in.weight']
 
-        print(self.model.state_dict().keys())
-        weights = self.checkpoint['model']
-        for key in list(weights.keys()):
-            weights[key.replace('module.', '')] = weights[key]
-            del weights[key]
-
-        self.model.load_state_dict(weights)
+        self.model.load_state_dict(self.checkpoint['model'])
         self.min_train =  self.checkpoint['min']
         self.max_train =  self.checkpoint['max']
         self.dataset_path = '.'
@@ -129,12 +107,14 @@ class Attack:
         image_num = 0
         count = 5
         self.gains = {int(x * 255): [] for x in self.epsilons}
-        for img_, img in tqdm(
-                self.loader,
+        for image_num, (img_name, img_) in tqdm(
+                enumerate(self.loader),
                 total=len(self.loader),
         ):
+            img_name = img_name[0]
             clear_val = self.compute_output(img_)
-            clear_val = (clear_val - self.min_test)/(self.max_test - self.min_test)
+            # clear_val = (clear_val - self.min_test)/(self.max_test - self.min_test)
+            attacked_vals = {int(x * 255): None for x in self.epsilons}
 
             for _, eps in enumerate(self.epsilons):
                 img_attacked_ = attack_callback(
@@ -150,13 +130,25 @@ class Attack:
                     attacked_val = self.compute_output(img_attacked_)
                     # attacked_val = attacked_val[-1].item() * self.k[0] + self.b[0]
                     # ic(attacked_val)
-                    attacked_val = (attacked_val - self.min_test)/(self.max_test - self.min_test)
+
+                    # attacked_val = (attacked_val - self.min_test)/(self.max_test - self.min_test)
                     # ic(clear_val, attacked_val)
                     gain = attacked_val - clear_val
+
                     self.gains[int(eps * 255)].append(gain)
+                    attacked_vals[int(eps * 255)] = attacked_val
             self.attacked_vals.append(attacked_val)  # with eps 10/255
-            image_num += 1
-            
+
+                
+            frame = {
+                        'image_name': img_name,
+                        'clear_val': clear_val
+                    } | {
+                        f'attacked_val_eps={int(eps*255.0)}': attacked_vals[int(eps * 255)] for eps in self.epsilons
+                    }
+            self.df_attack_csv.loc[len(self.df_attack_csv)] = frame
+
+            image_num += 1            
             ###########debug
             if debug:
                 count -= 1
@@ -164,19 +156,42 @@ class Attack:
                     break
             ##########
 
-    def save_vals_to_file(self, csv_results_dir='.'):
-        se_status = "+se" if self.se else ""
-        data = pd.DataFrame(columns=['clear', 'attack'])
-        if csv_results_dir is not None:
-            for i in range(len(self.clear_vals)):
-                data.loc[len(data.index)] = [self.clear_vals[i], self.attacked_vals[i]]
+    # def save_vals_to_file(self, csv_results_dir='.'):
+    #     se_status = "+se" if self.se else ""
+    #     data = pd.DataFrame(columns=['clear', 'attack'])
+    #     if csv_results_dir is not None:
+    #         for i in range(len(self.clear_vals)):
+    #             data.loc[len(data.index)] = [self.clear_vals[i], self.attacked_vals[i]]
 
-            result_path = "results_{}_{}_{}.csv".format(self.activation,
-                                                        self.arch + se_status,
-                                                        self.iterations)
-            csv_path = os.path.join(csv_results_dir, result_path)
-            data.to_csv(csv_path)
-            print(f"Results saved to {csv_path}")
+    #         result_path = "results_{}_{}_{}.csv".format(self.activation,
+    #                                                     self.arch + se_status,
+    #                                                     self.iterations)
+    #         csv_path = os.path.join(csv_results_dir, result_path)
+    #         data.to_csv(csv_path)
+    #         print(f"Results saved to {csv_path}")
+    def save_vals_to_file(self, csv_results_dir='.'):
+        # data = pd.DataFrame(columns=['clear', 'attack'])
+
+        assert csv_results_dir
+        cl = f'+cayley' if self.cayley else ''
+        clp = f'+cayley_pool' if self.cayley_pool else ''
+        cp = f'++cayley_pair' if self.cayley_pair else ''
+        gr = f'+gr' if self.gradnorm_regularization else ''
+        resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
+        prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
+        activation =  self.activation
+        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{prune}+{activation}'
+        result_path = "{}_{}_{}={}{}.csv".format(
+                                            self.dataset,
+                                            arch_status,
+                                            self.attack_type,
+                                            self.iterations,
+                                            resize_flag
+                                            )
+        csv_path = os.path.join(csv_results_dir, result_path)
+        self.df_attack_csv.to_csv(csv_path)
+        print(f"Results saved to {csv_path}")
+
 
     def save_results(self, csv_results_dir='.'):
         self.results = []
@@ -222,6 +237,9 @@ class Attack:
 
                 df.to_csv(csv_path)
 
+    def min_max_scale(self, value):
+        return (value - self.min_test)/(self.max_test - self.min_test)
+
     @property
     def res(self):
         if 'results' not in vars(self).keys():
@@ -229,107 +247,70 @@ class Attack:
         return self.results
 
 
+def default_loader(path):
+    return Image.open(path).convert('RGB')
+
 class TestLoader(Dataset):
-    def __init__(self,  dataset_path, resize,crop=False, resize_size_h=498, resize_size_w=664):
+    def __init__(self, dataset, dataset_path, resize=False, crop=False, resize_size_h=498, resize_size_w=664, **kwargs):
         # self.batch_size = batch_size
-        self.crop = crop
-        self.resize = resize
-        self.resize_size_h, self.resize_size_w = resize_size_h, resize_size_w
+        self.dataset = dataset
+        self.loader = kwargs.get("loader", default_loader)
         self.dataset_path = dataset_path
-        self.imgs_names = [_ for _ in Path(self.dataset_path).iterdir()]
+        self.resize_size_h, self.resize_size_w = resize_size_h, resize_size_w
+        self.resize = resize
+        self.crop = crop
+        if self.dataset == 'NIPS':
+            self.im_names = [path.name for path in Path(self.dataset_path).iterdir()]
+        elif self.dataset == 'KonIQ-10k':
+            datainfo = kwargs.get("data_info", None)
+            assert datainfo
+            # Info = h5py.File(datainfo, 'r')
+            self.label = []
+            with open(datainfo, 'r') as f:
+                Info = csv.DictReader(f)
+                for row in Info:
+                    self.im_names.append(row['image_name'])
+                    mos = float(row['MOS'])
+                    mos = np.array(mos)
+                    mos = mos.astype(np.float32)
+                    self.label.append(mos)
+            index = list(range(0,10073))
+            status ='test'
+            if status == 'train':
+                self.index = index[0:int(0.8 * len(index))]
+            elif status == 'val':
+                pass
+            elif status == 'test':
+                self.index = index[int(0.8 * len(index)):len(index)]
+            print("# {} images: {}".format(status, len(self.index)))
+        else:
+            raise KeyError(f"Dataset {self.dataset} does not exist.")
+        self.ims = []
+        print("DATA LOADING")
+        for im_name in tqdm(self.im_names, total=len(self.im_names)):
+            im = self.loader(os.path.join(self.dataset_path, im_name))
+            self.ims.append(im)
 
     def __len__(self):
-        return len(self.imgs_names)
+        return len(self.im_names)
 
-    def __getitem__(self, index):
-        image = Image.open(self.imgs_names[index]).convert("RGB")
+    def __getitem__(self, idx):
+        image = self.ims[idx] # self.loader(self.imgs_names[idx]) # Image.open(self.imgs_names[index]).convert("RGB")
+        # if self.crop:  # crop or not?
+        #     image = crop(image, 0, 0, height=self.resize_size_h, width=self.resize_size_w)
+        # elif self.resize:  # resize or not?
+        #     image = resize(image, (self.resize_size_h, self.resize_size_w))  #
+        # img = to_tensor(image).cuda()
+        img = self.transform(image)
+        img_name = self.im_names[idx]
+        # img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        return img_name, img
+    
+    def transform(self, image):
         if self.crop:  # crop or not?
             image = crop(image, 0, 0, height=self.resize_size_h, width=self.resize_size_w)
         elif self.resize:  # resize or not?
             image = resize(image, (self.resize_size_h, self.resize_size_w))  #
         img = to_tensor(image).cuda()
-        img_ = img
-        # img=normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        return img_, img
-    
-if __name__=='__main__':
-    parser = ArgumentParser()
-    parser.add_argument('--base_lr', dest='base_lr', type=float, default=1e-5,
-                        help='Base learning rate for training.')
-    parser.add_argument('--batch_size', dest='batch_size', type=int,
-                        default=8, help='Batch size.')
-    parser.add_argument('--epochs', dest='epochs', type=int,
-                        default=50, help='Epochs for training.')
-    parser.add_argument('--weight_decay', dest='weight_decay', type=float,
-                        default=5e-4, help='Weight decay.')
-    parser.add_argument('--dataset',dest='dataset',type=str,default='koniq-10k',
-                        help='dataset: live|csiq|tid2013|livec|mlive|koniq-10k')
-    parser.add_argument('--pruning', dest='pruning', type=float,
-                        default=0, help='Pruning percentage.')
-    parser.add_argument('--tune_iters', dest='tune_iters', type=int,
-                        default=1, help='Iters for tune')
-    parser.add_argument('--iters', dest='iters', type=int,
-                        default=1, help='PGD attack iters count.')
-    parser.add_argument('--cayley', action='store_true',
-                        help='Use cayley block')
-    parser.add_argument('--cayley2', action='store_true',
-                        help='Use cayley block')
-    parser.add_argument('--cayley3', action='store_true',
-                        help='Use cayley block')
-    parser.add_argument('--activation', default='relu', type=str,
-                        help='Use cayley block')
-    parser.add_argument('--debug', action='store_true',
-                        help='DEBUG')
-    args = parser.parse_args()
-    options = {
-        'fc': True,
-        'cayley': args.cayley,
-        'cayley2': args.cayley2,
-        'cayley3': args.cayley3,
-        'backbone': 'VGG-16',
-        'model': 'DBCNN',
-        'pruning': 0,
-        'pruning_type': None,
-        'activation': args.activation,
-        'gradnorm_regularization': False,
-        'resize': False,
-        'crop': False,
-        'height': None,
-        'width': None,
-    }
-    path = {
-        'koniq-10k': os.path.join('dataset', 'KonIQ-10k'),
-        'nips': os.path.join('dataset', 'NIPS'),
-        'csv_results_dir': './rs',
+        return img
 
-        'live': os.path.join('dataset','databaserelease2'),
-        'csiq': os.path.join('dataset','CSIQ'),
-        'tid2013': os.path.join('dataset','TID2013'),
-        'livec': os.path.join('dataset','ChallengeDB_release'),
-        'mlive': os.path.join('dataset','LIVEmultidistortiondatabase'),
-        'fc_model': os.path.join('fc_models'),
-        'scnn_root': os.path.join('pretrained_scnn','scnn.pkl'),
-        'fc_root': os.path.join('fc_models','net_params_best.pkl'),
-        'db_model': os.path.join('db_models'),
-    }
-
-    ic.disable()
-
-    exec_: Attack = Attack(path, options, device='cuda')
-
-    exec_.load_checkpoints(checkpoints_path=f'./DBCNN-cayley={args.cayley}'\
-                                            f'-cayley2={args.cayley2}'\
-                                            f'-cayley3={args.cayley3}.pt')
-    exec_.set_load_conf(dataset_path=path['nips'],
-                        resize=options['resize'],
-                        crop=options['crop'],
-                        resize_size_h=options['height'],
-                        resize_size_w=options['width'])
-
-    
-    exec_.attack(attack_type='PGD',
-                 iterations=args.iters, debug=args.debug)
-
-    exec_.save_results(path['csv_results_dir'])
-
-    print(np.array(exec_.res).mean())

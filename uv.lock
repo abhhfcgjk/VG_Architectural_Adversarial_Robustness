@@ -193,6 +193,15 @@ wheels = [
 ]
 
 [[package]]
+name = "einops"
+version = "0.8.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/ca/9f5dcb8bead39959454c3912266bedc4c315839cee0e0ca9f4328f4588c1/einops-0.8.0.tar.gz", hash = "sha256:63486517fed345712a8385c100cb279108d9d47e6ae59099b07657e983deae85", size = 58861 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/44/5a/f0b9ad6c0a9017e62d4735daaeb11ba3b6c009d69a26141b258cd37b5588/einops-0.8.0-py3-none-any.whl", hash = "sha256:9572fb63046264a862693b0a87088af3bdc8c068fde03de63453cbbde245465f", size = 43223 },
+]
+
+[[package]]
 name = "executing"
 version = "2.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1357,6 +1366,7 @@ dependencies = [
     { name = "colorama" },
     { name = "contourpy" },
     { name = "cycler" },
+    { name = "einops" },
     { name = "executing" },
     { name = "filelock" },
     { name = "fonttools" },
@@ -1427,6 +1437,7 @@ requires-dist = [
     { name = "colorama", specifier = "==0.4.6" },
     { name = "contourpy", specifier = "==1.2.1" },
     { name = "cycler", specifier = "==0.12.1" },
+    { name = "einops" },
     { name = "executing", specifier = "==2.0.1" },
     { name = "filelock", specifier = "==3.15.4" },
     { name = "fonttools", specifier = "==4.53.1" },
