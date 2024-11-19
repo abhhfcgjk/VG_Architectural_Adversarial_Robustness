@@ -22,7 +22,6 @@ from torch import nn
 # from style_transfer.mixer import MixData
 
 from icecream import ic
-from clearml import Task, Logger
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
 # from dataclasses import dataclass
@@ -318,15 +317,15 @@ class Trainer:
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric_range:', metric_range)
         torch.save(checkpoint, self.args.trained_model_file)
-        Task.current_task().upload_artifact(name="Metrics", 
-                                            artifact_object={
-                                                'model_name': "Linearity",
-                                                'min': checkpoint['min'],
-                                                'max': checkpoint['max'],
-                                                'SROCC': checkpoint['SROCC'],
-                                                'PLCC': checkpoint['PLCC'],
-                                                'RMSE': checkpoint['RMSE'],
-                                            })
+        # Task.current_task().upload_artifact(name="Metrics", 
+        #                                     artifact_object={
+        #                                         'model_name': "Linearity",
+        #                                         'min': checkpoint['min'],
+        #                                         'max': checkpoint['max'],
+        #                                         'SROCC': checkpoint['SROCC'],
+        #                                         'PLCC': checkpoint['PLCC'],
+        #                                         'RMSE': checkpoint['RMSE'],
+        #                                     })
 
         print('{}, {}: {:.3f}'.format(self.args.dataset, self.metrics_printed[0], metrics[self.metrics_printed[0]]))
         np.save(self.args.save_result_file, metrics)
@@ -454,7 +453,7 @@ class Trainer:
             if args.pruning:
                 form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(args.trained_model_file, args.pruning,
                                                                 args.pruning_type, args.learning_rate,
-                                                                args.epochs, args.prune_iters)
+                                                                args.prune_epochs, args.prune_iters)
                 args.trained_model_file = form
             trainer.eval()
         elif args.pruning:

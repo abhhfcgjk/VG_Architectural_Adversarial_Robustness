@@ -8,7 +8,6 @@ import yaml
 
 from models_train.trainer import Trainer
 
-from clearml import Task, Logger
 
 metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 YAML_PATH = './path_config.yaml'
@@ -148,6 +147,7 @@ if __name__ == "__main__":
 
     parser.add_argument('-prune', "--pruning", type=float,
                         help="adversarial pruning percent")
+    parser.add_argument('--prune_epochs', type=int, default=5)
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
     parser.add_argument('--prune_iters', type=int, default=1)
     parser.add_argument('--width_prune', type=int, default=120)
@@ -172,8 +172,6 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     task_name = f"Linearity modification with {args.pruning_type} pruning" if args.pruning else "Linearity modification"
-    task = Task.init(project_name="Linearity", task_name=task_name)
-    task.connect(vars(args))
 
     
 

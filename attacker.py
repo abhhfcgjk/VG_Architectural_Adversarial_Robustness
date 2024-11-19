@@ -242,8 +242,7 @@ class Attack:
         clp = f'+cayley_pool' if self.cayley_pool else ''
         cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
-        if self.resize:
-            resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
+        resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
         prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
         activation =  self.activation
         arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{prune}+{activation}'
