@@ -276,6 +276,7 @@ class TestLoader(Dataset):
         if self.dataset == 'NIPS':
             self.im_names = [path.name for path in Path(self.dataset_path).iterdir()]
         elif self.dataset == 'KonIQ-10k':
+            self.dataset_path = os.path.join(self.dataset_path, '1024x768')
             datainfo = kwargs.get("data_info", None)
             assert datainfo
             self.im_names = []

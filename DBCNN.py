@@ -193,18 +193,36 @@ class DBCNNManager(object):
         self.activation_flag = self._options['activation']
         self.gradnorm_regularization = options.get('gradient_regularization', False)
         self.gr_flag = 'gr' if self.gradnorm_regularization else ''
+        self.prune_flag = ''
         
         # Network.
         self._net = torch.nn.DataParallel(DBCNN(self._path['scnn_root'], self._options), device_ids=[0]).cuda()
+        print(self._net)
+
+        if options['prune'] > 0.:
+            self.prune_epochs = options['prune_epochs']
+            self.prune_lr = options['prune_lr']
+            self.prune_amount = options['prune']
+            self.prune_type = options['prune_type']
+
+            ckpt = torch.load(path['ckpt'])
+            self._net.load_state_dict(ckpt['model'])
+
+            sparsity_features = self.prune(self.prune_type, self.prune_amount)
+            self.print_sparcity(sparsity_features)
+
+            self._options['fc'] = True
+            path['ckpt'] = path['ckpt'].replace('.pt', '') + \
+                            f"-prune_type={self.prune_type}" \
+                            f"-prune_amount={self.prune_amount}" \
+                            f"-prune_epochs={self.prune_epochs}" \
+                            f"-prune_lr={self.prune_lr}.pt"
+            self.prune_flag = f"-{options['prune_type']}={options['prune']}-"
+
         if self._options['fc'] == False:
             self._net.load_state_dict(torch.load(path['fc_root']))
 
-        
-        print(self._net)
 
-        if self._options['pruning']>0:
-            sparsity_features = self.l1_prune(amount=self._options['pruning'])
-            self.print_sparcity(sparsity_features)
         # Criterion.
         self._criterion = torch.nn.MSELoss().cuda()
 
@@ -365,7 +383,9 @@ class DBCNNManager(object):
                         + self.cayley_flag4 \
                         + self.gr_flag\
                         + self.backbone_flag\
-                        + self.activation_flag + 'net_params' + '_best' + '.pkl'))
+                        + self.activation_flag\
+                        + self.prune_flag\
+                        + 'net_params' + '_best' + '.pkl'))# f'-{options['prune_type']}={options['prune']}-'\
                 else:
                     modelpath = os.path.join(pwd,'db_models',(
                         self.cayley_flag \
@@ -374,7 +394,9 @@ class DBCNNManager(object):
                         + self.cayley_flag4 \
                         + self.gr_flag\
                         + self.backbone_flag\
-                        + self.activation_flag + 'net_params' + '_best' + '.pkl'))
+                        + self.activation_flag\
+                        + self.prune_flag\
+                        + 'net_params' + '_best' + '.pkl'))
                 torch.save(self._net.state_dict(), modelpath)
 
             print('%d\t%4.3f\t\t%4.4f\t\t%4.4f\t%4.4f' %
@@ -413,6 +435,7 @@ class DBCNNManager(object):
         self._net.train(True)  # Set the model to training phase
         return test_srcc, test_plcc, p_mae, p_rmse
     
+    @staticmethod
     def print_sparcity(prune_list: Tuple):
         """only for resnet"""
         print("SPARCITY")
@@ -440,16 +463,23 @@ class DBCNNManager(object):
         x2 = images + self.h_gradnorm_regularization*v
 
         pred_pert = self._net(x2)
-
         dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
         loss = dl.pow(2).mean()/2
-
         return loss
 
-    def get_prune_features(self) -> List:
+    def prune(self, prune_type, amount):
+        if prune_type == 'l1':
+            features = self.l1_prune(amount)
+        elif prune_type == 'l2':
+            features = self.l2_prune(amount)
+        else:
+            raise KeyError(f"Type {prune_type} does not exist.")
+        return features
+
+    def get_prune_features(self, model) -> List:
         prune_params_list = []
 
-        for name, module in self._net.named_children():
+        for name, module in model.named_children():
             if isinstance(module, (nn.Conv2d)):
                 prune_params_list.append((module, 'weight'))
             else:
@@ -457,10 +487,7 @@ class DBCNNManager(object):
         return prune_params_list
 
     def l1_prune(self, amount=0.1) -> Tuple:
-        # if amount <= 0:
-        #     return None
-
-        prune_params = tuple(self.get_prune_features())
+        prune_params = tuple(self.get_prune_features(self._net))
         prune.global_unstructured(
             parameters=prune_params,
             pruning_method=prune.L1Unstructured,
@@ -474,13 +501,9 @@ class DBCNNManager(object):
         # if amount <= 0:
         #     return None
 
-        prune_params = tuple(self.get_prune_features())
-        prune.global_unstructured(
-            parameters=prune_params,
-            pruning_method=prune.L1Unstructured,
-            amount=amount
-        )
+        prune_params = tuple(self.get_prune_features(self._net))
         for module, name in prune_params:
+            prune.ln_structured(module, name, amount=amount, n=2, dim=0)
             prune.remove(module, name)
         return prune_params
 
@@ -501,8 +524,18 @@ if __name__ == '__main__':
                         help='dataset: live|csiq|tid2013|livec|mlive|koniq-10k')
     
     parser.add_argument('--backbone', default='vgg16', type=str, help='Basemodel: vgg16|vonenet')
-    parser.add_argument('--pruning', dest='pruning', type=float,
+
+    parser.add_argument('--prune', dest='prune', type=float,
                         default=0, help='Pruning percentage.')
+    parser.add_argument('--prune_epochs', dest='prune_epochs', type=int,
+                        default=5, help='Pruning epochs.')
+    parser.add_argument('--prune_type', dest='prune_type', type=str,
+                        default='l2', help='Pruning type.')
+    parser.add_argument('--prune_lr', dest='prune_lr', type=float,
+                        default=1e-6, help='Pruning learning rate.')
+    
+    parser.add_argument('--iter', dest='iter', type=int, default=0, help='Current train iteration')
+
     parser.add_argument('--activation', type=str, default='relu',
                         help='Activation function in VGG16. relu|relu_elu')
     parser.add_argument('--tune_iters', dest='tune_iters', type=int,
@@ -543,7 +576,10 @@ if __name__ == '__main__':
         'cayley2': args.cayley2,
         'cayley3': args.cayley3,
         'cayley4': args.cayley4,
-        'pruning': args.pruning,
+        'prune': args.prune,
+        'prune_lr': args.prune_lr,
+        'prune_epochs': args.prune_epochs,
+        'prune_type': args.prune_type,
         'activation': args.activation,
         'train_index': [],
         'test_index': [],
@@ -585,9 +621,9 @@ if __name__ == '__main__':
         'fc_root': os.path.join('fc_models', 
                                 f'{cayley_status}{cayley_status2}'\
                                 f'{cayley_status3}{cayley_status4}{gr_status}{backbone_status}{activation_status}'\
+                                f'-{options["prune_type"]}={options["prune"]}-'\
                                 'net_params_best.pkl'),
         'db_model': os.path.join('db_models'),
-        
     }
     
     
@@ -611,7 +647,6 @@ if __name__ == '__main__':
                             f'-cayley4={args.cayley4}'\
                             f'-gr={args.gradient_regularization}'\
                             f'-activation={args.activation}.pt'
-            
         else:
             ic.disable()
             index = list(range(0,10073))
@@ -636,7 +671,7 @@ if __name__ == '__main__':
         options['train_index'] = train_index
         options['test_index'] = test_index
         
-        if not os.path.exists(path['fc_root']):
+        if not os.path.exists(path['fc_root']) and not args.prune>0:
             #train the fully connected layer only
             print("train the fully connected layer only")
             options['fc'] = True
