@@ -22,6 +22,7 @@ import activ
 from tqdm import tqdm
 import yaml
 from icecream import ic
+import warnings
 
 # from clearml import Task, Logger
 
@@ -469,6 +470,20 @@ class DBCNNManager(object):
             prune.remove(module, name)
         return prune_params
 
+    def l2_prune(self, amount=0.1) -> Tuple:
+        # if amount <= 0:
+        #     return None
+
+        prune_params = tuple(self.get_prune_features())
+        prune.global_unstructured(
+            parameters=prune_params,
+            pruning_method=prune.L1Unstructured,
+            amount=amount
+        )
+        for module, name in prune_params:
+            prune.remove(module, name)
+        return prune_params
+
 if __name__ == '__main__':
     import argparse
     
@@ -609,24 +624,34 @@ if __name__ == '__main__':
     srcc_all = np.zeros((1,tune_iters),dtype=np.float32)
     
     
-
-    for i in range(0, tune_iters):
-        #randomly split train-test set
-        # random.shuffle(index)
+    pwd = os.getcwd()
+    # random.seed(10)
+    for i in range(args.iter, tune_iters):
         
         train_index = index[0:round(0.8*len(index))]
+        
         test_index = index[round(0.8*len(index)):len(index)]
         print(f"Train set size: {len(train_index)}, Test set size: {len(test_index)}")
 
         options['train_index'] = train_index
         options['test_index'] = test_index
-        #train the fully connected layer only
-        options['fc'] = True
-        options['base_lr'] = 1e-3
-        manager = DBCNNManager(options, path)
-        best_srcc = manager.train()
+        
+        if not os.path.exists(path['fc_root']):
+            #train the fully connected layer only
+            print("train the fully connected layer only")
+            options['fc'] = True
+            options['base_lr'] = 1e-3
+            manager = DBCNNManager(options, path)
+            if os.path.exists(os.path.join('.', path['ckpt'])) and args.iter > 0:
+                ckpt = torch.load(path['ckpt'])
+                manager._net.load_state_dict(ckpt['model'])
+            elif args.iter > 0:
+                warnings.warn(f"{path['ckpt']} does not exist!!!")
+            best_srcc = manager.train()
+            break
     
         #fine-tune all model
+        print("fine-tune all model")
         options['fc'] = False
         options['base_lr'] = lr_backup
         manager = DBCNNManager(options, path)
@@ -641,20 +666,25 @@ if __name__ == '__main__':
             "MAE": mae,
             "RMSE": rmse,
         }
+        print(f"SAVE ITERATION {args.iter}")
         torch.save(checkpoints, path['ckpt'])
 
         srcc_all[0][i] = best_srcc
+        print(srcc_all)
+        srcc_mean = np.mean(srcc_all)
+        print('average srcc:%4.4f' % (srcc_mean))
         
-    srcc_mean = np.mean(srcc_all)
-    artifacts = {
-            'model_name': "DBCNN",
-            'max': manager.test_max,
-            'min': manager.test_min,
-            "PLCC": plcc,
-            "SROCC": best_srcc,
-            "MAE": mae,
-            "RMSE": rmse,
-    }
-    # task.upload_artifact(name="Metrics", artifact_object=artifacts)
-    print(srcc_all)
-    print('average srcc:%4.4f' % (srcc_mean))
+        
+    # srcc_mean = np.mean(srcc_all)
+    # artifacts = {
+    #         'model_name': "DBCNN",
+    #         'max': manager.test_max,
+    #         'min': manager.test_min,
+    #         "PLCC": plcc,
+    #         "SROCC": best_srcc,
+    #         "MAE": mae,
+    #         "RMSE": rmse,
+    # }
+    # # task.upload_artifact(name="Metrics", artifact_object=artifacts)
+    # print(srcc_all)
+    # print('average srcc:%4.4f' % (srcc_mean))
