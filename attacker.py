@@ -37,7 +37,7 @@ class Attack:
         self.cayley2 = options.get('cayley2', None)
         self.cayley3 = options.get('cayley3', None)
         self.cayley4 = options.get('cayley4', None)
-        self.model = torch.nn.Parallel(DBCNN(path['scnn_root'], options)).to(device)
+        self.model = torch.nn.DataParallel(DBCNN(path['scnn_root'], options)).to(device)
         print(self.model)
         # print(self.model)
 
@@ -66,13 +66,22 @@ class Attack:
         self.max_test = self.max_train
         self.metric_range_test = self.metric_range_train
 
-    def set_load_conf(self, dataset_path, resize, crop, resize_size_h, resize_size_w, batch_size=4):
+    def set_load_conf(self, dataset, dataset_path, resize, crop, resize_size_h, resize_size_w, batch_size=4, data_info=None):
+        self.dataset = dataset
         self.dataset_path = dataset_path
+        self.df_attack_csv = pd.DataFrame(columns=['image_name', 'clear_val'] + \
+                                        [f'attacked_val_eps={int(val*255.0)}' for val in self.epsilons])
         self.resize = resize
         self.crop = crop
         self.resize_size_h: int = resize_size_h
         self.resize_size_w: int = resize_size_w
-        self.loader = DataLoader(TestLoader(self.dataset_path, self.resize, self.crop, self.resize_size_h, self.resize_size_w),
+        self.loader = DataLoader(TestLoader(dataset, 
+                                            dataset_path, 
+                                            self.resize, 
+                                            self.crop, 
+                                            self.resize_size_h, 
+                                            self.resize_size_w,
+                                            data_info=data_info),
                                  batch_size=1)
 
     def _get_info_max_min_from_testset(self, debug=False):
@@ -174,13 +183,16 @@ class Attack:
 
         assert csv_results_dir
         cl = f'+cayley' if self.cayley else ''
-        clp = f'+cayley_pool' if self.cayley_pool else ''
-        cp = f'++cayley_pair' if self.cayley_pair else ''
+        cl2 = f'+cayley2' if self.cayley2 else ''
+        cl3 = f'+cayley3' if self.cayley3 else ''
+        cl4 = f'+cayley4' if self.cayley4 else ''
+        # clp = f'+cayley_pool' if self.cayley_pool else ''
+        # cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
         prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{prune}+{activation}'
+        arch_status = f'{self.arch}{cl}{cl2}{cl3}{cl4}{gr}{prune}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
                                             self.dataset,
                                             arch_status,
@@ -199,10 +211,11 @@ class Attack:
         prune_status = f"+prune={self.prune}{self.prune_method}" if self.prune is not None and self.prune > 0 else ""
         cl = f'+cayley' if self.cayley else ''
         # clp = f'+cayley_pool' if self.cayley_pool else ''
-        cp = f'+cayley2' if self.cayley2 else ''
-        cbp = f'+cayley3' if self.cayley3 else ''
+        cl2 = f'+cayley2' if self.cayley2 else ''
+        cl3 = f'+cayley3' if self.cayley3 else ''
+        cl4 = f'+cayley4' if self.cayley3 else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
-        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + cp + cbp,
+        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + cl2 + cl3 + cl4,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations}
@@ -216,8 +229,9 @@ class Attack:
             mdif.update({f'eps {int_eps}': self.results[-1] * (10 ** degree)})
 
         # correlation = stats.spearmanr(self.clear_vals, self.attacked_vals)
-        mdif.update({'SROCC': self.checkpoint['SRCC']})
-        print('SROCC:', self.checkpoint['SRCC'])
+        mdif.update({'SROCC': self.checkpoint['SROCC']})
+        print('SROCC:', self.checkpoint['SROCC'])
+        print('PLCC:', self.checkpoint['PLCC'])
 
         cols = [f'eps {e}' for e in self.gains.keys()]
         cols = ['arch', 'activation', 'attack', 'iterations'] + cols + ['SROCC']
@@ -264,6 +278,7 @@ class TestLoader(Dataset):
         elif self.dataset == 'KonIQ-10k':
             datainfo = kwargs.get("data_info", None)
             assert datainfo
+            self.im_names = []
             # Info = h5py.File(datainfo, 'r')
             self.label = []
             with open(datainfo, 'r') as f:
@@ -282,6 +297,7 @@ class TestLoader(Dataset):
                 pass
             elif status == 'test':
                 self.index = index[int(0.8 * len(index)):len(index)]
+                self.im_names = self.im_names[int(0.8 * len(index)):len(index)]
             print("# {} images: {}".format(status, len(self.index)))
         else:
             raise KeyError(f"Dataset {self.dataset} does not exist.")

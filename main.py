@@ -7,6 +7,14 @@ import yaml
 
 YAML_PATH = './path_config.yaml'
 
+def get_format_string(args):
+    return  f'DBCNN-cayley={args.cayley}'\
+            f'-cayley2={args.cayley2}'\
+            f'-cayley3={args.cayley3}'\
+            f'-cayley4={args.cayley4}'\
+            f'-gr={args.gradient_regularization}'\
+            f'-activation={args.activation}.pt'
+
 
 if __name__=='__main__':
     parser = ArgumentParser()
@@ -29,11 +37,22 @@ if __name__=='__main__':
     parser.add_argument('--cayley', action='store_true',
                         help='Use cayley block')
     parser.add_argument('--cayley2', action='store_true',
-                        help='Use cayley block')
+                        help='Use two cayley blocks')
     parser.add_argument('--cayley3', action='store_true',
                         help='Use cayley block')
+    parser.add_argument('--cayley4', action='store_true',
+                        help='Use two cayley blocks')
+    parser.add_argument('--gradient_regularization', '-gr', action='store_true',
+                        help='Use gradient regularization')
     parser.add_argument('--activation', default='relu', type=str,
                         help='Use cayley block')
+    parser.add_argument("--resize", action="store_true", help="Resize?")
+    parser.add_argument(
+        "--resize_size_h", default=498, type=int, help="resize_h (default: 498, 384)"
+    )
+    parser.add_argument(
+        "--resize_size_w", default=664, type=int, help="resize_w (default: 664, 512)"
+    )
     parser.add_argument('--debug', action='store_true',
                         help='DEBUG')
     args = parser.parse_args()
@@ -42,16 +61,17 @@ if __name__=='__main__':
         'cayley': args.cayley,
         'cayley2': args.cayley2,
         'cayley3': args.cayley3,
+        'cayley4': args.cayley4,
         'backbone': 'VGG-16',
         'model': 'DBCNN',
         'pruning': 0,
         'pruning_type': None,
         'activation': args.activation,
-        'gradnorm_regularization': False,
-        'resize': False,
+        'gradnorm_regularization': args.gradient_regularization,
+        'resize': args.resize,
         'crop': False,
-        'height': None,
-        'width': None,
+        'height': args.resize_size_h,
+        'width': args.resize_size_w,
     }
     path = {
         'koniq-10k': os.path.join('dataset', 'KonIQ-10k'),
@@ -71,44 +91,35 @@ if __name__=='__main__':
 
     ic.disable()
 
-    exec_: Attack = Attack(path, options, device='cuda')
-
-    exec_.load_checkpoints(checkpoints_path=f'./DBCNN-cayley={args.cayley}'\
-                                            f'-cayley2={args.cayley2}'\
-                                            f'-cayley3={args.cayley3}.pt')
 
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
+
+    exec_: Attack = Attack(path, options, device='cuda')
+
+    exec_.load_checkpoints(checkpoints_path=os.path.join(yaml_conf['save']['ckpt'], get_format_string(args)))
+
     datasets = yaml_conf['dataset']['data']
-    # datasets = {"KonIQ-10k": "./KonIQ-10k"}
-    # datasets = {"NIPS": "./NIPS_test"}
+    # datasets = {"KonIQ-10k": "./dataset/KonIQ-10k/1024x768"}
+    # datasets = {"NIPS": "./dataset/NIPS_test"}
     data_info = yaml_conf['dataset']['labels']
     save_results_dir = yaml_conf['save']['results']
     
     result = [None, None]
     for i, (dataset, datset_path) in enumerate(datasets.items()):
-        exec_.set_load_conf(dataset_path=path['nips'],
+        exec_.set_load_conf(
+                        dataset=dataset,
+                        dataset_path=datset_path,
                         resize=options['resize'],
                         crop=options['crop'],
                         resize_size_h=options['height'],
-                        resize_size_w=options['width'])
+                        resize_size_w=options['width'],
+                        data_info=data_info['KonIQ-10k'])
     
         exec_.attack(attack_type='PGD',
                     iterations=args.iters, debug=args.debug)
 
         exec_.save_results(path['csv_results_dir'])
-        exec_.set_load_conf(dataset=dataset, 
-                            dataset_path=datset_path,
-                            resize=args.resize,
-                            crop=args.crop,
-                            resize_size_h=args.resize_size_h,
-                            resize_size_w=args.resize_size_w,
-                            data_info=data_info['KonIQ-10k'])
-
-        exec_.attack(attack_type=args.attack_type,
-                    iterations=args.iterations, debug=args.debug)
-
-        exec_.save_results(args.csv_results_dir)
         exec_.save_vals_to_file(csv_results_dir=save_results_dir)
         
         result[i] = np.array(exec_.res).mean()
