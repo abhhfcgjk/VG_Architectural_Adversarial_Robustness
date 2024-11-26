@@ -3,17 +3,25 @@ import numpy as np
 import os
 from argparse import ArgumentParser
 from icecream import ic
+import torch
 import yaml
 
 YAML_PATH = './path_config.yaml'
 
 def get_format_string(args):
-    return  f'DBCNN-cayley={args.cayley}'\
+    form =  f'DBCNN-cayley={args.cayley}'\
             f'-cayley2={args.cayley2}'\
             f'-cayley3={args.cayley3}'\
             f'-cayley4={args.cayley4}'\
             f'-gr={args.gradient_regularization}'\
-            f'-activation={args.activation}.pt'
+            f'-activation={args.activation}'
+    if args.prune>0:
+        form += f'-prune_type={args.prune_type}'\
+                f'-prune_amount={args.prune}'\
+                f'-prune_epochs={args.prune_epochs}'\
+                f'-prune_lr={args.prune_lr}'
+
+    return form + '.pt'
 
 
 if __name__=='__main__':
@@ -28,8 +36,16 @@ if __name__=='__main__':
                         default=5e-4, help='Weight decay.')
     parser.add_argument('--dataset',dest='dataset',type=str,default='koniq-10k',
                         help='dataset: live|csiq|tid2013|livec|mlive|koniq-10k')
-    parser.add_argument('--pruning', dest='pruning', type=float,
+    
+    parser.add_argument('--prune', dest='prune', type=float,
                         default=0, help='Pruning percentage.')
+    parser.add_argument('--prune_epochs', dest='prune_epochs', type=int,
+                        default=5, help='Pruning epochs.')
+    parser.add_argument('--prune_type', dest='prune_type', type=str,
+                        default='l2', help='Pruning type.')
+    parser.add_argument('--prune_lr', dest='prune_lr', type=float,
+                        default=1e-6, help='Pruning learning rate.')
+    
     parser.add_argument('--tune_iters', dest='tune_iters', type=int,
                         default=1, help='Iters for tune')
     parser.add_argument('--iters', dest='iters', type=int,
@@ -64,14 +80,15 @@ if __name__=='__main__':
         'cayley4': args.cayley4,
         'backbone': 'VGG-16',
         'model': 'DBCNN',
-        'pruning': 0,
-        'pruning_type': None,
+        'prune': args.prune,
+        'prune_type': args.prune_type,
         'activation': args.activation,
         'gradnorm_regularization': args.gradient_regularization,
         'resize': args.resize,
         'crop': False,
         'height': args.resize_size_h,
         'width': args.resize_size_w,
+        'device': 'cuda' if torch.cuda.is_available() else 'cpu',
     }
     path = {
         'koniq-10k': os.path.join('dataset', 'KonIQ-10k'),
@@ -100,8 +117,8 @@ if __name__=='__main__':
     exec_.load_checkpoints(checkpoints_path=os.path.join(yaml_conf['save']['ckpt'], get_format_string(args)))
 
     datasets = yaml_conf['dataset']['data']
-    # datasets = {"KonIQ-10k": "./dataset/KonIQ-10k/1024x768"}
-    # datasets = {"NIPS": "./dataset/NIPS_test"}
+    datasets = {"KonIQ-10k": "./dataset/KonIQ-10k"}
+    # datasets = {"NIPS": "./dataset/NIPS"}
     data_info = yaml_conf['dataset']['labels']
     save_results_dir = yaml_conf['save']['results']
     

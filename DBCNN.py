@@ -218,6 +218,9 @@ class DBCNNManager(object):
                             f"-prune_epochs={self.prune_epochs}" \
                             f"-prune_lr={self.prune_lr}.pt"
             self.prune_flag = f"-{options['prune_type']}={options['prune']}-"
+            self._options['epochs'] = self.prune_epochs
+            self._options['base_lr'] = self.prune_lr
+
 
         if self._options['fc'] == False:
             self._net.load_state_dict(torch.load(path['fc_root']))
@@ -600,6 +603,7 @@ if __name__ == '__main__':
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
 
+    prune_status = f'-{options["prune_type"]}={options["prune"]}-' if options['prune'] > 0 else ''
     path = {
         'koniq-10k': yaml_conf['dataset']['data']['KonIQ-10k'],
         'ckpt': os.path.join(yaml_conf['save']['ckpt'],
@@ -621,7 +625,7 @@ if __name__ == '__main__':
         'fc_root': os.path.join('fc_models', 
                                 f'{cayley_status}{cayley_status2}'\
                                 f'{cayley_status3}{cayley_status4}{gr_status}{backbone_status}{activation_status}'\
-                                f'-{options["prune_type"]}={options["prune"]}-'\
+                                f'{prune_status}'\
                                 'net_params_best.pkl'),
         'db_model': os.path.join('db_models'),
     }
@@ -672,6 +676,7 @@ if __name__ == '__main__':
         options['test_index'] = test_index
         
         if not os.path.exists(path['fc_root']) and not args.prune>0:
+            print(path['fc_root'])
             #train the fully connected layer only
             print("train the fully connected layer only")
             options['fc'] = True

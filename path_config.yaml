@@ -9,7 +9,7 @@ checkpoints:
 dataset:
   data:
     NIPS: "./dataset/NIPS"
-    KonIQ-10k: "./dataset/KonIQ-10k/1024x768"
+    KonIQ-10k: "./dataset/KonIQ-10k"
   labels:
     KonIQ-10k: "./dataset/KonIQ-10k/koniq10k_scores_and_distributions.csv"
 

@@ -29,8 +29,8 @@ class Attack:
         # if arch=='resnet101':
         #     arch = 'resnext101_32x8d'
         self.model_name = options['model']
-        self.prune = options['pruning']
-        self.prune_method = options['pruning_type']
+        self.prune = options['prune']
+        self.prune_method = options['prune_type']
         self.activation = options['activation']
         self.gradnorm_regularization = options['gradnorm_regularization']
         self.cayley = options.get('cayley', None)
@@ -190,7 +190,7 @@ class Attack:
         # cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
-        prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
+        prune = f"+{self.prune}_{self.prune_method}" if self.prune>0 else ''
         activation =  self.activation
         arch_status = f'{self.arch}{cl}{cl2}{cl3}{cl4}{gr}{prune}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
