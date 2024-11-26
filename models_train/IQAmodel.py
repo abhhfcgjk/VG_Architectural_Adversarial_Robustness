@@ -1,4 +1,4 @@
-from models_train import KonCept512, Linearity
+from models_train import Linearity
 from icecream import ic
 
 def IQAModel(*args, **kwargs):

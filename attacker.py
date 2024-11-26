@@ -1,4 +1,6 @@
 import torch
+from torch import nn
+from torch.ao.quantization import QuantStub, DeQuantStub
 import os
 import pandas as pd
 import numpy as np
@@ -6,6 +8,7 @@ from PIL import Image
 from pathlib import Path
 from tqdm import tqdm
 from torchvision.transforms.functional import resize, to_tensor, normalize, crop
+from torchvision import models
 import iterative
 from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
@@ -25,7 +28,7 @@ class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
     def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu',
-                 gabor=False, gradnorm_regularization=False, cayley=False, cayley_pool=False, cayley_pair=False) -> None:
+                 gabor=False, gradnorm_regularization=False, cayley=False, cayley_pool=False, cayley_pair=False, quantize=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -40,14 +43,17 @@ class Attack:
         self.cayley = cayley
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
+        self.quantize = quantize
         self.to_save_images = 700
         # self.prune 
         self.model = Linearity(arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
-                           cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair).to(self.device)
+                           cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair, quantize=quantize).to(self.device)
         ic(self.model)
-        self.model.eval()
+        # self.model.eval()
+
+            
         cols = ['image_name', 'clear_val', 'attacked_eps=']
         # self.df_attack_csv = pd.DataFrame(columns=['image_name', 'clear_val'] + \
         #                                 [f'attacked_val_eps={int(val*255.0)}' for val in self.epsilons])
@@ -55,7 +61,10 @@ class Attack:
     def compute_output(self, x):
         # im = normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         # if self.model_name == "Linearity":
-        return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+        if self.quantize:
+            return self.model_qat(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+        else:
+            return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
             # return self.model(x)[-1].item() * self.k[0] + self.b[0]
         # elif self.model_name == "KonCept":
         #     return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])).item()
@@ -67,6 +76,22 @@ class Attack:
         # ic(self.checkpoint['model']['cayley_block6.conv_cayley.alpha'])
         ic(self.model.state_dict().keys())
         self.model.load_state_dict(self.checkpoint["model"])
+
+        self.model.eval()
+        if self.quantize:
+            self.model.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
+            # torch.quantization.prepare_qat(self.model, inplace=True)
+            # # quantization aware training goes here
+            # torch.quantization.convert(self.model.eval(), inplace=True)
+            # self.model_qat.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
+            # self.model_qat = torch.ao.quantization.quantize_dynamic(self.model, 
+            #                                                         {torch.nn.Conv2d}, 
+            #                                                         dtype=torch.qint8, 
+            #                                                         inplace=False)
+            fused_model = self.__quantize()
+            prepared_model = torch.ao.quantization.prepare(fused_model)
+            self.model_qat = torch.ao.quantization.convert(prepared_model)
+
         self.k = self.checkpoint['k']
         self.b = self.checkpoint['b']
         self.min_train = self.checkpoint['min']
@@ -142,6 +167,31 @@ class Attack:
 
         print("Range: ", self.min_test, self.max_test)
 
+    def __quantize(self):
+        def _help(model):
+            fuse_list = []
+            for name, module in model.named_children():
+                if isinstance(module, (nn.Sequential, models.resnet.Bottleneck)):
+                    # l = _help(module)
+                    # if l is not None:
+                    #     fuse_list.append(_help(module))
+                    fuse_list.append(_help(module))
+                
+                elif not isinstance(module, (QuantStub, DeQuantStub)) and \
+                    (isinstance(module, nn.Conv2d) or isinstance(module, nn.ReLU)) and \
+                    name is not None:
+
+                    fuse_list.append(name)
+                
+                for name in fuse_list:
+                    print(f"Quantize {name} {module}.")
+            torch.ao.quantization.fuse_modules(model, fuse_list, inplace=True)
+            return fuse_list
+        # print(list(self.model.named_children())
+        # print(type(self.model))
+        print(fuse_list := _help(self.model))
+        # return torch.ao.quantization.fuse_modules(self.model, fuse_list, inplace=False)
+
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
         self.attack_type = attack_type
         self.iterations = iterations
@@ -158,6 +208,7 @@ class Attack:
                 total=len(self.loader),
         ):
             img_name = img_name[0]
+            img_ = img_.to(self.device)
 
             clear_val = self.compute_output(img_)
             # clear_val = self.min_max_scale(clear_val) # (clear_val - self.min_test)/(self.max_test - self.min_test)
@@ -244,8 +295,9 @@ class Attack:
         gr = f'+gr' if self.gradnorm_regularization else ''
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
         prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
+        quant = f"+quantize" if self.quantize else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{prune}+{activation}'
+        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{prune}{quant}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
                                             self.dataset,
                                             arch_status,

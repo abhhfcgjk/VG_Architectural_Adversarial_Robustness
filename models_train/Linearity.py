@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torchvision import models
 import numpy as np
+from torch.ao.quantization import QuantStub, DeQuantStub
+from torch.nn.utils.fusion import fuse_conv_bn_weights, fuse_conv_bn_eval
 
 # from models_train.Dlayer import D1Layer, D2Layer
 
@@ -60,18 +62,24 @@ class Linearity(IQA):
             print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
                                                          getattr(module, attr).shape, percentage))
 
-    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', dlayer=None,
-                 pruning=0.0, gabor=False, cayley=False, cayley_pool=False, cayley_pair=False):
+    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', **kwargs):
         super(Linearity, self).__init__(arch)
         
-        self.pruning = pruning
         self.pool = pool
         self.use_bn_end = use_bn_end
+        # self.pruning = pruning
         # self.dlayer = dlayer
-        self.gabor = gabor
-        self.cayley = cayley
-        self.cayley_pool = cayley_pool
-        self.cayley_pair = cayley_pair
+        # self.gabor = gabor
+        # self.cayley = cayley
+        # self.cayley_pool = cayley_pool
+        # self.cayley_pair = cayley_pair
+
+        self.pruning = kwargs.get('pruning', 0.0)
+        self.gabor = kwargs.get('gabor', False)
+        self.cayley = kwargs.get('cayley', False)
+        self.cayley_pool = kwargs.get('cayley_pool', False)
+        self.cayley_pair = kwargs.get('cayley_pair', False)
+        self.is_quantize = kwargs.get('quantize', False)
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
             c = 1
@@ -90,6 +98,10 @@ class Linearity(IQA):
                 nn.MaxPool2d(kernel_size=(16,32), stride=(2,2), padding=(0,0)),
                 nn.MaxPool2d(kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
             )
+
+        if self.is_quantize:
+            self.quant = QuantStub()
+            self.dequant = DeQuantStub()
 
         if self.cayley:
             self.cayley_block6 = CayleyBlockPool(512, 200, stride=1, padding=0, kernel_size=3)
@@ -121,6 +133,48 @@ class Linearity(IQA):
             self.regr7 = nn.Linear(64, 1)
             self.regression = nn.Linear(64 * 2, 1)
 
+    @staticmethod
+    def fuse_all_conv_bn(model):
+        """
+        Fuses all consecutive Conv2d and BatchNorm2d layers.
+        License: Copyright Zeeshan Khan Suri, CC BY-NC 4.0
+        """
+        stack = []
+        for name, module in model.named_children(): # immediate children
+            if list(module.named_children()): # is not empty (not a leaf)
+                Linearity.fuse_all_conv_bn(module)
+                
+            if isinstance(module, nn.BatchNorm2d):
+                if isinstance(stack[-1][1], nn.Conv2d):
+                    setattr(model, stack[-1][0], fuse_conv_bn_eval(stack[-1][1], module))
+                    setattr(model, name, nn.Identity())
+            else:
+                stack.append((name, module))
+
+    # def fuse_model(self):
+    #     assert self.is_quantize, "This method is available only in quantization mode."
+    #     print("FUSE")
+    #     print(list(self.named_children()))
+    #     def _help(model):
+    #         fuse_list = []
+    #         for name, module in model.named_children():
+    #             if isinstance(module, (nn.Sequential, models.resnet.Bottleneck)):
+    #                 _help(module)
+    #             elif not isinstance(module, (QuantStub, DeQuantStub)):
+    #                 # print(name)
+    #                 if isinstance(module, nn.Conv2d):
+    #                     fuse_list.append(name)
+    #                 # fuse_list.append([n for n, m in module.named_children()])
+    #         # print(fuse_list)
+    #         # if len(fuse_list) > 0:
+    #         print(model)
+    #         torch.ao.quantization.fuse_modules_qat(model, fuse_list, inplace=True)
+    #         for name in fuse_list:
+    #             print(f"Quantize {name}.")
+    #     _help(list(self.modules())[0])
+
+    #     # self.fuse_all_conv_bn(self.features)
+    #     print("FUSE END")
 
     def extract_features(self, x):
         f, pq = [], []
@@ -175,10 +229,15 @@ class Linearity(IQA):
         ic(f.shape)
         return f, pq
 
-
     def forward(self, x):
+        if self.is_quantize:
+            x = self.quant(x)
+        
         f, pq = self.extract_features(x)
         s = self.regression(f)
+        
+        if self.is_quantize:
+            s = self.dequant(s)
         pq.append(s)
 
         return pq

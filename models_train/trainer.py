@@ -1,7 +1,9 @@
 import torch
+import torch.ao.quantization
 from torch.optim import Adam, SGD, Adadelta, lr_scheduler, Optimizer
-from torch.cuda.amp.grad_scaler import GradScaler
-from torch.cuda.amp.autocast_mode import autocast
+from torch.amp.grad_scaler import GradScaler
+from torch.amp.autocast_mode import autocast
+from torch.ao.nn import quantized as nq
 from models_train.IQAdataset import get_data_loaders
 # from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
@@ -25,7 +27,10 @@ from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
 # from dataclasses import dataclass
-
+from _codecs import encode
+torch.serialization.add_safe_globals([np._core.multiarray.scalar, 
+                                        np.dtype, np.dtypes.Float64DType,
+                                        encode])
 
 class Trainer:
     metrics_printed = ['SROCC', 'PLCC', 'RMSE']
@@ -59,7 +64,11 @@ class Trainer:
         self.height_prune = args.height_prune
         self.images_count_prune = args.images_count_prune
         self.kernel_prune = args.kernel_prune
-        
+
+        self.is_quantize = args.quantize
+
+        if self.is_quantize:
+            self.device = 'cpu'
 
         self.model = Linearity(
                               arch='resnext101_32x8d' 
@@ -72,16 +81,17 @@ class Trainer:
                               P6=self.args.P6, P7=self.args.P7,
                               activation=args.activation, dlayer=self.dlayer,
                               pruning=self.pruning, gabor=args.gabor,
-                              cayley=self.cayley, cayley_pool=self.cayley_pool, cayley_pair=self.cayley_pair).to(self.device)
+                              cayley=self.cayley, cayley_pool=self.cayley_pool, 
+                              cayley_pair=self.cayley_pair, quantize=self.args.quantize).to(self.device)
 
 
-        self.scaler = GradScaler()
+        # self.scaler = GradScaler()
         self.k = [1, 1, 1]
         self.b = [0, 0, 0]
 
         current_time = datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
         self.writer = SummaryWriter(log_dir='{}/{}-{}'.format(self.args.log_dir, self.args.format_str, current_time))
-        self._optimizer()
+        # self._optimizer()
 
     def train(self, train=True, val=True, test=True):
         self._prepair_train(train, val, test)
@@ -101,14 +111,12 @@ class Trainer:
                                                                                     test=test, 
                                                                                     use_normalize=use_normalize,
                                                                                     )
-        # if self.base_model_name == "Linearity":
+
         self.loss_func = IQALoss(loss_type=self.args.loss_type, alpha=self.args.alpha, beta=self.args.beta,
                                 p=self.args.p, q=self.args.q,
                                 monotonicity_regularization=self.args.monotonicity_regularization,
                                 gamma=self.args.gamma, detach=self.args.detach)
-        # elif self.base_model_name == "KonCept":
-        #     # self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
-        #     self.loss_func = lambda output, label: nn.MSELoss()(output, label[0].unsqueeze(1))
+
 
 
     def _prepair_train(self, train, val, test):
@@ -118,18 +126,58 @@ class Trainer:
                 param.requires_grad = False
 
         # if self.base_model_name=="Linearity":
+        self._optimizer()
+        self.scaler = GradScaler()
         self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=self.args.lr_decay_step,
                                                 gamma=self.args.lr_decay)
         # elif self.base_model_name=="KonCept":
         #     points = {0: 1e-4, 40: 1e-4/5, 60: 1e-4/10} # 70 epochs
         #     self.scheduler = SimpleLRScheduler(self.optimizer, points)
 
-        self.scaler = GradScaler()
+        # self.scaler = GradScaler()
 
         self.metric_computer = self._get_perfomance('val', k=[1, 1, 1], b=[0, 0, 0], mapping=True)
         self.best_val_criterion, self.best_epoch = -100, -1
 
-        self._optimizer()
+        # self._optimizer()
+
+    def _prepair_prune(self, prune_iter=0):
+        if prune_iter > 0:
+            form = self.args.trained_model_file[:-1] + str(prune_iter+1) # prune_iter += 1
+        elif prune_iter == 0:
+            # form = f'{self.args.trained_model_file}+prune={self.args.pruning}{self.args.pruning_type}_lr={self.args.learning_rate}_e={self.args.epochs}_iters={prune_iter+1}'
+            form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(self.args.trained_model_file, self.args.pruning,
+                                                              self.args.pruning_type, self.args.learning_rate,
+                                                              self.args.epochs, prune_iter+1)
+        else:
+            raise ValueError(f"prune_iter < 0. {prune_iter=}")
+
+        checkpoint = torch.load(self.args.trained_model_file)
+        self.model.load_state_dict(checkpoint['model'])
+        self.args.trained_model_file = form
+        torch.save(checkpoint, self.args.trained_model_file)
+        print(self.args.trained_model_file)
+
+    def _prepair_quantize(self):
+        # self.model.eval()
+
+        # print(self.args.trained_model_file)
+        checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
+        self.model.load_state_dict(checkpoint['model'])
+        self.model.eval()
+
+        # self.model.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
+
+        # torch.ao.quantization.prepare_qat(self.model, inplace=True)
+        torch.ao.quantization.quantize_dynamic(self.model, {nn.Conv2d}, dtype=torch.qint8, inplace=True)
+
+        form = '{}+quantize={}'.format(self.args.trained_model_file, 
+                                                  self.args.quantize,
+                                                  )
+        self.args.trained_model_file = form
+        torch.save(checkpoint, self.args.trained_model_file)
+        print(self.args.trained_model_file)
+        print("Quantized successfully")
 
     def _optimizer(self):
         # if self.base_model_name=="Linearity":
@@ -152,6 +200,7 @@ class Trainer:
         train_data_len = len(self.train_loader)
         while self.current_epoch < self.epochs:
             self.model.train()
+            
             done_steps = self.current_epoch * train_data_len
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
                 label = [k.cuda() for k in label]
@@ -272,7 +321,7 @@ class Trainer:
             loss += self.weight_gradnorm_regularization*grad_loss
         ic(loss)
 
-        with autocast(enabled=True):
+        with autocast('cuda', enabled=True):
             self.scaler.scale(loss).backward()
             if step % self.args.accumulation_steps == 0:
                 self.scaler.step(self.optimizer)
@@ -291,7 +340,7 @@ class Trainer:
             self._prepair(train=False, val=True, test=True)
 
         print(self.args.trained_model_file)
-        checkpoint = torch.load(self.args.trained_model_file)
+        checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
         # results = {}
         # print(checkpoint['model'])
         if not loaded:
@@ -382,38 +431,36 @@ class Trainer:
 
         self.model.print_sparcity(prune_parameters)
 
-    def _prepair_prune(self, prune_iter=0):
-        if prune_iter > 0:
-            form = self.args.trained_model_file[:-1] + str(prune_iter+1) # prune_iter += 1
-        elif prune_iter == 0:
-            # form = f'{self.args.trained_model_file}+prune={self.args.pruning}{self.args.pruning_type}_lr={self.args.learning_rate}_e={self.args.epochs}_iters={prune_iter+1}'
-            form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(self.args.trained_model_file, self.args.pruning,
-                                                              self.args.pruning_type, self.args.learning_rate,
-                                                              self.args.epochs, prune_iter+1)
-        else:
-            raise Exception
-
-        checkpoint = torch.load(self.args.trained_model_file)
-        self.model.load_state_dict(checkpoint['model'])
-        self.args.trained_model_file = form
-        torch.save(checkpoint, self.args.trained_model_file)
-        print(self.args.trained_model_file)
-        
-        ##################
-        # convs = []
-        # prune_parameters = []
-        # for layer in self.model.features:
-        #     if isinstance(layer, nn.Sequential):
-        #         for block in layer:
-        #             for conv in block.children():
-        #                 if isinstance(conv, nn.Conv2d):
-        #                     convs.append(conv)
-        # for i in range(len(convs)):
-        #     prune_parameters.append((convs[i], 'weight'))
-        ######################
-
-        # self.model.print_sparcity(prune_parameters)
-
+    def quantize(self):
+        # self._set_quantized_conv(self.model)
+        self._prepair_quantize()
+        self._prepair(train=False, val=True, test=True)
+        # print('Inverted Residual Block: After preparation for QAT, note fake-quantization modules \n',
+        #       self.model.features[1].conv)
+        # self.train()
+    
+    @staticmethod
+    def _set_quantized_conv(model):
+        for name, layer in model.named_children():
+            if isinstance(layer, nn.Conv2d):
+                attrs = {
+                    'in_channels': layer.in_channels,
+                    'out_channels': layer.out_channels,
+                    'kernel_size': layer.kernel_size,
+                    'stride': layer.stride,
+                    'padding': layer.padding,
+                    'dilation': layer.dilation,
+                    'groups': layer.groups,
+                    'bias': layer.bias is not None,
+                    'padding_mode': layer.padding_mode,
+                }
+                conv = nq.Conv2d(**attrs)
+                # conv.weight = layer.weight.data
+                # conv.bias = layer.weight.data
+                conv.set_weight_bias(layer.weight.data, layer.bias.data if layer.bias else None)
+                setattr(model, name, conv)
+            else:
+                __class__._set_quantized_conv(layer)
 
     def gradnorm_regularize(self, images):
         get_pred = lambda output: output[-1]*self.k[0] + self.b[0]
@@ -443,6 +490,18 @@ class Trainer:
 
         return loss
 
+    @staticmethod
+    def get_prune_file_name(args):
+        return '{}+prune={}{}_lr={}_e={}_iters={}'.format(args.trained_model_file, args.pruning,
+                                                          args.pruning_type, args.learning_rate,
+                                                          args.prune_epochs, args.prune_iters)
+    
+    @staticmethod
+    def get_quantize_file_name(args):
+        return '{}+quantize={}'.format(args.trained_model_file, 
+                                                  args.quantize,
+                                                  )
+
     @classmethod
     def run(cls, args):
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -451,13 +510,20 @@ class Trainer:
         # print(args.evaluate)
         if args.evaluate:
             if args.pruning:
-                form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(args.trained_model_file, args.pruning,
-                                                                args.pruning_type, args.learning_rate,
-                                                                args.prune_epochs, args.prune_iters)
+                # form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(args.trained_model_file, args.pruning,
+                #                                                 args.pruning_type, args.learning_rate,
+                #                                                 args.prune_epochs, args.prune_iters)
+                form = cls.get_prune_file_name(args)
+                args.trained_model_file = form
+            elif args.quantize:
+                form = cls.get_quantize_file_name(args)
                 args.trained_model_file = form
             trainer.eval()
         elif args.pruning:
             trainer.prune()
+            trainer.eval()
+        elif args.quantize:
+            trainer.quantize()
             trainer.eval()
         else:
             trainer.train()

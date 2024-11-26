@@ -38,6 +38,7 @@ def get_format_string(args):
     if args.noise:
         format_str += '-noise=True'
     format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e={args.prune_epochs}_iters={args.prune_iters}' if args.pruning else ''
+    format_str += f'+quantize={args.quantize}' if args.quantize else ''
     return format_str
 
 def run(args):
@@ -48,7 +49,8 @@ def run(args):
                            activation=args.activation,
                            device=args.device, pruning=args.pruning, t_prune=args.pruning_type, gabor=args.gabor,
                            gradnorm_regularization=args.gradnorm_regularization,
-                           cayley=args.cayley, cayley_pool=args.cayley_pool, cayley_pair=args.cayley_pair
+                           cayley=args.cayley, cayley_pool=args.cayley_pool, cayley_pair=args.cayley_pair,
+                           quantize=args.quantize
                            )
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
@@ -132,10 +134,14 @@ if __name__ == "__main__":
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("-se", "--squeeze_excitation", action="store_true")
     # parser.add_argument("-weights", "--checkpoints_dir", type=str, default='weights')
+
     parser.add_argument('-prune', "--pruning", type=float, help="adversarial pruning percent")
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
     parser.add_argument('--prune_epochs', type=int, default=5)
     parser.add_argument('--prune_iters', type=int, default=1)
+
+    parser.add_argument('-quant', '--quantize', action='store_true', help="Use quantization.")
+
     parser.add_argument('--model', default='Linearity', type=str)
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     parser.add_argument('--gabor', action='store_true', help="Chage convs to gabor layer")
@@ -160,7 +166,10 @@ if __name__ == "__main__":
         ic.disable()
 
     print("Device: ", args.device)
-    checkpints_path = "Linearity-ckpt"
+    with open(YAML_PATH, 'r') as file:
+        yaml_file = yaml.safe_load(file)
+    checkpints_path = yaml_file['save']['ckpt']
+    # checkpints_path = "Linearity-ckpt"
     args.trained_model_file = os.path.join(checkpints_path, args.format_str)
     print(args.trained_model_file)
     total_score = run(args)

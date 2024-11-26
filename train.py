@@ -80,8 +80,8 @@ if __name__ == "__main__":
     parser.add_argument('-b', '--beta', nargs=3, type=float, default=[.1, .1, 1],
                         help='loss coefficients for level 6, 7, and 6+7 (default: [.1, .1, 1])')
 
-    parser.add_argument('-arch', '--architecture', default='resnext101', type=str,
-                        help='arch name (default: resnext101_32x8d)')
+    parser.add_argument('-arch', '--architecture', default='resnet101', type=str,
+                        help='arch name (default: resnet101)')
     parser.add_argument('-pl', '--pool', default='avg', type=str,
                         help='pool method (default: avg)')
     parser.add_argument('-ubne', '--use_bn_end', action='store_true',
@@ -92,9 +92,9 @@ if __name__ == "__main__":
                         help='P7 (default: 1)')
     parser.add_argument('-lt', '--loss_type', default='norm-in-norm', type=str,
                         help='loss type (default: norm-in-norm)')
-    parser.add_argument('-p', '--p', type=float, default=1,
+    parser.add_argument('-p', '--p', type=float, default=1.,
                         help='p (default: 1)')
-    parser.add_argument('-q', '--q', type=float, default=2,
+    parser.add_argument('-q', '--q', type=float, default=2.,
                         help='q (default: 2)')
     parser.add_argument('-detach', '--detach', action='store_true',
                         help='Detach in loss?')
@@ -145,7 +145,8 @@ if __name__ == "__main__":
     parser.add_argument('-pbar', '--pbar', action='store_true',
                         help='Use progressbar for the training')
 
-    parser.add_argument('-prune', "--pruning", type=float,
+    """ Prune params """
+    parser.add_argument('-prune', '--pruning', type=float,
                         help="adversarial pruning percent")
     parser.add_argument('--prune_epochs', type=int, default=5)
     parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
@@ -155,6 +156,9 @@ if __name__ == "__main__":
     parser.add_argument('--images_count_prune', type=int, default=50)
     parser.add_argument('--kernel_prune', type=int, default=1)
 
+    """ Quantization params """
+    parser.add_argument('-quant', '--quantize', action='store_true', help="Use quantization.")
+    # parser.add_argument('')
 
     parser.add_argument('--dlayer', default=None, type=str) # d1, d2
     parser.add_argument('--model', default='Linearity', type=str)
@@ -223,7 +227,7 @@ if __name__ == "__main__":
         args.format_str = get_format_string(args)
 
 
-    checkpints_path = "Linearity-ckpt"
+    checkpints_path = yaml_file['save']['ckpt'] # "Linearity-ckpt"
     args.trained_model_file = os.path.join(checkpints_path, args.format_str)
     if not os.path.exists('results'):
         os.makedirs('results')
