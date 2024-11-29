@@ -6,6 +6,9 @@ __pycache__/
 .idea/
 
 
+fc_models
+db_models
+
 models_train/results
 models_train/checkpoints/*
 *.pth

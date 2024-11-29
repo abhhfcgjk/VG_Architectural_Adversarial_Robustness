@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torchvision import models
 import numpy as np
 from torch.ao.quantization import QuantStub, DeQuantStub
+from torch.ao.nn import quantized as nq
 from torch.nn.utils.fusion import fuse_conv_bn_weights, fuse_conv_bn_eval
 
 # from models_train.Dlayer import D1Layer, D2Layer
@@ -16,7 +17,7 @@ from models_train.VOneNet import get_model
 from models_train.Cayley import CayleyBlock, CayleyBlockPool
 
 from models_train.baseIQAmodel import IQA
-from models_train.gaborresnet50 import swap_to_gabor
+from models_train import swap_convs
 
 from icecream import ic
 
@@ -62,7 +63,9 @@ class Linearity(IQA):
             print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
                                                          getattr(module, attr).shape, percentage))
 
-    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, P6=1, P7=1, activation='relu', **kwargs):
+    def __init__(self, arch='resnext101_32x8d', pool='avg', use_bn_end=False, 
+                 P6=1, P7=1, activation='relu', 
+                 **kwargs):
         super(Linearity, self).__init__(arch)
         
         self.pool = pool
@@ -90,7 +93,9 @@ class Linearity(IQA):
         ic(self._base_model_features.__len__())
         in_features, self.features = self.get_features(self._base_model_features)
         if self.gabor:
-            swap_to_gabor(self.features)
+            swap_convs.swap_to_gabor(self.features)
+        if self.is_quantize:
+            swap_convs.swap_to_quntized(self.features)
 
         Activ = self.get_activation_module(activation)
         if self.arch == 'lipsim' or self.arch=='lipsim2':
@@ -99,9 +104,9 @@ class Linearity(IQA):
                 nn.MaxPool2d(kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
             )
 
-        if self.is_quantize:
-            self.quant = QuantStub()
-            self.dequant = DeQuantStub()
+        # if self.is_quantize:
+        #     self.quant = QuantStub()
+        #     self.dequant = DeQuantStub()
 
         if self.cayley:
             self.cayley_block6 = CayleyBlockPool(512, 200, stride=1, padding=0, kernel_size=3)
@@ -179,9 +184,9 @@ class Linearity(IQA):
     def extract_features(self, x):
         f, pq = [], []
 
-        ic(self.features)
+        # ic(self.features)
         ic(len(self.features))
-        ic(self.features[2])
+        # ic(self.features[2])
         if self.arch == 'lipsim' or self.arch=='lipsim2':
             x = self.lipsim_pool(x)
         
@@ -230,14 +235,14 @@ class Linearity(IQA):
         return f, pq
 
     def forward(self, x):
-        if self.is_quantize:
-            x = self.quant(x)
+        # if self.is_quantize:
+        #     x = self.quant(x)
         
         f, pq = self.extract_features(x)
         s = self.regression(f)
         
-        if self.is_quantize:
-            s = self.dequant(s)
+        # if self.is_quantize:
+        #     s = self.dequant(s)
         pq.append(s)
 
         return pq

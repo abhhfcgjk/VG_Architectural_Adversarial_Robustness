@@ -27,10 +27,10 @@ from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
 # from dataclasses import dataclass
-from _codecs import encode
-torch.serialization.add_safe_globals([np._core.multiarray.scalar, 
-                                        np.dtype, np.dtypes.Float64DType,
-                                        encode])
+# from _codecs import encode
+# torch.serialization.add_safe_globals([np._core.multiarray.scalar, 
+#                                         np.dtype, np.dtypes.Float64DType,
+#                                         encode])
 
 class Trainer:
     metrics_printed = ['SROCC', 'PLCC', 'RMSE']
@@ -67,8 +67,8 @@ class Trainer:
 
         self.is_quantize = args.quantize
 
-        if self.is_quantize:
-            self.device = 'cpu'
+        # if self.is_quantize:
+        #     self.device = 'cpu'
 
         self.model = Linearity(
                               arch='resnext101_32x8d' 
@@ -84,7 +84,7 @@ class Trainer:
                               cayley=self.cayley, cayley_pool=self.cayley_pool, 
                               cayley_pair=self.cayley_pair, quantize=self.args.quantize).to(self.device)
 
-
+        print(self.model)
         # self.scaler = GradScaler()
         self.k = [1, 1, 1]
         self.b = [0, 0, 0]
@@ -158,26 +158,26 @@ class Trainer:
         torch.save(checkpoint, self.args.trained_model_file)
         print(self.args.trained_model_file)
 
-    def _prepair_quantize(self):
+    # def _prepair_quantize(self):
         # self.model.eval()
 
         # print(self.args.trained_model_file)
-        checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
-        self.model.load_state_dict(checkpoint['model'])
-        self.model.eval()
+        # checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
+        # self.model.load_state_dict(checkpoint['model'])
+        # self.model.eval()
 
         # self.model.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
 
         # torch.ao.quantization.prepare_qat(self.model, inplace=True)
-        torch.ao.quantization.quantize_dynamic(self.model, {nn.Conv2d}, dtype=torch.qint8, inplace=True)
+        # torch.ao.quantization.quantize_dynamic(self.model, {nn.Conv2d}, dtype=torch.qint8, inplace=True)
 
-        form = '{}+quantize={}'.format(self.args.trained_model_file, 
-                                                  self.args.quantize,
-                                                  )
-        self.args.trained_model_file = form
-        torch.save(checkpoint, self.args.trained_model_file)
-        print(self.args.trained_model_file)
-        print("Quantized successfully")
+        # form = '{}+quantize={}'.format(self.args.trained_model_file, 
+        #                                           self.args.quantize,
+        #                                           )
+        # self.args.trained_model_file = form
+        # torch.save(checkpoint, self.args.trained_model_file)
+        # print(self.args.trained_model_file)
+        # print("Quantized successfully")
 
     def _optimizer(self):
         # if self.base_model_name=="Linearity":
@@ -203,8 +203,8 @@ class Trainer:
             
             done_steps = self.current_epoch * train_data_len
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
-                label = [k.cuda() for k in label]
-                inputs = inputs.cuda()
+                label = [k.to(self.device) for k in label]
+                inputs = inputs.to(self.device)
 
                 if self.noise_batch:
                     inputs, label = self.expand_batch(inputs, label, alpha=2)
@@ -431,10 +431,10 @@ class Trainer:
 
         self.model.print_sparcity(prune_parameters)
 
-    def quantize(self):
-        # self._set_quantized_conv(self.model)
-        self._prepair_quantize()
-        self._prepair(train=False, val=True, test=True)
+    # def quantize(self):
+    #     self._set_quantized_conv(self.model)
+        # self._prepair_quantize()
+        # self._prepair(train=False, val=True, test=True)
         # print('Inverted Residual Block: After preparation for QAT, note fake-quantization modules \n',
         #       self.model.features[1].conv)
         # self.train()
@@ -457,7 +457,7 @@ class Trainer:
                 conv = nq.Conv2d(**attrs)
                 # conv.weight = layer.weight.data
                 # conv.bias = layer.weight.data
-                conv.set_weight_bias(layer.weight.data, layer.bias.data if layer.bias else None)
+                # conv.set_weight_bias(layer.weight.data, layer.bias.data if layer.bias else None)
                 setattr(model, name, conv)
             else:
                 __class__._set_quantized_conv(layer)
@@ -496,11 +496,11 @@ class Trainer:
                                                           args.pruning_type, args.learning_rate,
                                                           args.prune_epochs, args.prune_iters)
     
-    @staticmethod
-    def get_quantize_file_name(args):
-        return '{}+quantize={}'.format(args.trained_model_file, 
-                                                  args.quantize,
-                                                  )
+    # @staticmethod
+    # def get_quantize_file_name(args):
+    #     return '{}+quantize={}'.format(args.trained_model_file, 
+    #                                               args.quantize,
+    #                                               )
 
     @classmethod
     def run(cls, args):
@@ -522,9 +522,9 @@ class Trainer:
         elif args.pruning:
             trainer.prune()
             trainer.eval()
-        elif args.quantize:
-            trainer.quantize()
-            trainer.eval()
+        # elif args.quantize:
+        #     trainer.quantize()
+        #     trainer.eval()
         else:
             trainer.train()
             trainer.eval()
