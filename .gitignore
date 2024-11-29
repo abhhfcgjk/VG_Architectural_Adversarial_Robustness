@@ -3,6 +3,8 @@ models_train/KonIQ-10k
 *.out
 /venv
 __pycache__/
+.idea/
+
 
 models_train/results
 models_train/checkpoints/*
