@@ -97,16 +97,9 @@ class DBCNN(torch.nn.Module):
             self.features1 = nn.Sequential(*list(self.features1.children())[:-6], 
                                             self.cayley, 
                                             *list(self.features1.children())[-6:])
-            
-        if options.get('activation', None)=='relu_elu':
-            # activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
-            self.setup_activation(activ.ReLU_ELU)
-        else:
-            pass
+
         scnn = SCNN()
         scnn = torch.nn.DataParallel(scnn).cuda()
-
-        
               
         scnn.load_state_dict(torch.load(scnn_root))
         self.features2 = scnn.module.features
@@ -120,11 +113,12 @@ class DBCNN(torch.nn.Module):
             self.features2 = nn.Sequential(*list(self.features2.children())[:-9], 
                                             self.cayley4, 
                                             *list(self.features2.children())[-9:])
-            # print(self.features2)
         
         # Linear classifier.
         self.fc = torch.nn.Linear(512*128, 1)
         
+        self.__set_activation(options.get('activation', None))
+
         if options['fc'] == True:
             # Freeze all previous layers.
             for param in self.features1.parameters():
@@ -136,12 +130,40 @@ class DBCNN(torch.nn.Module):
             if self.fc.bias is not None:
                 nn.init.constant_(self.fc.bias.data, val=0)
 
-    def setup_activation(self, activ_function):
-        activ.swap_all_activations(self.features1, nn.ReLU, activ_function)
+    def __set_activation(self, activ_function):
+        if activ_function=='Frelu_elu':
+            activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
+            # activ.swap_all_activations(self.features2, nn.ReLU, activ.ReLU_ELU)
+            self.Activ = activ.ReLU_ELU
+        elif activ_function=='Frelu_silu':
+            activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_SiLU)
+            # activ.swap_all_activations(self.features2, nn.ReLU, activ.ReLU_SiLU)
+            self.Activ = activ.ReLU_SiLU
+        elif activ_function=='Felu':
+            activ.swap_all_activations(self.features1, nn.ReLU, nn.ELU)
+            # activ.swap_all_activations(self.features2, nn.ReLU, nn.ELU)
+            self.Activ = nn.ELU
+        elif activ_function=='Fsilu':
+            activ.swap_all_activations(self.features1, nn.ReLU, nn.SiLU)
+            # activ.swap_all_activations(self.features2, nn.ReLU, nn.SiLU)
+            self.Activ = nn.SiLU
+        elif activ_function=='Fgelu':
+            activ.swap_all_activations(self.features1, nn.ReLU, nn.GELU)
+            # activ.swap_all_activations(self.features2, nn.ReLU, nn.GELU)
+            self.Activ = nn.GELU
+        else:
+            self.Activ = nn.ReLU
+
+    def _euclidian_mapping(self, B):
+        #ic(torch.sqrt(torch.abs(B)))
+        B_mul = torch.sign(B)*torch.sqrt(torch.abs(B))
+        #ic(B_mul)
+        
+        mapped_B = B_mul / (torch.norm(B_mul) + 1e-8)
+        return mapped_B
 
     def forward(self, X):
-        """Forward pass of the network.
-        """
+        """Forward pass of the network."""
         N = X.size()[0]
 
 
@@ -156,6 +178,7 @@ class DBCNN(torch.nn.Module):
         ic(X2.shape)
         H2 = X2.size()[2]
         W2 = X2.size()[3]
+        # ic(X2)
         assert X2.size()[1] == 128        
         
         if (H != H2) | (W != W2):
@@ -163,11 +186,16 @@ class DBCNN(torch.nn.Module):
 
         X1 = X1.view(N, 512, H*W)
         X2 = X2.view(N, 128, H*W)  
-        X = torch.bmm(X1, torch.transpose(X2, 1, 2)) / (H*W)  # Bilinear
+        # ic(X1)
+        # X = torch.bmm(X1, torch.transpose(X2, 1, 2)) / (H*W)  # Bilinear
+        X = torch.bmm(X1, torch.transpose(X2, 1, 2))
         assert X.size() == (N, 512, 128)
         X = X.view(N, 512*128)
-        X = torch.sqrt(X + 1e-8)
-        X = torch.nn.functional.normalize(X)
+        # X = torch.sqrt(X + 1e-8) # WARN: Nan values after sqrt
+        # X = torch.nn.functional.normalize(X)
+        #ic(X)
+        X = self._euclidian_mapping(X)
+        #ic(X)
         X = self.fc(X)
         assert X.size() == (N, 1)
         return X
