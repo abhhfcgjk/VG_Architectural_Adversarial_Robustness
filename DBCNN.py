@@ -152,6 +152,7 @@ class DBCNN(torch.nn.Module):
             # activ.swap_all_activations(self.features2, nn.ReLU, nn.GELU)
             self.Activ = nn.GELU
         else:
+            activ.swap_all_activations(self.features1, nn.ReLU, nn.ReLU)
             self.Activ = nn.ReLU
 
     def _euclidian_mapping(self, B):
@@ -166,9 +167,17 @@ class DBCNN(torch.nn.Module):
         """Forward pass of the network."""
         N = X.size()[0]
 
-
+        ic(X)
         X1 = self.features1(X)
+
+        x = X
+        for name, module in self.features1.named_children():
+            x = module(x)
+            ic(module)
+            ic(x + 1e-8)
+
         ic(X1.shape)
+        # ic(X1)
 
         H = X1.size()[2]
         W = X1.size()[3]
@@ -178,7 +187,7 @@ class DBCNN(torch.nn.Module):
         ic(X2.shape)
         H2 = X2.size()[2]
         W2 = X2.size()[3]
-        # ic(X2)
+        ic(X2)
         assert X2.size()[1] == 128        
         
         if (H != H2) | (W != W2):
@@ -194,7 +203,7 @@ class DBCNN(torch.nn.Module):
         # X = torch.sqrt(X + 1e-8) # WARN: Nan values after sqrt
         # X = torch.nn.functional.normalize(X)
         #ic(X)
-        X = self._euclidian_mapping(X)
+        X = self._euclidian_mapping(X + 1e-8)
         #ic(X)
         X = self.fc(X)
         assert X.size() == (N, 1)
@@ -350,7 +359,7 @@ class DBCNNManager(object):
             train_data, batch_size=self._options['batch_size'],
             shuffle=True, num_workers=0, pin_memory=True)
         self._test_loader = torch.utils.data.DataLoader(
-            test_data, batch_size=1,
+            test_data, batch_size=4,
             shuffle=False, num_workers=0, pin_memory=True)
 
     def train(self):
@@ -366,8 +375,10 @@ class DBCNNManager(object):
             num_total = 0
             for X, y in tqdm(self._train_loader, total=len(self._train_loader)):
                 # Data.
-                X = X.clone().detach().requires_grad_(True).cuda()
-                y = y.clone().detach().requires_grad_(True).cuda()
+                # X = X.clone().detach().requires_grad_(True).cuda()
+                # y = y.clone().detach().requires_grad_(True).cuda()
+                X = X.cuda()
+                y = y.cuda()
 
                 # Clear the existing gradients.
                 self._solver.zero_grad()
