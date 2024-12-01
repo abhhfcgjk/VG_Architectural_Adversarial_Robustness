@@ -44,7 +44,7 @@ if __name__=='__main__':
     parser.add_argument('--prune_type', dest='prune_type', type=str,
                         default='l2', help='Pruning type.')
     parser.add_argument('--prune_lr', dest='prune_lr', type=float,
-                        default=1e-6, help='Pruning learning rate.')
+                        default=1e-5, help='Pruning learning rate.')
     
     parser.add_argument('--tune_iters', dest='tune_iters', type=int,
                         default=1, help='Iters for tune')
