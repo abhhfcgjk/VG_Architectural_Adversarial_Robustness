@@ -1,3 +1,4 @@
+from typing import List, Dict
 from collections import OrderedDict
 
 import torch
@@ -14,6 +15,7 @@ ic.disable()
 from Cayley import CayleyBlockPool
 # from activ import swap_all_activations, ReLU_ELU, ReLU_SiLU
 import activ
+from prune import l1_prune, l2_prune
 
 def weight_init(net): 
     for m in net.modules():    
@@ -72,6 +74,7 @@ class DBCNN(torch.nn.Module):
         """Declare all needed layers."""
         nn.Module.__init__(self)
 
+        self.options = options
         # Convolution and pooling layers of VGG-16.
         self.features1 = torchvision.models.vgg16(pretrained=True).features
         self.features1 = nn.Sequential(*list(self.features1.children())[:-1])
@@ -143,6 +146,27 @@ class DBCNN(torch.nn.Module):
         else:
             activ.swap_all_activations(self.features1, nn.ReLU, nn.ReLU)
             self.Activ = nn.ReLU
+
+    def _get_prune_features(self, model) -> List:
+        prune_params_list = []
+
+        for module in model:
+            if isinstance(module, (nn.Conv2d)):
+                prune_params_list.append((module, 'weight'))
+            else:
+                prune_params_list += self._get_prune_features(module)
+        return prune_params_list
+
+    def prune(self):
+        prune_type = self.options['prune_type']
+        amount = self.options['prune']
+        if prune_type == 'l1':
+            features = l1_prune(self._get_prune_features(self.modules), amount)
+        elif prune_type == 'l2':
+            features = l2_prune(self._get_prune_features(self.modules), amount)
+        else:
+            raise KeyError(f"Type {prune_type} does not exist.")
+        return features
 
     def _euclidian_mapping(self, B):
         #ic(torch.sqrt(torch.abs(B)))

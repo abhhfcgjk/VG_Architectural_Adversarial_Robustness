@@ -13,15 +13,16 @@ options:
   cayley3: false
   cayley4: false
   backbone: vgg16
-  fc: true
-  prune: 0.0
+  fc: false
+  prune: 0.1
   prune_lr: 0.00001
   prune_epochs: 15
   prune_type: l1
 
 data:
   dataset: KonIQ-10k
-  scnn_root: /mnt/ssd2/28i_mel/vg2/pretrained_scnn/scnn.pkl
+  scnn_root: /mnt/ssd2/28i_mel/vg2/pretrained/scnn.pkl
+  pretrained: /mnt/ssd2/28i_mel/vg2/pretrained/DBCNN.pt
   data_info: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/koniq10k_distributions_sets.csv
   directory: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
 
@@ -36,7 +37,7 @@ lr_scheduler:
 train:
   lr: 0.00001
   weight_decay: 0.0005
-  epochs: 1
+  epochs: 50
   num_workers: 4
   batch_size: 8
   val_criterion: PLCC

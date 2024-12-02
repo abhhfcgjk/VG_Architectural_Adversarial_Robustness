@@ -70,7 +70,8 @@ class AdversarialTrainer:
         # checkpoint = torch.load()
         # self.model.load_state_dict(checkpoint['model'])
 
-        self._init_fc()
+        self._init_pretrained()
+        # self._init_fc()
         self._init_logger()
 
     # def __del__(self):
@@ -121,6 +122,13 @@ class AdversarialTrainer:
             shutil.copy(self.config_path, self.log_dir / "presets.yaml")
 
             self.start_training_time = time.time()
+
+    def _init_pretrained(self):
+        if self.options['prune'] > 0.0:
+            assert self.options['fc'] == False, "Set \'fc\' option to False"
+            self._prepair_prune()
+        else:
+            self._init_fc()
 
     def _init_fc(self):
         if self.options['fc']:
@@ -406,6 +414,17 @@ class AdversarialTrainer:
         loss = dl.pow(2).mean()/2
 
         return loss
+    
+    def prune(self):
+        self._prepair_prune()
+        self.model.prune()
+
+    def _prepair_prune(self):
+        path = self.config['data']['pretrained']
+        ckpt = torch.load(path)
+        self.model.load_state_dict(ckpt['model'])
+        self.config['train']['lr'] = self.options['prune_lr']
+        self.config['train']['epochs'] = self.options['prune_epochs']
 
     def eval(self) -> None:
 
