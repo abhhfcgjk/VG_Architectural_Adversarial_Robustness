@@ -53,7 +53,6 @@ class SCNN(nn.Module):
         weight_init(self.classifier)
 
     def forward(self, X):
-#        return X
         N = X.size()[0]
         assert X.size() == (N, 3, 224, 224)
         X = self.features(X)

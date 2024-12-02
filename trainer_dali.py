@@ -58,6 +58,7 @@ class AdversarialTrainer:
         scnn_root = self.config['data']['scnn_root']
 
         self.options = self.config['options']
+        self.options_hash = self.__get_options_hash(self.options)
         self.model = normalize_model(
             DBCNN(scnn_root, **self.options),
             mean=(0.485, 0.456, 0.406),
@@ -123,8 +124,9 @@ class AdversarialTrainer:
 
     def _init_fc(self):
         if self.options['fc']:
+            self.fc_model_dir.mkdir(parents=True, exist_ok=True)
             return
-        fc_model = torch.load(self.fc_model_dir / f'{hash(frozenset(self.options))}.pkl')
+        fc_model = torch.load(self.fc_model_dir / f'{self.options_hash}.pkl')
         self.model.load_state_dict(fc_model)
 
     def train(self) -> None:
@@ -168,7 +170,7 @@ class AdversarialTrainer:
             self.best_val_criterion, self.best_epoch = -100, -1
 
     def _init_optimizer(self, lr=0.00005, weight_decay=0.0005) -> None:
-        if self.config['options']['fc'] == True:
+        if self.options['fc'] == True:
             self.optimizer = torch.optim.SGD(
                     self.model.model.fc.parameters(), lr=lr,
                     momentum=0.9, weight_decay=weight_decay)
@@ -274,7 +276,7 @@ class AdversarialTrainer:
             val_criterion = self.metric_computer.plcc
 
             # Do no save model 3 first epochs, because obviously their srcc will be better 
-            if val_criterion >= self.best_val_criterion and self.current_epoch > 10:
+            if val_criterion >= self.best_val_criterion:
                 checkpoint = {
                     'model': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
@@ -283,7 +285,8 @@ class AdversarialTrainer:
 
                 if self.options['fc'] == True:
                     torch.save(self.model.state_dict(), 
-                               self.fc_model_dir / f'{hash(frozenset(self.options))}.pkl')
+                               self.fc_model_dir / f'{self.options_hash}.pkl')
+                    print(f"fc_model saved to {self.fc_model_dir / f'{self.options_hash}.pkl'}")
                 elif self.options['fc'] == False:
                     torch.save(checkpoint, self.log_dir / 'best_model.pth')
 
@@ -383,7 +386,10 @@ class AdversarialTrainer:
 
         pred_cur = get_pred(output_cur)
 
-        dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
+        dx = torch.autograd.grad(pred_cur, 
+                                 images, 
+                                 grad_outputs=torch.ones_like(pred_cur), 
+                                 retain_graph=True)
         dx = dx[0]
         images.requires_grad_(False)
 
@@ -402,7 +408,12 @@ class AdversarialTrainer:
         return loss
 
     def eval(self) -> None:
-        checkpoint = torch.load(self.log_dir / 'best_model.pth')
+
+        if self.options['fc'] == True:
+            return
+            # checkpoint = torch.load(self.fc_model_dir / f'{hash(frozenset(self.options))}.pkl')
+        elif self.options['fc'] == False:
+            checkpoint = torch.load(self.log_dir / 'best_model.pth')
         results = {}
         self.model.load_state_dict(checkpoint['model'])
         self.metric_computer = IQAPerformance()
@@ -473,6 +484,20 @@ class AdversarialTrainer:
 
         dist.init_process_group("nccl", rank=self.gpu, world_size=self.world_size)
         torch.cuda.set_device(self.gpu)
+
+    
+    @staticmethod
+    def __get_options_hash(options):
+        def __help(options):
+            x = 'fc'
+            for key in options:
+                if key == 'fc':
+                    continue
+                x += f"-{key}={options[key]}"
+            return x
+        hash_value = __help(options)
+        # print(frozen, hash_value)
+        return hash_value
 
     @classmethod
     def run(cls, *args):
