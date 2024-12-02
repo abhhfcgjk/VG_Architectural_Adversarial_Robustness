@@ -1,0 +1,78 @@
+# Default parameters for training KonCept1024
+label_strategy: origin
+perc: no
+eval_only: no
+seed: 5102023
+checkpoint_path: null
+fc_model: /mnt/ssd2/28i_mel/vg2/fc_model
+
+options:
+  activation: relu
+  cayley1: false
+  cayley2: false
+  cayley3: false
+  cayley4: false
+  backbone: vgg16
+  fc: true
+  prune: 0.0
+  prune_lr: 0.00001
+  prune_epochs: 15
+  prune_type: l1
+
+data:
+  dataset: KonIQ-10k
+  scnn_root: /mnt/ssd2/28i_mel/vg2/pretrained_scnn/scnn.pkl
+  data_info: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/koniq10k_distributions_sets.csv
+  directory: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
+
+log:
+  directory: checkpoints/dbcnn1024
+
+lr_scheduler:
+  type: multistep
+  milestones: [ 1000 ]
+  gamma: 1.0
+
+train:
+  lr: 0.00001
+  weight_decay: 0.0005
+  epochs: 1
+  num_workers: 4
+  batch_size: 8
+  val_criterion: PLCC
+  gradnorm_regularization: false
+
+attack:
+  train:
+    type: none
+  test:
+    -
+      type: fgsm
+      params:
+        eps: 2.0
+        alpha: 2.5
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 4.0
+        alpha: 5.0
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 6.0
+        alpha: 7.5
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 8.0
+        alpha: 10.0
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 10.0
+        alpha: 12.5
+        mode: zero
