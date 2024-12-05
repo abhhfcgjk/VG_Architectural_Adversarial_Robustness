@@ -1,15 +1,15 @@
 # Default parameters for training KonCept1024
 label_strategy: origin
 perc: no
-eval_only: no
+eval_only: yes
 seed: 5102023
 checkpoint_path: null
 activation: relu
 
 data:
   dataset: KonIQ-10k
-  data_info: /home/maindev/28i_mel/mnt/koniq10k_distributions_sets.csv
-  directory: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
+  data_info: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/koniq10k_distributions_sets.csv
+  directory: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
 
 log:
   directory: checkpoints/koncept1024_at
@@ -29,35 +29,37 @@ train:
   gradnorm_regularization: false
 
 attack:
+  path:
+    checkpoints: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonCept-ckpt/koncept-activation=relu.pth
   train:
     type: none
   test:
     -
-      type: fgsm
+      type: pgd
       params:
         eps: 2.0
         alpha: 2.5
         mode: zero
     -
-      type: fgsm
+      type: pgd
       params:
         eps: 4.0
         alpha: 5.0
         mode: zero
     -
-      type: fgsm
+      type: pgd
       params:
         eps: 6.0
         alpha: 7.5
         mode: zero
     -
-      type: fgsm
+      type: pgd
       params:
         eps: 8.0
         alpha: 10.0
         mode: zero
     -
-      type: fgsm
+      type: pgd
       params:
         eps: 10.0
         alpha: 12.5

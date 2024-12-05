@@ -1,0 +1,2 @@
+,arch,activation,attack,iterations,eps 2,eps 4,eps 6,eps 8,eps 10,SROCC,PLCC
+0,vgg16-KonCept,relu,PGD,1,,,,,,0.9153366233084752,0.9286992652711714

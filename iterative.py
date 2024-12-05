@@ -26,8 +26,8 @@ def fgsm_attack(data, data_grad, eps):
     return perturbed_data
 
 """Linearity"""
-def loss_fn(output, metric_range, k, b):
-    loss = 1 - (output[-1] * k[0] + b[0]) / metric_range
+def loss_fn(output, metric_range):
+    loss = 1 - (output) / metric_range
     return loss
 
 """KonCept"""
@@ -44,9 +44,7 @@ def attack_callback(
         device="cuda",
         eps=1.0,
         iters=10,
-        delta=1 / 255,
-        k: List[int] = None,
-        b: List[int] = None,
+        delta=1 / 255
         # loss_fn=lambda output, metric_range, k, b: 1 - (output[-1] * k[0] + b[0]) / metric_range
 ):
     """
@@ -103,9 +101,9 @@ def attack_callback(
     im_denorm = image_.clone()
     for _ in range(iters):
         additive.data.clamp_(-10/255, 10/255)
-        im = Variable(normalize(im_denorm+additive, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]), requires_grad=True)
+        im = Variable(normalize(im_denorm+additive, [0.5, 0.5, 0.5], [0.5, 0.5, 0.5]), requires_grad=True)
         output = model(im)
-        loss = loss_fn(output, metric_range,k,b)
+        loss = loss_fn(output, metric_range)
         model.zero_grad()
         loss.backward()
         im_grad = im.grad.data

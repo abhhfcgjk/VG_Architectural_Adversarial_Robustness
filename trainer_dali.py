@@ -369,7 +369,7 @@ class AdversarialTrainer:
 
 
     def eval(self) -> None:
-        checkpoint = torch.load(self.log_dir / 'best_model.pth')
+        checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
         results = {}
         self.model.load_state_dict(checkpoint['model'])
         self.metric_computer = IQAPerformance()

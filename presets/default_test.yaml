@@ -1,0 +1,10 @@
+dataset:
+  data:
+    NIPS: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/NIPS_test
+    KonIQ-10k: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
+  labels:
+    KonIQ-10k: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/koniq10k_distributions_sets.csv
+
+save:
+  ckpt: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonCept-ckpt
+  results: ./
