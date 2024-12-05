@@ -1,0 +1,64 @@
+# Default parameters for training KonCept1024
+label_strategy: origin
+perc: no
+eval_only: no
+seed: 5102023
+checkpoint_path: null
+activation: relu
+
+data:
+  dataset: KonIQ-10k
+  data_info: /home/maindev/28i_mel/mnt/koniq10k_distributions_sets.csv
+  directory: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
+
+log:
+  directory: checkpoints/koncept1024_at
+
+lr_scheduler:
+  type: simple
+  points:
+    0: 0.0001
+    40: 0.00005
+    60: 0.00001
+
+train:
+  epochs: 70
+  num_workers: 4
+  batch_size: 16
+  val_criterion: PLCC
+  gradnorm_regularization: false
+
+attack:
+  train:
+    type: none
+  test:
+    -
+      type: fgsm
+      params:
+        eps: 2.0
+        alpha: 2.5
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 4.0
+        alpha: 5.0
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 6.0
+        alpha: 7.5
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 8.0
+        alpha: 10.0
+        mode: zero
+    -
+      type: fgsm
+      params:
+        eps: 10.0
+        alpha: 12.5
+        mode: zero
