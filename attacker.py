@@ -61,10 +61,10 @@ class Attack:
     def compute_output(self, x):
         # im = normalize(img, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         # if self.model_name == "Linearity":
-        if self.quantize:
-            return self.model_qat(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
-        else:
-            return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+        # if self.quantize:
+        #     return self.model_qat(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
+        # else:
+        return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]))[-1].item() * self.k[0] + self.b[0]
             # return self.model(x)[-1].item() * self.k[0] + self.b[0]
         # elif self.model_name == "KonCept":
         #     return self.model(normalize(x, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])).item()
@@ -78,19 +78,19 @@ class Attack:
         self.model.load_state_dict(self.checkpoint["model"])
 
         self.model.eval()
-        if self.quantize:
-            self.model.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
-            # torch.quantization.prepare_qat(self.model, inplace=True)
-            # # quantization aware training goes here
-            # torch.quantization.convert(self.model.eval(), inplace=True)
-            # self.model_qat.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
-            # self.model_qat = torch.ao.quantization.quantize_dynamic(self.model, 
-            #                                                         {torch.nn.Conv2d}, 
-            #                                                         dtype=torch.qint8, 
-            #                                                         inplace=False)
-            fused_model = self.__quantize()
-            prepared_model = torch.ao.quantization.prepare(fused_model)
-            self.model_qat = torch.ao.quantization.convert(prepared_model)
+        # if self.quantize:
+        #     self.model.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
+        #     # torch.quantization.prepare_qat(self.model, inplace=True)
+        #     # # quantization aware training goes here
+        #     # torch.quantization.convert(self.model.eval(), inplace=True)
+        #     # self.model_qat.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
+        #     # self.model_qat = torch.ao.quantization.quantize_dynamic(self.model, 
+        #     #                                                         {torch.nn.Conv2d}, 
+        #     #                                                         dtype=torch.qint8, 
+        #     #                                                         inplace=False)
+        #     fused_model = self.__quantize()
+        #     prepared_model = torch.ao.quantization.prepare(fused_model)
+        #     self.model_qat = torch.ao.quantization.convert(prepared_model)
 
         self.k = self.checkpoint['k']
         self.b = self.checkpoint['b']
@@ -166,31 +166,6 @@ class Attack:
 
 
         print("Range: ", self.min_test, self.max_test)
-
-    def __quantize(self):
-        def _help(model):
-            fuse_list = []
-            for name, module in model.named_children():
-                if isinstance(module, (nn.Sequential, models.resnet.Bottleneck)):
-                    # l = _help(module)
-                    # if l is not None:
-                    #     fuse_list.append(_help(module))
-                    fuse_list.append(_help(module))
-                
-                elif not isinstance(module, (QuantStub, DeQuantStub)) and \
-                    (isinstance(module, nn.Conv2d) or isinstance(module, nn.ReLU)) and \
-                    name is not None:
-
-                    fuse_list.append(name)
-                
-                for name in fuse_list:
-                    print(f"Quantize {name} {module}.")
-            torch.ao.quantization.fuse_modules(model, fuse_list, inplace=True)
-            return fuse_list
-        # print(list(self.model.named_children())
-        # print(type(self.model))
-        print(fuse_list := _help(self.model))
-        # return torch.ao.quantization.fuse_modules(self.model, fuse_list, inplace=False)
 
     def attack(self, attack_type="IFGSM", iterations=1, debug=False):
         self.attack_type = attack_type

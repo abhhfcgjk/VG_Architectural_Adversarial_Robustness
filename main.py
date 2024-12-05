@@ -37,8 +37,9 @@ def get_format_string(args):
         format_str += f'-gabor=True'
     if args.noise:
         format_str += '-noise=True'
+    if args.quantize:
+        format_str += '-quantize16=True'
     format_str += f'+prune={args.pruning}{args.pruning_type}_lr=1e-06_e={args.prune_epochs}_iters={args.prune_iters}' if args.pruning else ''
-    format_str += f'+quantize={args.quantize}' if args.quantize else ''
     return format_str
 
 def run(args):
@@ -58,8 +59,8 @@ def run(args):
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
     datasets = yaml_conf['dataset']['data']
-    datasets = {"KonIQ-10k": "./KonIQ-10k"}
-    # datasets = {"NIPS": "./NIPS_test"}
+    # datasets = {"KonIQ-10k": "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768"}
+    # datasets = {"NIPS": "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/NIPS_test"}
     data_info = yaml_conf['dataset']['labels']
     save_results_dir = yaml_conf['save']['results']
     
