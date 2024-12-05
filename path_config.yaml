@@ -1,10 +1,10 @@
 dataset:
   data:
-    NIPS: ./NIPS_test
-    KonIQ-10k: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
+    NIPS: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/NIPS_test
+    KonIQ-10k: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
   labels:
     KonIQ-10k: ./data/KonIQ-10kinfo.mat
 
 save:
-  ckpt: ./
-  results: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/Linearity-results
+  ckpt: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/Linearity-ckpt
+  results: ./
