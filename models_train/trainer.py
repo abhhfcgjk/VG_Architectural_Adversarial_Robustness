@@ -10,6 +10,7 @@ from models_train.Linearity import Linearity
 from models_train.IQAloss import IQALoss
 from models_train.IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
 from models_train.pruning import PruneConv, l1_prune, pls_prune, ln_prune
+from models_train.swap_convs import swap_to_quntized
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
@@ -27,10 +28,10 @@ from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
 # from dataclasses import dataclass
-# from _codecs import encode
-# torch.serialization.add_safe_globals([np._core.multiarray.scalar, 
-#                                         np.dtype, np.dtypes.Float64DType,
-#                                         encode])
+from _codecs import encode
+torch.serialization.add_safe_globals([np._core.multiarray.scalar, 
+                                        np.dtype, np.dtypes.Float64DType,
+                                        encode])
 
 class Trainer:
     metrics_printed = ['SROCC', 'PLCC', 'RMSE']
@@ -82,7 +83,7 @@ class Trainer:
                               activation=args.activation, dlayer=self.dlayer,
                               pruning=self.pruning, gabor=args.gabor,
                               cayley=self.cayley, cayley_pool=self.cayley_pool, 
-                              cayley_pair=self.cayley_pair, quantize=self.args.quantize).to(self.device)
+                              cayley_pair=self.cayley_pair, quantize=False).to(self.device)
 
         print(self.model)
         # self.scaler = GradScaler()
@@ -92,6 +93,8 @@ class Trainer:
         current_time = datetime.datetime.now().strftime("%I:%M%p on %B %d, %Y")
         self.writer = SummaryWriter(log_dir='{}/{}-{}'.format(self.args.log_dir, self.args.format_str, current_time))
         # self._optimizer()
+        if self.args.quantize:
+            self.quantize()
 
     def train(self, train=True, val=True, test=True):
         self._prepair_train(train, val, test)
@@ -158,26 +161,16 @@ class Trainer:
         torch.save(checkpoint, self.args.trained_model_file)
         print(self.args.trained_model_file)
 
-    # def _prepair_quantize(self):
-        # self.model.eval()
+    def _prepair_quantize(self):
+        print(self.args.trained_model_file)
+        checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
+        self.model.load_state_dict(checkpoint['model'])
 
-        # print(self.args.trained_model_file)
-        # checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
-        # self.model.load_state_dict(checkpoint['model'])
-        # self.model.eval()
-
-        # self.model.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')
-
-        # torch.ao.quantization.prepare_qat(self.model, inplace=True)
-        # torch.ao.quantization.quantize_dynamic(self.model, {nn.Conv2d}, dtype=torch.qint8, inplace=True)
-
-        # form = '{}+quantize={}'.format(self.args.trained_model_file, 
-        #                                           self.args.quantize,
-        #                                           )
-        # self.args.trained_model_file = form
-        # torch.save(checkpoint, self.args.trained_model_file)
-        # print(self.args.trained_model_file)
-        # print("Quantized successfully")
+        form = '{}+quantize={}'.format(self.args.trained_model_file, 
+                                                  self.args.quantize,
+                                                  )
+        self.args.trained_model_file = form
+        torch.save(checkpoint, self.args.trained_model_file)
 
     def _optimizer(self):
         # if self.base_model_name=="Linearity":
@@ -411,9 +404,20 @@ class Trainer:
                 else:
                     self.train(train=False, val=False, test=False)
             elif self.epochs == 0 and i == 0:
-                self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, train=False, val=True,
-                                                                                    test=True, use_normalize=True,
-                                                                                    )
+                self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, 
+                                                                                        train=False, 
+                                                                                        val=True,
+                                                                                        test=True, 
+                                                                                        use_normalize=True,
+                                                                                        )
+    def quantize(self):
+        # self.args.quantize
+        self._prepair_quantize()
+        checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
+        swap_to_quntized(self.model, full_copy=True)
+        self.model = self.model.to(self.device)
+        torch.save(checkpoint, self.args.trained_model_file)
+        print("Quantized")
 
     def _prune_features(self):
         prune_parameters: tuple
@@ -431,14 +435,6 @@ class Trainer:
 
         self.model.print_sparcity(prune_parameters)
 
-    # def quantize(self):
-    #     self._set_quantized_conv(self.model)
-        # self._prepair_quantize()
-        # self._prepair(train=False, val=True, test=True)
-        # print('Inverted Residual Block: After preparation for QAT, note fake-quantization modules \n',
-        #       self.model.features[1].conv)
-        # self.train()
-    
     @staticmethod
     def _set_quantized_conv(model):
         for name, layer in model.named_children():

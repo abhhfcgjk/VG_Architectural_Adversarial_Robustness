@@ -36,8 +36,8 @@ def get_format_string(args) -> str:
         format_str += f'-gabor=True'
     if args.noise:
         format_str += f'-noise=True'
-    if args.quantize:
-        format_str += f'-quantize=True'
+    # if args.quantize:
+    #     format_str += f'-quantize=True'
     return format_str
 
 def run(args):
