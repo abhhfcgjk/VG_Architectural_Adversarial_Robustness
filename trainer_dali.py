@@ -25,6 +25,7 @@ from attacks.base import Attacker
 from lr_scheduler import SimpleLRScheduler
 from model import KonCept512, normalize_model
 from datasets.koniq10k_dali import get_data_loaders
+from datasets.nips_dali import get_data_loader
 from log import dump_config
 from metrics import IQAPerformance, dump_scalar_metrics
 from utils import load_config
@@ -58,20 +59,20 @@ class AdversarialTrainer:
             self.setup_distributed()
 
         self.model = normalize_model(
-            KonCept512(num_classes=1, activation=self.config['activation']),
+            KonCept512(num_classes=1, activation=self.config['options']['activation']),
             mean=[0.5, 0.5, 0.5],
             std=[0.5, 0.5, 0.5],
         )
         self.model.to(self.gpu)
-
+        self.options_hash = self.__get_options_hash(self.config['options'])
         # checkpoint = torch.load()
         # self.model.load_state_dict(checkpoint['model'])
 
         self._init_logger()
 
-    def __del__(self):
-        if self.gpu == 0:
-            self.writer.close()
+    # def __del__(self):
+    #     if self.gpu == 0:
+    #         self.writer.close()
 
     def _init_logger(self):
         if self.gpu == 0:
@@ -106,8 +107,12 @@ class AdversarialTrainer:
                 / f"{self.config['label_strategy']}{('_' + self.config['penalty']) if 'penalty' in self.config else ''}"
                 / f'{str(datetime.now())[:-4]}_{exp}_{self.config["lr_scheduler"]["type"]}'
             )
+            self.db_model_dir = Path(self.config['db_model'])
             self.log_dir.mkdir(parents=True, exist_ok=True)
-
+            self.db_model_dir.mkdir(parents=True, exist_ok=True)
+            if self.eval_only:
+                self.results_csv = Path(self.config['results_path'])
+                self.results_csv.mkdir(parents=True, exist_ok=True)
             self.writer = SummaryWriter(log_dir=self.log_dir)
 
             print(f"=> Logging in {self.log_dir}")
@@ -301,6 +306,7 @@ class AdversarialTrainer:
         preds = self.metric_computer.preds
         checkpoint['max'] = np.max(preds)
         checkpoint['min'] = np.min(preds)
+        torch.save(checkpoint, self.db_model_dir / f'{self.options_hash}.pth')
         torch.save(checkpoint, self.log_dir / 'best_model.pth')
 
     def _train_step(self, data, step: int, start_time: float) -> Dict[str, float]:
@@ -330,9 +336,13 @@ class AdversarialTrainer:
         return metrics
 
     def _val_step(self, data, attack: Attacker = None) ->  None:
-        inputs, label = data[0]['data'], data[0]['label']
-        label = label.squeeze(-1)
-        label = label.cuda(self.gpu, non_blocking=True)
+        if len(data[0])>1:
+            inputs, label = data[0]['data'], data[0]['label']
+            label = label.squeeze(-1)
+            label = label.cuda(self.gpu, non_blocking=True)
+        else:
+            inputs = data[0]['image']
+            label = torch.zeros(len(data[0]['image']), 1).cuda(self.gpu, non_blocking=True)
 
         if attack:
             inputs = attack.run(inputs, label)
@@ -367,6 +377,78 @@ class AdversarialTrainer:
 
         return loss
 
+    def test(self) -> None:
+        checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
+        datasets = ['KonIQ-10k', 'NIPS']
+        self.model.load_state_dict(checkpoint['model'])
+        # self.replace_activation(self.model, )
+        self.metric_computer = IQAPerformance()
+        metric_range = checkpoint['max'] - checkpoint['min']
+        
+        print(checkpoint['min'], checkpoint['max'])
+        print(f'Metric range: {metric_range}')
+        print('SROCC: ', checkpoint['SROCC'])
+        print('PLCC: ', checkpoint['PLCC'])
+
+        for _dataset in datasets:
+            if _dataset=="NIPS":
+                self.test_loader = get_data_loader(
+                            directory=self.config['test_data']['NIPS']['directory'],
+                            rank=self.gpu,
+                            num_tasks=self.world_size,
+                            batch_size=self.config['train']['batch_size'],
+                            num_workers=self.config['train']['num_workers'],
+                            seed=self.config['seed']
+                        )
+            elif _dataset=="KonIQ-10k":
+                self.test_loader = get_data_loaders(
+                            rank=self.gpu,
+                            num_tasks=self.world_size,
+                            args=self.config['test_data']['KonIQ-10k'],
+                            batch_size=self.config['train']['batch_size'],
+                            num_workers=self.config['train']['num_workers'],
+                            seed=self.config['seed'],
+                            phase="test",
+                        )
+            results = {}
+            self.model.eval()
+            self.metric_computer.reset()
+            for step, data in enumerate(self.test_loader):
+                self._val_step(data)
+
+            orig_preds = self.metric_computer.preds.copy()
+            orig_preds = np.array(orig_preds)
+            orig_preds_scaled = (orig_preds - checkpoint['min']) / metric_range
+            results['origin_preds'] = orig_preds
+            results['orig_preds_scaled'] = orig_preds_scaled
+    
+            for attack_args in self.config['attack']['test']:
+                attack = self._init_attack(attack_args, "test", metric_range=metric_range)
+
+                self.metric_computer.reset()
+                for step, data in enumerate(self.test_loader):
+                    self._val_step(data, attack)
+
+                att_preds = np.array(self.metric_computer.preds)
+                att_preds_scaled = (att_preds - checkpoint['min']) / metric_range
+                results[f'preds_eps={attack_args["params"]["eps"]}'] = att_preds
+                results[f'preds_scaled={attack_args["params"]["eps"]}'] = att_preds_scaled
+
+                abs_gain = np.mean(att_preds - orig_preds)
+                print(f'Abs gain for eps={attack_args["params"]["eps"]}: {abs_gain}')
+
+                abs_gain = np.mean(att_preds_scaled - orig_preds_scaled)
+                print(f'Abs gain for eps={attack_args["params"]["eps"]}: {abs_gain}')
+
+                rel_gain = np.mean((att_preds_scaled - orig_preds_scaled) / (orig_preds_scaled + 1))
+                print(f'Relative gain for eps={attack_args["params"]["eps"]}: {rel_gain}')
+            
+            if len(self.config['attack']['test']) > 0:
+                form = f"{_dataset}_inceptionresnetv2+{self.config['options']['activation']}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
+                pd.DataFrame.from_dict(results).to_csv(
+                    self.results_csv / form,
+                    index=False
+                )
 
     def eval(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
@@ -377,16 +459,27 @@ class AdversarialTrainer:
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric range: {metric_range}')
 
-        self.test_loader = get_data_loaders(
-            rank=self.gpu,
-            num_tasks=self.world_size,
-            args=self.config['data'],
-            batch_size=self.config['train']['batch_size'],
-            num_workers=self.config['train']['num_workers'],
-            seed=self.config['seed'],
-            phase="test",
-        )
-
+        if self.config['data']['dataset'] == 'KonIQ-10k':
+            self.test_loader = get_data_loaders(
+                rank=self.gpu,
+                num_tasks=self.world_size,
+                args=self.config['data'],
+                batch_size=self.config['train']['batch_size'],
+                num_workers=self.config['train']['num_workers'],
+                seed=self.config['seed'],
+                phase="test",
+            )
+        elif self.config['data']['dataset'] == 'NIPS':
+            self.test_loader = get_data_loader(
+                directory=self.config['data']['directory'],
+                rank=self.gpu,
+                num_tasks=self.world_size,
+                batch_size=self.config['train']['batch_size'],
+                num_workers=self.config['train']['num_workers'],
+                seed=self.config['seed']
+            )
+        else:
+            raise NotImplementedError
         self.model.eval()
         self.metric_computer.reset()
         for step, data in enumerate(self.test_loader):
@@ -426,8 +519,9 @@ class AdversarialTrainer:
             print(f'Relative gain for eps={attack_args["params"]["eps"]}: {rel_gain}')
         
         if len(self.config['attack']['test']) > 0:
+            form = f"{self.config['data']['dataset']}_inceptionresnetv2+{self.config['options']['activation']}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
             pd.DataFrame.from_dict(results).to_csv(
-                self.log_dir / f"{self.config['data']['dataset']}_test_{self.config['attack']['test'][0]['type']}.csv",
+                self.log_dir / form,
                 index=False
             )
 
@@ -440,6 +534,25 @@ class AdversarialTrainer:
 
         dist.init_process_group("nccl", rank=self.gpu, world_size=self.world_size)
         torch.cuda.set_device(self.gpu)
+
+    @staticmethod
+    def __get_options_hash(options):
+        def __help(options):
+            x = 'KonCept'
+            for key in options:
+                x += f"-{key}={options[key]}"
+            return x
+        hash_value = __help(options)
+        # print(frozen, hash_value)
+        return hash_value
+
+    @classmethod
+    def replace_activation(cls, model, orig, dest):
+        for name, layer in model.named_children():
+            if isinstance(layer, orig):
+                setattr(model, name, dest())
+            else:
+                cls.replace_activation(layer, orig, dest)
 
     @classmethod
     def run(cls, *args):
@@ -459,7 +572,7 @@ class AdversarialTrainer:
     def exec(cls, gpu, config_path):
         trainer = cls(gpu=gpu, config_path=config_path)
         if trainer.eval_only:
-            trainer.eval()
+            trainer.test()
         else:
             trainer.train()
             print(str(datetime.now())[:-4])

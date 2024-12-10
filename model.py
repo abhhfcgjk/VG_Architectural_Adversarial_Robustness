@@ -25,15 +25,15 @@ class KonCept512(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Linear(1536, 2048),
-            self.Activ(inplace=True),
+            self.Activ(),
             nn.BatchNorm1d(2048),
             nn.Dropout(p=0.25),
             nn.Linear(2048, 1024),
-            self.Activ(inplace=True),
+            self.Activ(),
             nn.BatchNorm1d(1024),
             nn.Dropout(p=0.25),
             nn.Linear(1024, 256),
-            self.Activ(inplace=True),
+            self.Activ(),
             nn.BatchNorm1d(256),
             nn.Dropout(p=0.5),
             nn.Linear(256, num_classes),
@@ -49,6 +49,12 @@ class KonCept512(nn.Module):
         elif activation == "Fgelu":
             swap_all_activations(self.base, ReLU, GELU)
             self.Activ = GELU
+        elif activation == "Frelu_elu":
+            swap_all_activations(self.base, ReLU, ReLU_ELU)
+            self.Activ = ReLU_ELU
+        elif activation == "Frelu_silu":
+            swap_all_activations(self.base, ReLU, ReLU_SiLU)
+            self.Activ = ReLU_SiLU
         else:
             activation = "relu"
             self.Activ = ReLU

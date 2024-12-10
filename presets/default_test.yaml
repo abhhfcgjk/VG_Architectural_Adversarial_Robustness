@@ -1,10 +1,91 @@
-dataset:
-  data:
-    NIPS: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/NIPS_test
-    KonIQ-10k: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
-  labels:
-    KonIQ-10k: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/koniq10k_distributions_sets.csv
+# Default parameters for training KonCept1024
+label_strategy: origin
+perc: no
+eval_only: yes
+seed: 5102023
+checkpoint_path: null
+activation: Frelu_elu
+results_path: /home/maindev/28i_mel/mnt/csv
+db_model: /home/maindev/28i_mel/mnt
 
-save:
-  ckpt: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonCept-ckpt
-  results: ./
+test_data:
+  NIPS: 
+    directory: /home/maindev/28i_mel/mnt/NIPS_test
+  KonIQ-10k:
+    data_info: /home/maindev/28i_mel/mnt/koniq10k_distributions_sets.csv
+    directory: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
+
+data:
+  # dataset: NIPS
+  # directory: /home/maindev/28i_mel/mnt/NIPS_test
+
+  # dataset: KonIQ-10k
+  data_info: /home/maindev/28i_mel/mnt/koniq10k_distributions_sets.csv
+  directory: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
+
+log:
+  directory: checkpoints/koncept1024_at
+
+options:
+  activation: relu
+  cayley1: false
+  cayley2: false
+  cayley3: false
+  cayley4: false
+  nt: false
+  backbone: inceptionresnetv2
+  prune: 0.0
+  prune_lr: 0.00001
+  prune_epochs: 15
+  prune_type: l1
+
+lr_scheduler:
+  type: simple
+  points:
+    0: 0.0001
+    40: 0.00005
+    60: 0.00001
+
+train:
+  epochs: 70
+  num_workers: 4
+  batch_size: 16
+  val_criterion: PLCC
+  gradnorm_regularization: false
+
+attack:
+  path:
+    checkpoints: /home/maindev/28i_mel/mnt/koncept-activation=Frelu_elu.pth
+  train:
+    type: none
+  test:
+    -
+      type: pgd
+      params:
+        eps: 2.0
+        alpha: 2.5
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 4.0
+        alpha: 5.0
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 6.0
+        alpha: 7.5
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 8.0
+        alpha: 10.0
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 10.0
+        alpha: 12.5
+        mode: zero

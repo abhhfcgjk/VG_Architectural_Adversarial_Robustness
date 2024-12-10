@@ -1,18 +1,32 @@
 # Default parameters for training KonCept1024
 label_strategy: origin
 perc: no
-eval_only: yes
+eval_only: no
 seed: 5102023
 checkpoint_path: null
-activation: relu
+results_path: /home/maindev/28i_mel/mnt/csv
+db_model: /home/maindev/28i_mel/mnt
 
 data:
   dataset: KonIQ-10k
-  data_info: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/koniq10k_distributions_sets.csv
-  directory: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
+  data_info: /home/maindev/28i_mel/mnt/KonIQ-10k/koniq10k_distributions_sets.csv
+  directory: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
 
 log:
   directory: checkpoints/koncept1024_at
+
+options:
+  activation: relu
+  cayley1: false
+  cayley2: false
+  cayley3: false
+  cayley4: false
+  nt: false
+  backbone: inceptionresnetv2
+  prune: 0.0
+  prune_lr: 0.00001
+  prune_epochs: 15
+  prune_type: l1
 
 lr_scheduler:
   type: simple
@@ -39,28 +53,33 @@ attack:
       params:
         eps: 2.0
         alpha: 2.5
+        iters: 1
         mode: zero
     -
       type: pgd
       params:
         eps: 4.0
         alpha: 5.0
+        iters: 1
         mode: zero
     -
       type: pgd
       params:
         eps: 6.0
         alpha: 7.5
+        iters: 1
         mode: zero
     -
       type: pgd
       params:
         eps: 8.0
         alpha: 10.0
+        iters: 1
         mode: zero
     -
       type: pgd
       params:
         eps: 10.0
         alpha: 12.5
+        iters: 1
         mode: zero

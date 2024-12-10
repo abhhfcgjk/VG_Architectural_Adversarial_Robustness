@@ -100,7 +100,7 @@ def get_data_loader(
 
 if __name__ == '__main__':
     train_loader = get_data_loader(
-        directory='/home/a.chistyakova/space-1/NIPS2017/images',
+        directory='/home/maindev/28i_mel/mnt/NIPS_test',
         rank=0,
         num_tasks=1,
         batch_size=8,

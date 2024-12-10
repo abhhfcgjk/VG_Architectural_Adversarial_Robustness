@@ -56,3 +56,13 @@ def init_torch_seeds(seed: int = 1):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
+def get_activation_module(activation: str):
+    if activation == "Fsilu":
+        return torch.nn.SiLU
+    elif activation == "Felu":
+        return torch.nn.ELU
+    elif activation == "Fgelu":
+        return torch.nn.GELU
+    else:
+        return torch.nn.ReLU
