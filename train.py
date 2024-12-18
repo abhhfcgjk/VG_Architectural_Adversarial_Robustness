@@ -148,15 +148,16 @@ if __name__ == "__main__":
                         help='Use progressbar for the training')
 
     """ Prune params """
-    parser.add_argument('-prune', '--pruning', type=float,
+    parser.add_argument('-prune', '--pruning', type=float, default=0.0,
                         help="adversarial pruning percent")
     parser.add_argument('--prune_epochs', type=int, default=5)
-    parser.add_argument('-t_prune', "--pruning_type", type=str, default='pls')  # pls, l1, l2
+    parser.add_argument('-t_prune', "--pruning_type", type=str, 
+                        default='pls', help="pls|l1|l2|displs|hsic")
     parser.add_argument('--prune_iters', type=int, default=1)
     parser.add_argument('--width_prune', type=int, default=120)
     parser.add_argument('--height_prune', type=int, default=90)
-    parser.add_argument('--images_count_prune', type=int, default=50)
-    parser.add_argument('--kernel_prune', type=int, default=1)
+    parser.add_argument('--pls_images', type=int, default=50)
+    parser.add_argument('--kernel_prune', type=int, default=None)
 
     """ Quantization params """
     parser.add_argument('-quant', '--quantize', action='store_true', help="Use quantization.")

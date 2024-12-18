@@ -57,7 +57,7 @@ rm -rf apex
 ```
 CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 8 -e 30 --ft_lr_ratio 0.1 -arch resnet34 --loss_type norm-in-norm --p 1 --q 2 --activation silu --pbar
 
-CUDA_VISIBLE_DEVICES=2 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 8 -e 5 --ft_lr_ratio 0.1 -arch resnet101 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --width_prune 120 --height_prune 90 --kernel_prune 1 --images_count_prune 100 --prune_iters 1 --pbar 
+CUDA_VISIBLE_DEVICES=2 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 8 -e 5 --ft_lr_ratio 0.1 -arch resnet101 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --width_prune 120 --height_prune 90 --kernel_prune 1 --pls_images 100  --pbar 
 
 CUDA_VISIBLE_DEVICES=0 python main.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-4 -bs 8 -e 30 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu --pbar --feature_model debiased --mgamma 0.1 --debug
 CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -lr 1e-6 -bs 8 -e 5 --ft_lr_ratio 0.1 -arch resnet50 --loss_type norm-in-norm --p 1 --q 2 --activation relu -prune 0.1 -t_prune pls --pbar
@@ -72,9 +72,9 @@ CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -
 ## Testing
 ```
 CUDA_VISIBLE_DEVICES=1 nohup uv run main.py -arch resnet101 --activation relu --device cuda --csv_results_dir rs -iter 1 &
-python main.py --dataset_path ./NIPS_test/ -arch resnet50 --activation Fsilu --device cuda --csv_results_dir rs -iter 1 --model KonCept
-python main.py --dataset_path ./NIPS_test/ --resize -arch resnet34 --activation silu --device cuda --csv_results_dir rs -iter 10
-python main.py --dataset_path ./NIPS_test/ --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 -prune 0.1 -t_prune pls
+python main.py -arch resnet50 --activation Fsilu --device cuda --csv_results_dir rs -iter 1 --model KonCept
+python main.py --resize -arch resnet34 --activation silu --device cuda --csv_results_dir rs -iter 10
+python main.py  --resize -arch resnet50 --activation relu --device cuda --csv_results_dir rs -iter 1 -prune 0.1 -t_prune pls
 
 CUDA_VISIBLE_DEVICES=1 nohup python main.py --resize -arch resnet101 -clp --activation relu --device cuda --csv_results_dir rs -iter 8 -prune 0.1 -t_prune l2 > p_clp8.out&
 ```

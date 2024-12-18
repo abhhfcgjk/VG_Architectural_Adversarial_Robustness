@@ -1,0 +1,16 @@
+path:
+  dataset:
+    data:
+      NIPS: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/NIPS_test
+      KonIQ-10k: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768
+    labels:
+      KonIQ-10k: ./data/KonIQ-10kinfo.mat
+
+  save:
+    ckpt: /home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/Linearity-ckpt
+    results: ./
+
+train:
+  epochs: 30
+  lr: 0.0001
+  

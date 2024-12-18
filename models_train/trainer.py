@@ -9,7 +9,6 @@ from models_train.IQAdataset import get_data_loaders
 from models_train.Linearity import Linearity
 from models_train.IQAloss import IQALoss
 from models_train.IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
-from models_train.pruning import PruneConv, l1_prune, pls_prune, ln_prune
 from models_train.swap_convs import swap_to_quntized
 from torch.utils.tensorboard import SummaryWriter
 import datetime
@@ -63,7 +62,7 @@ class Trainer:
         self.prune_iters = args.prune_iters
         self.width_prune = args.width_prune
         self.height_prune = args.height_prune
-        self.images_count_prune = args.images_count_prune
+        self.images_count_prune = args.pls_images
         self.kernel_prune = args.kernel_prune
 
         self.is_quantize = args.quantize
@@ -119,7 +118,10 @@ class Trainer:
                                 p=self.args.p, q=self.args.q,
                                 monotonicity_regularization=self.args.monotonicity_regularization,
                                 gamma=self.args.gamma, detach=self.args.detach)
-
+        if self.args.quantize:
+            self.__quantize()
+        if self.pruning > 0.0:
+            self.__prune()
 
 
     def _prepair_train(self, train, val, test):
@@ -144,33 +146,48 @@ class Trainer:
 
         # self._optimizer()
 
-    def _prepair_prune(self, prune_iter=0):
-        if prune_iter > 0:
-            form = self.args.trained_model_file[:-1] + str(prune_iter+1) # prune_iter += 1
-        elif prune_iter == 0:
-            # form = f'{self.args.trained_model_file}+prune={self.args.pruning}{self.args.pruning_type}_lr={self.args.learning_rate}_e={self.args.epochs}_iters={prune_iter+1}'
-            form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(self.args.trained_model_file, self.args.pruning,
-                                                              self.args.pruning_type, self.args.learning_rate,
-                                                              self.args.epochs, prune_iter+1)
-        else:
-            raise ValueError(f"prune_iter < 0. {prune_iter=}")
+    def __prune(self):
+        # if prune_iter > 0:
+        #     form = self.args.trained_model_file[:-1] + str(prune_iter+1) # prune_iter += 1
+        # elif prune_iter == 0:
+        #     # form = f'{self.args.trained_model_file}+prune={self.args.pruning}{self.args.pruning_type}_lr={self.args.learning_rate}_e={self.args.epochs}_iters={prune_iter+1}'
+        #     form = '{}+prune={}{}_lr={}_e={}_iters={}'.format(self.args.trained_model_file, self.args.pruning,
+        #                                                       self.args.pruning_type, self.args.learning_rate,
+        #                                                       self.args.epochs, prune_iter+1)
+        # else:
+        #     raise ValueError(f"prune_iter < 0. {prune_iter=}")
+        self.model.print_sparcity()
+        form = '{}+prune={}{}_lr={}_e={}'.format(self.args.trained_model_file, self.args.pruning,
+                                                          self.args.pruning_type, self.args.learning_rate,
+                                                          self.args.prune_epochs)
 
         checkpoint = torch.load(self.args.trained_model_file)
         self.model.load_state_dict(checkpoint['model'])
         self.args.trained_model_file = form
+        self.model.prune(amount=self.args.pruning, 
+                         prtype=self.args.pruning_type,
+                         width=self.args.width_prune,
+                         height=self.args.height_prune,
+                         images_count=self.args.pls_images,
+                         kernel=self.args.kernel_prune)
         torch.save(checkpoint, self.args.trained_model_file)
         print(self.args.trained_model_file)
 
-    def _prepair_quantize(self):
+        self.epochs = self.args.prune_epochs
+        self.model.print_sparcity()
+
+    def __quantize(self, precision=16):
         print(self.args.trained_model_file)
         checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
         self.model.load_state_dict(checkpoint['model'])
 
         form = '{}+quantize={}'.format(self.args.trained_model_file, 
-                                                  self.args.quantize,
-                                                  )
+                                       self.args.quantize,
+                                      )
         self.args.trained_model_file = form
+        self.model.quantize(precision)
         torch.save(checkpoint, self.args.trained_model_file)
+        print("Quantized")
 
     def _optimizer(self):
         # if self.base_model_name=="Linearity":
@@ -373,7 +390,6 @@ class Trainer:
         np.save(self.args.save_result_file, metrics)
         # Task.current_task().upload_artifact(name="np metrics", artifact_object=metrics)
 
-
     def expand_batch(self, inputs, label, alpha=2):
         eps = alpha/255
         noise = torch.randn_like(inputs, device="cuda")
@@ -391,49 +407,6 @@ class Trainer:
         # elif self.base_model_name=="KonCept":
         #     return IQAPerfomanceKonCept(*args, **kwargs)
         # raise NameError(f"No {self.base_model_name} model.")
-
-    def prune(self):
-        for i in range(self.prune_iters):
-            self._prepair_prune(prune_iter=i)
-            self._prune_features()
-            # self.eval(loaded=True)
-            self.current_epoch = 0
-            if self.epochs > 0:
-                if i == 0:
-                    self.train()
-                else:
-                    self.train(train=False, val=False, test=False)
-            elif self.epochs == 0 and i == 0:
-                self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, 
-                                                                                        train=False, 
-                                                                                        val=True,
-                                                                                        test=True, 
-                                                                                        use_normalize=True,
-                                                                                        )
-    def quantize(self):
-        # self.args.quantize
-        self._prepair_quantize()
-        checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
-        swap_to_quntized(self.model, full_copy=True)
-        self.model = self.model.to(self.device)
-        torch.save(checkpoint, self.args.trained_model_file)
-        print("Quantized")
-
-    def _prune_features(self):
-        prune_parameters: tuple
-
-        if self.args.pruning_type == 'l1':
-            prune_parameters = l1_prune(self.model, self.pruning)
-        elif self.args.pruning_type == 'pls':
-            prune_parameters = pls_prune(self.model, self.pruning,
-                                        width=self.width_prune, 
-                                        height=self.height_prune, 
-                                        images_count=self.images_count_prune, 
-                                        kernel=self.kernel_prune) # 120, 90
-        elif self.args.pruning_type == 'l2':
-            prune_parameters = ln_prune(self.model, self.pruning, 2)
-
-        self.model.print_sparcity(prune_parameters)
 
     @staticmethod
     def _set_quantized_conv(model):
@@ -515,9 +488,9 @@ class Trainer:
                 form = cls.get_quantize_file_name(args)
                 args.trained_model_file = form
             trainer.eval()
-        elif args.pruning:
-            trainer.prune()
-            trainer.eval()
+        # elif args.pruning:
+        #     trainer.prune()
+        #     trainer.eval()
         # elif args.quantize:
         #     trainer.quantize()
         #     trainer.eval()

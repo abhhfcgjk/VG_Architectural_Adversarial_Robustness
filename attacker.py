@@ -12,6 +12,7 @@ from torchvision import models
 import iterative
 from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
+from models_train.activ import swap_all_activations, ReLU_ELU
 
 from torch.utils.data import Dataset, DataLoader, Subset
 from torchvision.utils import save_image
@@ -76,7 +77,9 @@ class Attack:
         # ic(self.checkpoint['model']['cayley_block6.conv_cayley.alpha'])
         ic(self.model.state_dict().keys())
         self.model.load_state_dict(self.checkpoint["model"])
-
+        if self.activation=='Frelu_elu':
+            swap_all_activations(self.model, ReLU_ELU, torch.nn.ReLU)
+            self.activation='Frelu_relu'
         self.model.eval()
         # if self.quantize:
         #     self.model.qconfig = torch.ao.quantization.get_default_qat_qconfig('x86')

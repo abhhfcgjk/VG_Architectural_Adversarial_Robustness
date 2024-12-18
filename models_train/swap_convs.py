@@ -16,7 +16,7 @@ def swap_to_gabor(model):
         else:
             swap_to_gabor(layer)
 
-def swap_to_quntized(model, full_copy=False):
+def swap_to_quntized(model, precision=16, full_copy=False):
     for name, layer in model.named_children():
         if isinstance(layer, nn.Conv2d):
             attrs = {
@@ -30,8 +30,8 @@ def swap_to_quntized(model, full_copy=False):
                 'bias': layer.bias is not None,
                 'padding_mode': layer.padding_mode,
             }
-            input_quant = QuantDescriptor(num_bits=16, fake_quant=True)
-            weight_quant = QuantDescriptor(num_bits=16, fake_quant=True)
+            input_quant = QuantDescriptor(num_bits=precision, fake_quant=True)
+            weight_quant = QuantDescriptor(num_bits=precision, fake_quant=True)
             conv = nq.QuantConv2d(**attrs, 
                                   quant_desc_input=input_quant, 
                                   quant_desc_weight=weight_quant)

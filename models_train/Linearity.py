@@ -15,6 +15,8 @@ from models_train.activ import ReLU_SiLU, ReLU_to_SILU, ReLU_to_ReLUSiLU
 from models_train.SE import SqueezeExcitation
 from models_train.VOneNet import get_model
 from models_train.Cayley import CayleyBlock, CayleyBlockPool
+from models_train.swap_convs import swap_to_quntized
+from models_train.pruning import PLSPrune, l1_prune, pls_prune, ln_prune, displs_prune, hsic_prune
 
 from models_train.baseIQAmodel import IQA
 from models_train import swap_convs
@@ -51,11 +53,24 @@ def SPSP(x, P=1, method='avg'):
 
 
 class Linearity(IQA):
-    @staticmethod
-    def print_sparcity(prune_list: Tuple):
+    def print_sparcity(self):
         """only for resnet"""
         print("SPARCITY")
-        p_list = prune_list
+        if not hasattr(self, 'prune_parameters'):
+            def __help(model):
+                ans = []
+                for name, layer in model.named_children():
+                    if isinstance(layer, nn.Conv2d):
+                        ans.append((layer, 'weight'))
+                    else:
+                        ans += __help(layer)
+                return ans
+            convs = __help(self)
+            # print(self.convs)
+            print(convs)
+            p_list = convs
+        else:
+            p_list = self.prune_parameters
         print(p_list.__len__())
         for (module, attr) in p_list:
             percentage = 100. * float(torch.sum(getattr(module, attr) == 0)) / float(getattr(module, attr).nelement())
@@ -70,14 +85,13 @@ class Linearity(IQA):
         
         self.pool = pool
         self.use_bn_end = use_bn_end
-        # self.pruning = pruning
-        # self.dlayer = dlayer
-        # self.gabor = gabor
-        # self.cayley = cayley
-        # self.cayley_pool = cayley_pool
-        # self.cayley_pair = cayley_pair
 
-        self.pruning = kwargs.get('pruning', 0.0)
+        # self.pruning = kwargs.get('prune', 0.0)
+        # self.width_prune = kwargs.get('width_prune')
+        # self.height_prune = kwargs.get('height_prune')
+        # self.pls_images = kwargs.get('pls_images')
+        # self.kernel_prune = kwargs.get('kernel_prune')
+
         self.gabor = kwargs.get('gabor', False)
         self.cayley = kwargs.get('cayley', False)
         self.cayley_pool = kwargs.get('cayley_pool', False)
@@ -103,10 +117,6 @@ class Linearity(IQA):
                 nn.MaxPool2d(kernel_size=(16,32), stride=(2,2), padding=(0,0)),
                 nn.MaxPool2d(kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
             )
-
-        # if self.is_quantize:
-        #     self.quant = QuantStub()
-        #     self.dequant = DeQuantStub()
 
         if self.cayley:
             self.cayley_block6 = CayleyBlockPool(512, 200, stride=1, padding=0, kernel_size=3)
@@ -156,30 +166,28 @@ class Linearity(IQA):
             else:
                 stack.append((name, module))
 
-    # def fuse_model(self):
-    #     assert self.is_quantize, "This method is available only in quantization mode."
-    #     print("FUSE")
-    #     print(list(self.named_children()))
-    #     def _help(model):
-    #         fuse_list = []
-    #         for name, module in model.named_children():
-    #             if isinstance(module, (nn.Sequential, models.resnet.Bottleneck)):
-    #                 _help(module)
-    #             elif not isinstance(module, (QuantStub, DeQuantStub)):
-    #                 # print(name)
-    #                 if isinstance(module, nn.Conv2d):
-    #                     fuse_list.append(name)
-    #                 # fuse_list.append([n for n, m in module.named_children()])
-    #         # print(fuse_list)
-    #         # if len(fuse_list) > 0:
-    #         print(model)
-    #         torch.ao.quantization.fuse_modules_qat(model, fuse_list, inplace=True)
-    #         for name in fuse_list:
-    #             print(f"Quantize {name}.")
-    #     _help(list(self.modules())[0])
+    def quantize(self, precision):
+        swap_to_quntized(self.model, precision=precision, full_copy=True)
+        self.model = self.model.to(self.device)
 
-    #     # self.fuse_all_conv_bn(self.features)
-    #     print("FUSE END")
+    def prune(self, amount, prtype='l1', **kwargs):
+        self.prune_parameters: tuple
+        self.pruning_type = prtype
+
+        if prtype == 'l1':
+            self.prune_parameters = l1_prune(self, amount)
+        elif prtype == 'l2':
+            self.prune_parameters = ln_prune(self, amount, 2)
+        elif prtype == 'pls':
+            self.prune_parameters = pls_prune(self, amount, **kwargs)
+                                        # width=self.width_prune, 
+                                        # height=self.height_prune, 
+                                        # images_count=self.pls_images, 
+                                        # kernel=self.kernel_prune) # 120, 90
+        elif prtype == 'displs':
+            self.prune_parameters = displs_prune(self, amount, **kwargs)
+        elif prtype == 'hsic':
+            self.prune_parameters = hsic_prune(self, amount, **kwargs)
 
     def extract_features(self, x):
         f, pq = [], []
