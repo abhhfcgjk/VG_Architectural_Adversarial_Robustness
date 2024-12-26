@@ -27,6 +27,8 @@ def get_format_string(args):
 
     if args.gradnorm_regularization:
         format_str += f'-gr={args.gradnorm_regularization}'
+    if args.adv:
+        format_str += f'-advirsarial'
     if args.cayley:
         format_str += f'-cl={args.cayley}'
     if args.cayley_pool:
@@ -50,7 +52,7 @@ def run(args):
                            use_bn_end=args.use_bn_end, P6=args.P6, P7=args.P7,
                            activation=args.activation,
                            device=args.device, pruning=args.pruning, t_prune=args.pruning_type, gabor=args.gabor,
-                           gradnorm_regularization=args.gradnorm_regularization,
+                           gradnorm_regularization=args.gradnorm_regularization, adv=args.adv,
                            cayley=args.cayley, cayley_pool=args.cayley_pool, cayley_pair=args.cayley_pair,
                            quantize=args.quantize
                            )
@@ -60,8 +62,8 @@ def run(args):
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
     datasets = yaml_conf['dataset']['data']
-    # datasets = {"KonIQ-10k": "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/KonIQ-10k/1024x768"}
-    # datasets = {"NIPS": "/home/28i_mel@lab.graphicon.ru/mnt/dione/28i_mel/NIPS_test"}
+    # datasets = {"KonIQ-10k": "KonIQ-10k/1024x768"}
+    # datasets = {"NIPS": "NIPS_test"}
     data_info = yaml_conf['dataset']['labels']
     save_results_dir = yaml_conf['save']['results']
     
@@ -154,6 +156,7 @@ if __name__ == "__main__":
     parser.add_argument('-cp', '--cayley_pair', action='store_true', help="Use cayley block after conv4, conv5")
     parser.add_argument('--crop', action='store_true', help='Use crop for image')
 
+    parser.add_argument('--adversarial', '-adv', dest='adv', action='store_true')
     args = parser.parse_args()
     # task.connect(vars(args))
 

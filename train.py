@@ -132,8 +132,6 @@ if __name__ == "__main__":
     parser.add_argument('-hp', '--hflip_p', default=0.5, type=float,
                         help='hfilp_p (default: 0.5)')
 
-
-
     parser.add_argument('-logd', "--log_dir", type=str, default="runs",
                         help="log directory for Tensorboard log output")
     parser.add_argument('-tdt', '--test_during_training', action='store_true',
@@ -154,9 +152,9 @@ if __name__ == "__main__":
     parser.add_argument('-t_prune', "--pruning_type", type=str, 
                         default='pls', help="pls|l1|l2|displs|hsic")
     parser.add_argument('--prune_iters', type=int, default=1)
-    parser.add_argument('--width_prune', type=int, default=120)
-    parser.add_argument('--height_prune', type=int, default=90)
-    parser.add_argument('--pls_images', type=int, default=50)
+    parser.add_argument('--width_prune', type=int, default=332)
+    parser.add_argument('--height_prune', type=int, default=249)
+    parser.add_argument('--pls_images', type=int, default=100)
     parser.add_argument('--kernel_prune', type=int, default=None)
 
     """ Quantization params """
@@ -176,6 +174,8 @@ if __name__ == "__main__":
                         help="Use cayley block after conv4, conv5 (two CayleyBlock)")
 
     parser.add_argument('--wpath', default=None, type=str, help="Weight path")
+
+    parser.add_argument('--adversarial', '-adv', dest='adv', action='store_true')
 
     args = parser.parse_args()
     task_name = f"Linearity modification with {args.pruning_type} pruning" if args.pruning else "Linearity modification"

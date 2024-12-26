@@ -9,7 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 from torchvision.transforms.functional import resize, to_tensor, normalize, crop
 from torchvision import models
-import iterative
+import models_train.iterative as iterative
 from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
 from models_train.activ import swap_all_activations, ReLU_ELU
@@ -29,7 +29,8 @@ class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
     def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu',
-                 gabor=False, gradnorm_regularization=False, cayley=False, cayley_pool=False, cayley_pair=False, quantize=False) -> None:
+                 gabor=False, gradnorm_regularization=False, adv=False, cayley=False, 
+                 cayley_pool=False, cayley_pair=False, quantize=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -44,6 +45,7 @@ class Attack:
         self.cayley = cayley
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
+        self.adv = adv
         self.quantize = quantize
         self.to_save_images = 700
         # self.prune 
@@ -274,8 +276,9 @@ class Attack:
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
         prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
         quant = f"+quantize" if self.quantize else ''
+        adv = f"+adv" if self.adv else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{prune}{quant}+{activation}'
+        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{adv}{prune}{quant}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
                                             self.dataset,
                                             arch_status,
