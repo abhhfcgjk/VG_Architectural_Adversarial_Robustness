@@ -18,11 +18,14 @@ import torch.multiprocessing as multiprocessing
 from torch.optim import Adam, lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
+from torch.nn.utils import prune
+from torch.nn import ReLU, SiLU, ELU, GELU
 
 from attacks.fgsm import FGSM
 from attacks.pgd import PGD, AutoPGD
 from attacks.base import Attacker
 from lr_scheduler import SimpleLRScheduler
+from activ import ReLU_ELU, ReLU_SiLU, swap_all_activations
 from model import KonCept512, normalize_model
 from datasets.koniq10k_dali import get_data_loaders
 from datasets.nips_dali import get_data_loader
@@ -47,8 +50,11 @@ class AdversarialTrainer:
         self.config = load_config(config_path)
         # self.config = config_path
         self.eval_only = self.config["eval_only"]
+        self.use_mask = True if (self.config['options']['prune'] > 0)and(not self.config['eval_only']) else False
 
-        self.is_gradnorm_regularization = self.config['train']['gradnorm_regularization']
+        self.is_gradnorm_regularization = self.config['train']['gr']
+        self.h_gradnorm_regularization = 0.01
+        self.weight_gradnorm_regularization = 0.0005
 
         self.world_size = torch.cuda.device_count()
         self.distributed = self.world_size > 1
@@ -59,14 +65,15 @@ class AdversarialTrainer:
             self.setup_distributed()
 
         self.model = normalize_model(
-            KonCept512(num_classes=1, activation=self.config['options']['activation']),
+            KonCept512(num_classes=1, db_model=self.config['db_model'], **self.config['options']),
             mean=[0.5, 0.5, 0.5],
             std=[0.5, 0.5, 0.5],
         )
         self.model.to(self.gpu)
+
+        self.db_model_dir = Path(self.config['db_model'])
+        self.db_model_dir.mkdir(parents=True, exist_ok=True)
         self.options_hash = self.__get_options_hash(self.config['options'])
-        # checkpoint = torch.load()
-        # self.model.load_state_dict(checkpoint['model'])
 
         self._init_logger()
 
@@ -107,9 +114,9 @@ class AdversarialTrainer:
                 / f"{self.config['label_strategy']}{('_' + self.config['penalty']) if 'penalty' in self.config else ''}"
                 / f'{str(datetime.now())[:-4]}_{exp}_{self.config["lr_scheduler"]["type"]}'
             )
-            self.db_model_dir = Path(self.config['db_model'])
+            
             self.log_dir.mkdir(parents=True, exist_ok=True)
-            self.db_model_dir.mkdir(parents=True, exist_ok=True)
+            
             if self.eval_only:
                 self.results_csv = Path(self.config['results_path'])
                 self.results_csv.mkdir(parents=True, exist_ok=True)
@@ -130,6 +137,7 @@ class AdversarialTrainer:
     def _prepare_for_training(self) -> None:
         self.current_epoch = 0
         self.end_epoch = self.config["train"]["epochs"]
+        self._prepair_prune()
 
         (
             self.train_loader,
@@ -253,7 +261,7 @@ class AdversarialTrainer:
             val_criterion = self.metric_computer.plcc
 
             # Do no save model 3 first epochs, because obviously their srcc will be better 
-            if val_criterion >= self.best_val_criterion and self.current_epoch > 10:
+            if val_criterion >= self.best_val_criterion and self.current_epoch > 0:
                 checkpoint = {
                     'model': self.model.state_dict(),
                     'optimizer': self.optimizer.state_dict(),
@@ -326,6 +334,8 @@ class AdversarialTrainer:
 
             model_out = self.model(inputs)
             loss = self.loss(model_out, label.unsqueeze(1))
+            if self.is_gradnorm_regularization:
+                loss += self.weight_gradnorm_regularization*self._gradnorm_regularization(inputs)
 
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
@@ -350,15 +360,9 @@ class AdversarialTrainer:
         model_out = self.model(inputs)
         self.metric_computer.update(model_out, label)
 
-    def _gradnorm_regularize(self, images):
-        get_pred = lambda output: output[-1]*self.k[0] + self.b[0]
-        images = images.cuda()
-        images.requires_grad_(True)
-        
-        output_cur = self.compute_output(images, None)
-
-        pred_cur = get_pred(output_cur)
-
+    def _gradnorm_regularization(self, images):
+        images = images.clone().detach().requires_grad_(True).cuda()
+        pred_cur = self.model(images)
         dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
         dx = dx[0]
         images.requires_grad_(False)
@@ -369,21 +373,27 @@ class AdversarialTrainer:
         v = v.view(dx.shape).detach()
         x2 = images + self.h_gradnorm_regularization*v
 
-        output_pert = self.compute_output(x2, None)
-        pred_pert = get_pred(output_pert)
-
+        pred_pert = self.model(x2)
         dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
         loss = dl.pow(2).mean()/2
-
         return loss
 
+    def _prepair_prune(self):
+        if self.config['options']['prune'] <= 0.:
+            return
+        self.end_epoch = self.config['options']['prune_epochs']
+        self.config['lr_scheduler']['type'] = 'simple'
+        self.config['lr_scheduler']['points'][0] = self.config['options']['prune_lr']
+        self.config['lr_scheduler']['points'][self.end_epoch] = self.config['options']['prune_lr']
+    
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
         datasets = ['KonIQ-10k', 'NIPS']
         self.model.load_state_dict(checkpoint['model'])
-        # self.replace_activation(self.model, )
+        self.replace_backward_activations(self.config['options']['activation'])
         self.metric_computer = IQAPerformance()
         metric_range = checkpoint['max'] - checkpoint['min']
+        self.hash = self.__get_options_hash(self.config['options'])
         
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric range: {metric_range}')
@@ -444,14 +454,14 @@ class AdversarialTrainer:
                 print(f'Relative gain for eps={attack_args["params"]["eps"]}: {rel_gain}')
             
             if len(self.config['attack']['test']) > 0:
-                form = f"{_dataset}_inceptionresnetv2+{self.config['options']['activation']}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
+                form = f"{_dataset}_inceptionresnetv2+{self.hash}-gr={self.config['train']['gr']}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
                 pd.DataFrame.from_dict(results).to_csv(
                     self.results_csv / form,
                     index=False
                 )
 
     def eval(self) -> None:
-        checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
+        checkpoint = torch.load(self.config['attack']['path']['checkpoints']) #torch.load(self.log_dir / 'best_model.pth')
         results = {}
         self.model.load_state_dict(checkpoint['model'])
         self.metric_computer = IQAPerformance()
@@ -489,7 +499,11 @@ class AdversarialTrainer:
         checkpoint['PLCC'] = self.metric_computer.plcc
         print('SROCC: ', checkpoint['SROCC'])
         print('PLCC: ', checkpoint['PLCC'])
-        torch.save(checkpoint, self.log_dir / 'best_model.pth')
+        self.save_checkpoints(checkpoint, self.log_dir / 'best_model.pth',
+                        use_mask=self.use_mask, model=self.model)
+        self.save_checkpoints(checkpoint, self.config['attack']['path']['checkpoints'],
+                        use_mask=False, model=self.model)
+        # torch.save(checkpoint, self.log_dir / 'best_model.pth')
 
         orig_preds = self.metric_computer.preds.copy()
         orig_preds = np.array(orig_preds)
@@ -545,14 +559,25 @@ class AdversarialTrainer:
         hash_value = __help(options)
         # print(frozen, hash_value)
         return hash_value
+    
+    @staticmethod
+    def save_checkpoints(checkpoint, trained_model_file, model=None, use_mask=False):
+        if use_mask:
+            # model_copy = copy.deepcopy(model)
+            for module, name in model.prune_parameters:
+                prune.remove(module, name)
+            checkpoint['model'] = model.state_dict()
+            torch.save(checkpoint, trained_model_file)
+        else:
+            torch.save(checkpoint, trained_model_file)
 
-    @classmethod
-    def replace_activation(cls, model, orig, dest):
-        for name, layer in model.named_children():
-            if isinstance(layer, orig):
-                setattr(model, name, dest())
-            else:
-                cls.replace_activation(layer, orig, dest)
+    def replace_backward_activations(self, activation_name="Frelu_silu"):
+        if activation_name == "Frelu_silu":
+            swap_all_activations(self.model, ReLU_SiLU, ReLU)
+        elif activation_name == "Frelu_elu":
+            swap_all_activations(self.model, ReLU_ELU, ReLU)
+        else:
+            raise AttributeError(f"Can not swap activation {activation_name} to ReLU")
 
     @classmethod
     def run(cls, *args):
