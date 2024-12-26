@@ -1,0 +1,8 @@
+--activation|relu|--cayley1|--test|--iters|1
+--activation|relu|--cayley1|--test|--iters|3
+--activation|relu|--cayley1|--test|--iters|5
+--activation|relu|--cayley1|--test|--iters|8
+--activation|Fgelu|--test|--iters|1
+--activation|Fgelu|--test|--iters|3
+--activation|Fgelu|--test|--iters|5
+--activation|Fgelu|--test|--iters|8

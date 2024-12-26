@@ -1,0 +1,6 @@
+--activation|Fgelu|--test
+--activation|Felu|--test
+--cayley1|--test
+--cayley2|--test
+--prune|0.1|--prune_type|l1|--prune_epochs|15|--test
+--prune|0.1|--prune_type|l2|--prune_epochs|15|--test
