@@ -1,0 +1,81 @@
+activation: relu
+attack:
+  path:
+    checkpoints: db_model/koncept-backbone|inceptionresnetv2-prune=0.1l2-activation|relu.pth
+  test:
+  - params:
+      alpha: 2.5
+      eps: 2.0
+      iters: 5
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 5.0
+      eps: 4.0
+      iters: 5
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 7.5
+      eps: 6.0
+      iters: 5
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 10.0
+      eps: 8.0
+      iters: 5
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 12.5
+      eps: 10.0
+      iters: 5
+      mode: zero
+    type: pgd
+  train:
+    type: none
+checkpoint_path: null
+data:
+  data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+  dataset: KonIQ-10k
+  directory: KonIQ-10k/1024x768
+db_model: db_model/koncept-backbone|inceptionresnetv2-activation|relu.pth
+eval_only: true
+label_strategy: origin
+log:
+  directory: checkpoints/koncept1024_at
+lr_scheduler:
+  points:
+    0: 0.0001
+    40: 5.0e-05
+    60: 1.0e-05
+  type: simple
+options:
+  activation: relu
+  backbone: inceptionresnetv2
+  cayley1: false
+  cayley2: false
+  cayley3: false
+  cayley4: false
+  nt: false
+  prune: 0.1
+  prune_epochs: 15
+  prune_lr: 0.0001
+  prune_type: l2
+perc: false
+results_path: csv
+seed: 5102023
+test_data:
+  KonIQ-10k:
+    data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+    directory: KonIQ-10k/1024x768
+  NIPS:
+    directory: NIPS
+train:
+  batch_size: 16
+  epochs: 15
+  gr: false
+  gradnorm_regularization: false
+  num_workers: 4
+  val_criterion: PLCC

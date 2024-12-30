@@ -23,3 +23,8 @@ runs/
 /checkpoints
 /weights/*
 /debug_img
+NIPS
+mnt
+!presets/default_train.yaml
+!presets/default_test.yaml
+!presets/tester.yaml

@@ -1,0 +1,77 @@
+activation: relu
+attack:
+  path:
+    checkpoints: db_model/koncept-backbone|inceptionresnetv2-adv-activation|relu.pth
+  test:
+  - params:
+      alpha: 2.5
+      eps: 2.0
+      iters: 1
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 5.0
+      eps: 4.0
+      iters: 1
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 7.5
+      eps: 6.0
+      iters: 1
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 10.0
+      eps: 8.0
+      iters: 1
+      mode: zero
+    type: pgd
+  - params:
+      alpha: 12.5
+      eps: 10.0
+      iters: 1
+      mode: zero
+    type: pgd
+  train:
+    params:
+      alpha: 5.0
+      eps: 4.0
+      mode: uniform
+    type: fgsm
+checkpoint_path: null
+data:
+  data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+  dataset: KonIQ-10k
+  directory: KonIQ-10k/1024x768
+db_model: db_model/koncept-backbone|inceptionresnetv2-adv-activation|relu.pth
+eval_only: false
+label_strategy: origin
+log:
+  directory: checkpoints/koncept1024_at
+lr_scheduler:
+  points:
+    0: 0.0001
+    40: 5.0e-05
+    60: 1.0e-05
+  type: simple
+options:
+  activation: relu
+  backbone: inceptionresnetv2
+  cayley1: false
+  cayley2: false
+  cayley3: false
+  cayley4: false
+  prune: 0.0
+  prune_epochs: 15
+  prune_lr: 0.0001
+  prune_type: l1
+perc: false
+results_path: csv/koncept
+seed: 5102023
+train:
+  batch_size: 16
+  epochs: 30
+  gr: false
+  num_workers: 4
+  val_criterion: PLCC

@@ -72,8 +72,8 @@ class AdversarialTrainer:
         self.model.to(self.gpu)
 
         self.db_model_dir = Path(self.config['db_model'])
-        self.db_model_dir.mkdir(parents=True, exist_ok=True)
-        self.options_hash = self.__get_options_hash(self.config['options'])
+        # self.db_model_dir.mkdir(parents=True, exist_ok=True)
+        # self.options_hash = self.__get_options_hash(self.config['options'])
 
         self._init_logger()
 
@@ -314,7 +314,9 @@ class AdversarialTrainer:
         preds = self.metric_computer.preds
         checkpoint['max'] = np.max(preds)
         checkpoint['min'] = np.min(preds)
-        torch.save(checkpoint, self.db_model_dir / f'{self.options_hash}.pth')
+        # torch.save(checkpoint, self.config['attack']['path']['checkpoints'])
+        self.save_checkpoints(checkpoint, self.config['attack']['path']['checkpoints'],
+                              model=None, use_mask=False)
         torch.save(checkpoint, self.log_dir / 'best_model.pth')
 
     def _train_step(self, data, step: int, start_time: float) -> Dict[str, float]:
@@ -379,13 +381,24 @@ class AdversarialTrainer:
         return loss
 
     def _prepair_prune(self):
-        if self.config['options']['prune'] <= 0.:
+        print(self.model.model)
+        if self.config['options']['prune'] <= 0. or self.eval_only:
             return
+
+        self.model.model.load_pretrained(self.db_model_dir)
+        self.model.model.prune(amount=self.config['options']['prune'], 
+                            prtype=self.config['options']['prune_type'],
+                            width=256,
+                            height=192,
+                            images_count=100,
+                            kernel=1)
+        self.model.model.print_sparcity()
         self.end_epoch = self.config['options']['prune_epochs']
         self.config['lr_scheduler']['type'] = 'simple'
         self.config['lr_scheduler']['points'][0] = self.config['options']['prune_lr']
         self.config['lr_scheduler']['points'][self.end_epoch] = self.config['options']['prune_lr']
     
+
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
         datasets = ['KonIQ-10k', 'NIPS']
@@ -499,10 +512,10 @@ class AdversarialTrainer:
         checkpoint['PLCC'] = self.metric_computer.plcc
         print('SROCC: ', checkpoint['SROCC'])
         print('PLCC: ', checkpoint['PLCC'])
-        self.save_checkpoints(checkpoint, self.log_dir / 'best_model.pth',
-                        use_mask=self.use_mask, model=self.model)
+        # self.save_checkpoints(checkpoint, self.log_dir / 'best_model.pth',
+        #                 use_mask=self.use_mask, model=self.model)
         self.save_checkpoints(checkpoint, self.config['attack']['path']['checkpoints'],
-                        use_mask=False, model=self.model)
+                        use_mask=self.use_mask, model=self.model)
         # torch.save(checkpoint, self.log_dir / 'best_model.pth')
 
         orig_preds = self.metric_computer.preds.copy()
@@ -564,8 +577,10 @@ class AdversarialTrainer:
     def save_checkpoints(checkpoint, trained_model_file, model=None, use_mask=False):
         if use_mask:
             # model_copy = copy.deepcopy(model)
-            for module, name in model.prune_parameters:
+            for module, name in model.model.prune_parameters:
+                print(name, module,[ m[0] for m in list(module.named_buffers())])
                 prune.remove(module, name)
+                print('REMOVE ', name, module,[ m[0] for m in list(module.named_buffers())])
             checkpoint['model'] = model.state_dict()
             torch.save(checkpoint, trained_model_file)
         else:
@@ -577,7 +592,7 @@ class AdversarialTrainer:
         elif activation_name == "Frelu_elu":
             swap_all_activations(self.model, ReLU_ELU, ReLU)
         else:
-            raise AttributeError(f"Can not swap activation {activation_name} to ReLU")
+            return
 
     @classmethod
     def run(cls, *args):

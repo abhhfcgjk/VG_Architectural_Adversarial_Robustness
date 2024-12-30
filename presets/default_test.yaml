@@ -4,24 +4,24 @@ perc: no
 eval_only: yes
 seed: 5102023
 checkpoint_path: null
-activation: Frelu_elu
-results_path: /home/maindev/28i_mel/mnt/csv
-db_model: /home/maindev/28i_mel/mnt
+activation: relu
+results_path: csv
+db_model: db_model
 
 test_data:
   NIPS: 
-    directory: /home/maindev/28i_mel/mnt/NIPS_test
+    directory: NIPS
   KonIQ-10k:
-    data_info: /home/maindev/28i_mel/mnt/koniq10k_distributions_sets.csv
-    directory: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
+    data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+    directory: KonIQ-10k/1024x768
 
 data:
   # dataset: NIPS
   # directory: /home/maindev/28i_mel/mnt/NIPS_test
 
-  # dataset: KonIQ-10k
-  data_info: /home/maindev/28i_mel/mnt/koniq10k_distributions_sets.csv
-  directory: /home/maindev/28i_mel/mnt/KonIQ-10k/1024x768
+  dataset: KonIQ-10k
+  data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+  directory: KonIQ-10k/1024x768
 
 log:
   directory: checkpoints/koncept1024_at
@@ -55,7 +55,7 @@ train:
 
 attack:
   path:
-    checkpoints: /home/maindev/28i_mel/mnt/koncept-activation=Frelu_elu.pth
+    checkpoints: mnt/koncept-activation=relu.pth
   train:
     type: none
   test:

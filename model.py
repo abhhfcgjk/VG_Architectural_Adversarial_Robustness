@@ -14,7 +14,7 @@ from pathlib import Path
 from inceptionresnetv2 import inceptionresnetv2
 
 from activ import swap_all_activations, ReLU_ELU, ReLU_SiLU
-from pruning import l1_prune, ln_prune, pls_prune, displs_prune
+from pruning.pruning import l1_prune, ln_prune, pls_prune, displs_prune, hsic_prune
 
 
 class KonCept512(nn.Module):
@@ -73,20 +73,21 @@ class KonCept512(nn.Module):
             nn.Linear(256, num_classes),
         )
 
-        if self.prune_amount > 0:
-            self.__load_pretrained()
-            self.prune(amount=kwargs['prune'], 
-                                prtype=kwargs['prune_type'],
-                                width=664,
-                                height=498,
-                                images_count=2000,
-                                kernel=1)
-            self.print_sparcity()
+        # if self.prune_amount > 0:
+        #     self.__load_pretrained()
+        #     self.prune(amount=kwargs['prune'], 
+        #                         prtype=kwargs['prune_type'],
+        #                         width=256,
+        #                         height=192,
+        #                         images_count=100,
+        #                         kernel=1)
+        #     self.print_sparcity()
 
-    def __load_pretrained(self):
+    def load_pretrained(self, path):
         new_state_dict = {}
         self.db_model_dir = Path(self.db_model_dir)
-        checkpoint = torch.load(self.db_model_dir / 'koncept-activation=relu.pth')['model']
+        # checkpoint = torch.load(self.db_model_dir / 'koncept-activation=relu.pth')['model']
+        checkpoint = torch.load(path)
         for key, value in checkpoint.items():
             new_key = key.replace('model.', '')  # Adjust as necessary
             new_state_dict[new_key] = value
@@ -100,12 +101,10 @@ class KonCept512(nn.Module):
             self.prune_parameters = l1_prune(self, amount)
         elif prtype == 'pls':
             self.prune_parameters = pls_prune(self, amount, **kwargs)
-                                        # width=self.width_prune, 
-                                        # height=self.height_prune, 
-                                        # images_count=self.pls_images, 
-                                        # kernel=self.kernel_prune) # 120, 90
         elif prtype == 'displs':
             self.prune_parameters = displs_prune(self, amount, **kwargs)
+        elif prtype == 'hsic':
+            self.prune_parameters = hsic_prune(self, amount, **kwargs)
         elif prtype == 'l2':
             self.prune_parameters = ln_prune(self, amount, 2)
 

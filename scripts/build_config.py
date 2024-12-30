@@ -53,6 +53,14 @@ def run(args):
                                                                         gr_status, prune_status,
                                                                         activation_status,
                                                                         )
+    config['db_model'] = 'db_model/koncept{}{}{}{}{}{}.pth'.format(
+                                                                backbone_satatus, 
+                                                                cayley1_status,
+                                                                cayley2_status,
+                                                                adv_status,
+                                                                gr_status,
+                                                                activation_status,
+                                                                )
     form = '{}config{}{}{}{}{}{}{}_PGD={}.yaml'.format(test_status,
                                                backbone_satatus, 
                                                cayley1_status,
