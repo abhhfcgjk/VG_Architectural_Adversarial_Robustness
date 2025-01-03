@@ -438,6 +438,17 @@ class AdversarialTrainer:
         dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
         loss = dl.pow(2).mean()/2
         return loss
+    
+    def prune(self):
+        self._prepair_prune()
+        self.model.prune()
+
+    def _prepair_prune(self):
+        path = self.config['data']['pretrained']
+        ckpt = torch.load(path)
+        self.model.load_state_dict(ckpt['model'])
+        self.config['train']['lr'] = self.options['prune_lr']
+        self.config['train']['epochs'] = self.options['prune_epochs']
 
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])

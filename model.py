@@ -1,3 +1,4 @@
+from typing import List, Dict
 from collections import OrderedDict
 
 import torch
@@ -15,6 +16,7 @@ from Cayley import CayleyBlockPool
 # from activ import swap_all_activations, ReLU_ELU, ReLU_SiLU
 import activ
 from pruning.pruning import l1_prune, ln_prune, pls_prune, displs_prune, hsic_prune
+
 
 def weight_init(net): 
     for m in net.modules():    
@@ -54,7 +56,6 @@ class SCNN(nn.Module):
         weight_init(self.classifier)
 
     def forward(self, X):
-#        return X
         N = X.size()[0]
         assert X.size() == (N, 3, 224, 224)
         X = self.features(X)
@@ -83,8 +84,10 @@ class DBCNN(torch.nn.Module):
     def __init__(self, scnn_root, config, **options):
         """Declare all needed layers."""
         nn.Module.__init__(self)
+
         self.prune_amount = options.get('prune', 0.0)
         self.db_model_dir = config.get('db_model')
+
         # Convolution and pooling layers of VGG-16.
         self.features1 = torchvision.models.vgg16(pretrained=True).features
         self.features1 = nn.Sequential(*list(self.features1.children())[:-1])
