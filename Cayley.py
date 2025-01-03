@@ -170,7 +170,8 @@ class CayleyBlockPool(nn.Module):
         # x = self.conv_in(X)
         ic(X.shape)
         _, _, h, w = X.shape
-        x = self.pool_to_square(X, h, w)
+        # x = self.pool_to_square(X, h, w)
+        x = nn.functional.adaptive_avg_pool2d(X, (min(h,w), min(h,w)))
         ic(x.shape)
         x = self.conv_in(x)
         ic(x.shape)
