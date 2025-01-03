@@ -14,6 +14,7 @@ ic.disable()
 from Cayley import CayleyBlockPool
 # from activ import swap_all_activations, ReLU_ELU, ReLU_SiLU
 import activ
+from pruning.pruning import l1_prune, ln_prune, pls_prune, displs_prune, hsic_prune
 
 def weight_init(net): 
     for m in net.modules():    
@@ -68,11 +69,22 @@ class SCNN(nn.Module):
 
 
 class DBCNN(torch.nn.Module):
+    def print_sparcity(self):
+        print("SPARCITY")
+        p_list = self.prune_parameters
+        print(p_list.__len__())
+        for (module, attr) in p_list:
+            percentage = 100. * float(torch.sum(getattr(module, attr) == 0)) / float(getattr(module, attr).nelement())
 
-    def __init__(self, scnn_root, **options):
+            print("Sparsity in {}.{} {}: {:.2f}%".format(module.__class__.__name__, attr,
+                                                         getattr(module, attr).shape, percentage))
+
+
+    def __init__(self, scnn_root, config, **options):
         """Declare all needed layers."""
         nn.Module.__init__(self)
-
+        self.prune_amount = options.get('prune', 0.0)
+        self.db_model_dir = config.get('db_model')
         # Convolution and pooling layers of VGG-16.
         self.features1 = torchvision.models.vgg16(pretrained=True).features
         self.features1 = nn.Sequential(*list(self.features1.children())[:-1])
@@ -109,6 +121,16 @@ class DBCNN(torch.nn.Module):
         
         self.__set_activation(options.get('activation', None))
 
+        if self.prune_amount > 0:
+            self.__load_pretrained()
+            self.prune(amount=options['prune'], 
+                      prtype=options['prune_type'],
+                      width=256,
+                      height=192,
+                      images_count=100,
+                      kernel=1)
+            self.print_sparcity()
+
         if options['fc'] == True:
             # Freeze all previous layers.
             for param in self.features1.parameters():
@@ -119,6 +141,15 @@ class DBCNN(torch.nn.Module):
             nn.init.kaiming_normal_(self.fc.weight.data)
             if self.fc.bias is not None:
                 nn.init.constant_(self.fc.bias.data, val=0)
+        
+    def __load_pretrained(self):
+        new_state_dict = {}
+        # self.db_model_dir = Path(self.db_model_dir)
+        checkpoint = torch.load(self.db_model_dir)['model']
+        for key, value in checkpoint.items():
+            new_key = key.replace('model.', '')  # Adjust as necessary
+            new_state_dict[new_key] = value
+        self.load_state_dict(new_state_dict, strict=False)
 
     def __set_activation(self, activ_function):
         if activ_function=='Frelu_elu':
@@ -142,8 +173,23 @@ class DBCNN(torch.nn.Module):
             # activ.swap_all_activations(self.features2, nn.ReLU, nn.GELU)
             self.Activ = nn.GELU
         else:
-            activ.swap_all_activations(self.features1, nn.ReLU, nn.ReLU)
+            # activ.swap_all_activations(self.features1, nn.ReLU, nn.ReLU)
             self.Activ = nn.ReLU
+
+    def prune(self, amount, prtype='l1', **kwargs):
+        self.prune_parameters: tuple
+        self.pruning_type = prtype
+
+        if prtype == 'l1':
+            self.prune_parameters = l1_prune(self, amount)
+        elif prtype == 'pls':
+            self.prune_parameters = pls_prune(self, amount, **kwargs)
+        elif prtype == 'displs':
+            self.prune_parameters = displs_prune(self, amount, **kwargs)
+        elif prtype == 'hsic':
+            self.prune_parameters = hsic_prune(self, amount, **kwargs)
+        elif prtype == 'l2':
+            self.prune_parameters = ln_prune(self, amount, 2)
 
     def _euclidian_mapping(self, B):
         #ic(torch.sqrt(torch.abs(B)))
@@ -154,30 +200,16 @@ class DBCNN(torch.nn.Module):
         return mapped_B
 
     def forward(self, X):
-        """Forward pass of the network."""
+        """Forward pass of the network.
+        """
         N = X.size()[0]
-
-        ic(X)
         X1 = self.features1(X)
-
-        x = X
-        for name, module in self.features1.named_children():
-            x = module(x)
-            ic(module)
-            ic(x + 1e-8)
-
-        ic(X1.shape)
-        # ic(X1)
-
         H = X1.size()[2]
         W = X1.size()[3]
-        
         assert X1.size()[1] == 512
         X2 = self.features2(X)
-        ic(X2.shape)
         H2 = X2.size()[2]
         W2 = X2.size()[3]
-        ic(X2)
         assert X2.size()[1] == 128        
         
         if (H != H2) | (W != W2):
@@ -185,16 +217,11 @@ class DBCNN(torch.nn.Module):
 
         X1 = X1.view(N, 512, H*W)
         X2 = X2.view(N, 128, H*W)  
-        # ic(X1)
-        # X = torch.bmm(X1, torch.transpose(X2, 1, 2)) / (H*W)  # Bilinear
-        X = torch.bmm(X1, torch.transpose(X2, 1, 2))
+        X = torch.bmm(X1, torch.transpose(X2, 1, 2)) / (H*W)  # Bilinear
         assert X.size() == (N, 512, 128)
         X = X.view(N, 512*128)
-        # X = torch.sqrt(X + 1e-8) # WARN: Nan values after sqrt
-        # X = torch.nn.functional.normalize(X)
-        #ic(X)
-        X = self._euclidian_mapping(X + 1e-8)
-        #ic(X)
+        X = torch.sqrt(torch.abs(X) + 1e-8)
+        X = torch.nn.functional.normalize(X)
         X = self.fc(X)
         assert X.size() == (N, 1)
         return X

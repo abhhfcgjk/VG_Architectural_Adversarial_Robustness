@@ -1,0 +1,6 @@
+--activation|Fsilu
+--activation|Felu
+--activation|Fgelu
+--gr
+--activation|Frelu_silu
+--activation|Frelu_elu

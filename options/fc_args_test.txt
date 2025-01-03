@@ -1,0 +1,8 @@
+--fc|--activation|Frelu_silu|--test|--iters|1
+--fc|--activation|Frelu_silu|--test|--iters|3
+--fc|--activation|Frelu_silu|--test|--iters|5
+--fc|--activation|Frelu_silu|--test|--iters|8
+--fc|--activation|Frelu_elu|--test|--iters|1
+--fc|--activation|Frelu_elu|--test|--iters|3
+--fc|--activation|Frelu_elu|--test|--iters|5
+--fc|--activation|Frelu_elu|--test|--iters|8
