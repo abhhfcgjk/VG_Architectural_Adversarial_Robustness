@@ -51,7 +51,7 @@ class CayleyConv(StridedConv, nn.Conv2d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.eval:
-            self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float32, requires_grad=True).cuda())
+            self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float64, requires_grad=True).cuda())
         else:
             self.register_parameter('alpha', None)
         # self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float32, requires_grad=True).cuda())
@@ -63,20 +63,23 @@ class CayleyConv(StridedConv, nn.Conv2d):
         return torch.exp(1j * 2 * np.pi * s * shift / n)
     
     def forward(self, x):
+        x = x.to(torch.float64)
         cout, cin, _, _ = self.weight.shape
         batches, _, n, _ = x.shape
         if not hasattr(self, 'shift_matrix'):
             s = (self.weight.shape[2] - 1) // 2
             self.shift_matrix = self.fft_shift_matrix(n, -s)[:, :(n//2 + 1)].reshape(n * (n // 2 + 1), 1, 1).to(x.device)
-        # ic(x.shape)
-        # ic(n, n*(n//2+1),cin, batches)
+        ic(x.shape)
+        ic(n, n*(n//2+1),cin, batches)
         xfft = torch.fft.rfft2(x).permute(2, 3, 1, 0)
-        # ic(xfft.shape)
+        ic(xfft.shape)
         xfft = xfft.reshape(n * (n // 2 + 1), cin, batches)
-        # ic(xfft.shape)
+        ic(xfft.shape)
         wfft = self.shift_matrix * torch.fft.rfft2(self.weight, (n, n)).reshape(cout, cin, n * (n // 2 + 1)).permute(2, 0, 1).conj()
         if self.alpha is None:
             self.alpha = nn.Parameter(torch.tensor(wfft.norm().item(), requires_grad=True).to(x.device))
+        wfft = wfft.to(torch.complex64)
+        xfft = xfft.to(torch.complex64)
         yfft = (cayley(self.alpha * wfft / wfft.norm()) @ xfft).reshape(n, n // 2 + 1, cout, batches)
         y = torch.fft.irfft2(yfft.permute(3, 2, 0, 1))
         if self.bias is not None:
@@ -153,20 +156,31 @@ class CayleyBlockPool(nn.Module):
         if w > h:
             delta = w - h
             up = int(np.ceil(h*0.02)+1)
+            ic(up, delta)
             kernel_size = (up, up+delta)
             return F.max_pool2d(x, kernel_size=kernel_size, stride=1)
         elif w < h:
             delta = h - w
-            up = int(np.ceil(w*0.02)+1)
+            up = int(np.ceil(w*0.02))
             kernel_size = (delta+up, up)
             return F.max_pool2d(x, kernel_size=kernel_size)
         return x
 
     def forward(self, X):
+        ic("Cayley(")
+        # ic(X.shape)
+        # x = self.conv_in(X)
+        ic(X.shape)
         _, _, h, w = X.shape
         x = self.pool_to_square(X, h, w)
+        ic(x.shape)
         x = self.conv_in(x)
+        ic(x.shape)
         out = self.conv_cayley(x)
+        ic(out.shape)
+        # out = self.conv_out(out)
+        # ic(out.shape)
+        ic(")cayley")
         return out
 
 def swap_conv_to_lipschitz(model):
