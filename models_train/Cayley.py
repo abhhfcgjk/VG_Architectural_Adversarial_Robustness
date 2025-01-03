@@ -51,7 +51,7 @@ class CayleyConv(StridedConv, nn.Conv2d):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if self.eval:
-            self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float32, requires_grad=True).cuda())
+            self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float64, requires_grad=True).cuda())
         else:
             self.register_parameter('alpha', None)
         # self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float32, requires_grad=True).cuda())
@@ -63,6 +63,7 @@ class CayleyConv(StridedConv, nn.Conv2d):
         return torch.exp(1j * 2 * np.pi * s * shift / n)
     
     def forward(self, x):
+        x = x.to(torch.float64)
         cout, cin, _, _ = self.weight.shape
         batches, _, n, _ = x.shape
         if not hasattr(self, 'shift_matrix'):
@@ -77,6 +78,8 @@ class CayleyConv(StridedConv, nn.Conv2d):
         wfft = self.shift_matrix * torch.fft.rfft2(self.weight, (n, n)).reshape(cout, cin, n * (n // 2 + 1)).permute(2, 0, 1).conj()
         if self.alpha is None:
             self.alpha = nn.Parameter(torch.tensor(wfft.norm().item(), requires_grad=True).to(x.device))
+        wfft = wfft.to(torch.complex64)
+        xfft = xfft.to(torch.complex64)
         yfft = (cayley(self.alpha * wfft / wfft.norm()) @ xfft).reshape(n, n // 2 + 1, cout, batches)
         y = torch.fft.irfft2(yfft.permute(3, 2, 0, 1))
         if self.bias is not None:

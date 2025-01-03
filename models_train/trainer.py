@@ -4,12 +4,14 @@ from torch.optim import Adam, SGD, Adadelta, lr_scheduler, Optimizer
 from torch.amp.grad_scaler import GradScaler
 from torch.amp.autocast_mode import autocast
 from torch.ao.nn import quantized as nq
+from pytorch_msssim import ssim
 from models_train.IQAdataset import get_data_loaders
 # from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
 from models_train.IQAloss import IQALoss
 from models_train.IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
 from models_train.swap_convs import swap_to_quntized
+import models_train.iterative as iterative 
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 import numpy as np
@@ -19,18 +21,17 @@ from torch.nn.utils import prune
 import torch.nn.functional as F
 from torchvision.transforms.functional import to_tensor, normalize
 from torch import nn
-# from mixer import MixData
-# from style_transfer.adain import StyleTransfer
-# from style_transfer.mixer import MixData
-
+import copy
 from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
 
-# from dataclasses import dataclass
 from _codecs import encode
 torch.serialization.add_safe_globals([np._core.multiarray.scalar, 
                                         np.dtype, np.dtypes.Float64DType,
                                         encode])
+
+MAX_SCORE_NORM = 1.0982177
+MIN_SCORE_NORM = 0.29622972
 
 class Trainer:
     metrics_printed = ['SROCC', 'PLCC', 'RMSE']
@@ -50,7 +51,6 @@ class Trainer:
         self.current_epoch = 0
         self.gpu = 0
         self.dlayer = args.dlayer
-        self.pruning = args.pruning
         self.noise_batch = args.noise
         self.gradnorm_regularization = args.gradnorm_regularization
         self.h_gradnorm_regularization = 6/255 # 10/255
@@ -59,11 +59,15 @@ class Trainer:
         self.cayley_pool = args.cayley_pool
         self.cayley_pair = args.cayley_pair
 
+        self.pruning = args.pruning
         self.prune_iters = args.prune_iters
         self.width_prune = args.width_prune
         self.height_prune = args.height_prune
         self.images_count_prune = args.pls_images
         self.kernel_prune = args.kernel_prune
+        self.use_mask = True if self.pruning > 0 else False
+
+        self.adv = self.args.adv
 
         self.is_quantize = args.quantize
 
@@ -96,6 +100,8 @@ class Trainer:
             self.quantize()
 
     def train(self, train=True, val=True, test=True):
+        if self.adv:
+            self._prepair_adv_train()
         self._prepair_train(train, val, test)
         self._train_loop()
 
@@ -106,6 +112,10 @@ class Trainer:
         return inputs, label
 
     def _prepair(self, train=True, val=True, test=True, use_normalize=True):
+        if self.args.quantize:
+            self.__quantize()
+        if self.pruning > 0.0:
+            self.__prune()
         if train or val or test:
             self.train_loader, self.val_loader, self.test_loader = get_data_loaders(args=self.args, 
                                                                                     train=train, 
@@ -118,11 +128,16 @@ class Trainer:
                                 p=self.args.p, q=self.args.q,
                                 monotonicity_regularization=self.args.monotonicity_regularization,
                                 gamma=self.args.gamma, detach=self.args.detach)
-        if self.args.quantize:
-            self.__quantize()
-        if self.pruning > 0.0:
-            self.__prune()
 
+    def _prepair_adv_train(self, ):
+        checkpoints = torch.load(self.args.trained_model_file)
+        self.model.load_state_dict(checkpoints['model'])
+        self.args.trained_model_file += '-advirsarial'
+        self.min_score = checkpoints['min']
+        self.max_score = checkpoints['max']
+        self.k = checkpoints['k']
+        self.b = checkpoints['b']
+        print("Orig SROCC, PLCC:", checkpoints['SROCC'], checkpoints['PLCC'])
 
     def _prepair_train(self, train, val, test):
         self._prepair(train, val, test)
@@ -170,7 +185,9 @@ class Trainer:
                          height=self.args.height_prune,
                          images_count=self.args.pls_images,
                          kernel=self.args.kernel_prune)
-        torch.save(checkpoint, self.args.trained_model_file)
+        self.save_checkpoints(checkpoint, self.args.trained_model_file, 
+                              use_mask=False)
+        # torch.save(checkpoint, self.args.trained_model_file)
         print(self.args.trained_model_file)
 
         self.epochs = self.args.prune_epochs
@@ -186,7 +203,8 @@ class Trainer:
                                       )
         self.args.trained_model_file = form
         self.model.quantize(precision)
-        torch.save(checkpoint, self.args.trained_model_file)
+        self.save_checkpoints(checkpoint, self.args.trained_model_file)
+        # torch.save(checkpoint, self.args.trained_model_file)
         print("Quantized")
 
     def _optimizer(self):
@@ -241,7 +259,7 @@ class Trainer:
             )
             val_criterion = abs(metrics[self.args.val_criterion])
             # print(val_criterion, self.best_val_criterion)
-            if val_criterion > self.best_val_criterion:
+            if (val_criterion > self.best_val_criterion) and (self.current_epoch > 10):
                 # if self.args.debug:
                 # print('max:', 'max_pred', 'min:', 'min_pred')
                 checkpoint = {
@@ -250,7 +268,9 @@ class Trainer:
                     'k': self.k,
                     'b': self.b,
                 }
-                torch.save(checkpoint, self.args.trained_model_file)
+                self.save_checkpoints(checkpoint, self.args.trained_model_file, 
+                                      use_mask=False)
+                # torch.save(checkpoint, self.args.trained_model_file)
 
                 self.best_val_criterion = val_criterion
                 self.best_epoch = self.current_epoch
@@ -264,6 +284,8 @@ class Trainer:
                           {val_criterion:.3f} @epoch: {self.current_epoch}'
                 )
 
+        ckpt = torch.load(self.args.trained_model_file)
+        self.model.load_state_dict(ckpt['model'])
         self.metric_computer = self._get_perfomance(
             'train', k=[1, 1, 1], b=[0, 0, 0], mapping=True
         )
@@ -284,7 +306,8 @@ class Trainer:
             'SROCC': self.best_val_criterion,
 
         }
-        torch.save(checkpoint, self.args.trained_model_file)
+        self.save_checkpoints(checkpoint, self.args.trained_model_file, 
+                              use_mask=False)
         print('checkpoints saved')
 
         checkpoint = torch.load(self.args.trained_model_file)
@@ -305,7 +328,9 @@ class Trainer:
         checkpoint['SROCC'] = self.metric_computer.SROCC
         checkpoint['PLCC'] = self.metric_computer.PLCC
         checkpoint ['RMSE'] = self.metric_computer.RMSE
-        torch.save(checkpoint, self.args.trained_model_file)
+        self.save_checkpoints(checkpoint, self.args.trained_model_file, 
+                              use_mask=False)
+        # torch.save(checkpoint, self.args.trained_model_file)
         # Task.current_task().upload_artifact(name="Metrics", 
         #                                     artifact_object={
         #                                         'model_name': "Linearity",
@@ -322,16 +347,44 @@ class Trainer:
         inputs, label = self.unpack_data(inputs, label, step)
 
         self.optimizer.zero_grad(set_to_none=True)
-        output = self.compute_output(inputs, label)
-
-        loss = self.loss_func(output, label) / self.args.accumulation_steps 
-
-        if self.gradnorm_regularization:
-            grad_loss = self.gradnorm_regularize(inputs)
-            loss += self.weight_gradnorm_regularization*grad_loss
-        ic(loss)
 
         with autocast('cuda', enabled=True):
+            if self.adv:
+                adv_inputs = iterative.fgsm_attack(inputs, 
+                                                eps=4.0/255, 
+                                                alpha=5.0/255, 
+                                                model=self.model, 
+                                                metric_range=(self.max_score - self.min_score),
+                                                k=self.k, b=self.b)
+                ssim_val = ssim(adv_inputs, inputs, data_range=1, size_average=False)
+                adv_label = [
+                    torch.clamp(
+                        label[0].clone()
+                        - 1 * (1 - ssim_val) * (self.max_score - self.min_score),
+                        self.min_score,
+                        self.max_score,
+                    ),
+                    torch.clamp(
+                        label[1].clone()
+                        - 1
+                        * (1 - ssim_val)
+                        * (MAX_SCORE_NORM - MIN_SCORE_NORM),
+                        MIN_SCORE_NORM,
+                        MAX_SCORE_NORM,
+                    ),
+                ]
+                inputs = torch.concat([adv_inputs, inputs])
+                label = [torch.concat([adv_lab, lab]) for adv_lab, lab in zip(adv_label, label)]
+
+            output = self.compute_output(inputs, label)
+
+            loss = self.loss_func(output, label) / self.args.accumulation_steps 
+
+            if self.gradnorm_regularization:
+                grad_loss = self.gradnorm_regularize(inputs)
+                loss += self.weight_gradnorm_regularization*grad_loss
+            ic(loss)
+        
             self.scaler.scale(loss).backward()
             if step % self.args.accumulation_steps == 0:
                 self.scaler.step(self.optimizer)
@@ -375,7 +428,8 @@ class Trainer:
         metric_range = checkpoint['max'] - checkpoint['min']
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric_range:', metric_range)
-        torch.save(checkpoint, self.args.trained_model_file)
+        self.save_checkpoints(checkpoint, self.args.trained_model_file, use_mask=self.use_mask, model=self.model)
+        # torch.save(checkpoint, self.args.trained_model_file)
         # Task.current_task().upload_artifact(name="Metrics", 
         #                                     artifact_object={
         #                                         'model_name': "Linearity",
@@ -458,6 +512,17 @@ class Trainer:
         loss = dl.pow(2).mean()/2
 
         return loss
+
+    @staticmethod
+    def save_checkpoints(checkpoint, trained_model_file, model=None, use_mask=False):
+        if use_mask:
+            # model_copy = copy.deepcopy(model)
+            for module, name in model.prune_parameters:
+                prune.remove(module, name)
+            checkpoint['model'] = model.state_dict()
+            torch.save(checkpoint, trained_model_file)
+        else:
+            torch.save(checkpoint, trained_model_file)
 
     @staticmethod
     def get_prune_file_name(args):

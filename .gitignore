@@ -23,3 +23,6 @@ runs/
 /checkpoints
 /weights/*
 /debug_img
+NIPS_test
+results
+ckpt

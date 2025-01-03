@@ -22,7 +22,7 @@ import h5py
 from tqdm import tqdm
 from icecream import ic
 
-from .projection import PLSGPU, ADMM, PwoA
+from .projection import PLSRegressionCUDA, ADMM, PwoA
 from .VOneNet.modules import GFB, VOneBlock
 
 class PruneDataLoader(Dataset):
@@ -35,49 +35,91 @@ class PruneDataLoader(Dataset):
         self.height = height
         self.width = width
         self.images_count = train_count
-        Info = h5py.File(self.dataset_labels_path, 'r')
-        index = Info['index'][:, 0]
-        ref_ids = Info['ref_ids'][0, :]
-        index = index[0: self.images_count]
 
-        self.imgs_indexs = []
-        for i in range(len(ref_ids)):
-            if ref_ids[i] in index:
-                self.imgs_indexs.append(i)
-        print("# PRUNE images: {}".format(len(self.imgs_indexs)))
+        # Load dataset info
+        Info = h5py.File(self.dataset_labels_path, 'r')
+        index = Info['index'][:, 0][:self.images_count]
+        ref_ids = Info['ref_ids'][0, :]
+        self.imgs_indexs = [i for i, ref_id in enumerate(ref_ids) if ref_id in index]
 
         self.label = Info['subjective_scores'][0, self.imgs_indexs].astype(np.float32)
         self.im_names = [Info[Info['im_names'][0, :][i]][()].tobytes()[::2].decode() for i in self.imgs_indexs]
-        self.ims = []
+
+        # Transformations
         transform_list = []
         if self.crop:
             transform_list.append(v2.RandomCrop((self.height, self.width)))
         elif self.resize:
             transform_list.append(v2.Resize((self.height, self.width)))
-        transform_list += [v2.ToTensor(), 
-                      v2.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]
-        transform = v2.Compose(transform_list)
-        for im_name in self.im_names:
-            im = Image.open(os.path.join(self.dataset_path, im_name)).convert('RGB')
-            
-            # if self.resize:  # resize or not?
-                # im = resize(im, (self.resize_height, self.resize_width))  # h, w
-            # im = to_tensor(im)
-            # im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            im = transform(im)
-            # im = im.unsqueeze(0)
-            self.ims.append(im)
+        transform_list += [v2.ToTensor(), v2.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]
+        self.transform = v2.Compose(transform_list)
 
     def __len__(self):
         return len(self.imgs_indexs)
 
     def __getitem__(self, index):
-        im = self.ims[index]
+        im_name = self.im_names[index]
+        im = Image.open(os.path.join(self.dataset_path, im_name)).convert('RGB')
+        im = self.transform(im)
         label = self.label[index]
         return im, label
 
-    def __iter__(self):
-        return zip(self.ims, self.label)
+# class PruneDataLoader(Dataset):
+#     def __init__(self, train_count=20, dataset_path='./KonIQ-10k/', dataset_labels_path='./data/KonIQ-10kinfo.mat',
+#                  is_resize=True, is_crop=False, height=498, width=664):
+#         self.dataset_path = dataset_path
+#         self.dataset_labels_path = dataset_labels_path
+#         self.resize = is_resize
+#         self.crop = is_crop
+#         self.height = height
+#         self.width = width
+#         self.images_count = train_count
+#         Info = h5py.File(self.dataset_labels_path, 'r')
+#         index = Info['index'][:, 0]
+#         ref_ids = Info['ref_ids'][0, :]
+#         index = index[0: self.images_count]
+
+#         self.imgs_indexs = []
+#         for i in range(len(ref_ids)):
+#             if ref_ids[i] in index:
+#                 self.imgs_indexs.append(i)
+#         print("# PRUNE images: {}".format(len(self.imgs_indexs)))
+
+#         self.label = Info['subjective_scores'][0, self.imgs_indexs].astype(np.float32)
+#         self.im_names = [Info[Info['im_names'][0, :][i]][()].tobytes()[::2].decode() for i in self.imgs_indexs]
+#         self.ims = []
+#         transform_list = []
+#         if self.crop:
+#             transform_list.append(v2.RandomCrop((self.height, self.width)))
+#         elif self.resize:
+#             transform_list.append(v2.Resize((self.height, self.width)))
+#         transform_list += [v2.ToTensor(), 
+#                       v2.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]
+#         self.transform = v2.Compose(transform_list)
+#         # for im_name in self.im_names:
+#         #     im = Image.open(os.path.join(self.dataset_path, im_name)).convert('RGB')
+            
+#         #     # if self.resize:  # resize or not?
+#         #         # im = resize(im, (self.resize_height, self.resize_width))  # h, w
+#         #     # im = to_tensor(im)
+#         #     # im = normalize(im, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+#         #     im = transform(im)
+#         #     # im = im.unsqueeze(0)
+#         #     self.ims.append(im)
+
+#     def __len__(self):
+#         return len(self.imgs_indexs)
+
+#     def __getitem__(self, index):
+#         im_name = self.im_names[index]
+#         im = Image.open(os.path.join(self.dataset_path, im_name)).convert('RGB')
+#         im = self.transform(im)
+#         # im = self.ims[index]
+#         label = self.label[index]
+#         return im, label
+
+#     def __iter__(self):
+#         return zip(self.ims, self.label)
 
 from torch.optim.lr_scheduler import _LRScheduler
 
@@ -131,6 +173,7 @@ class HSICEstimator:
     def set_data_loader(self, *args, **kwargs):
         self.data_loader = DataLoader(PruneDataLoader(**kwargs), 
                                       batch_size=self.batch_size, 
+                                      num_workers=4,
                                       shuffle=True)
         # self.data_loader = PruneDataLoader(**kwargs)
 
@@ -209,8 +252,8 @@ class HSICPrune(BasePruningMethod):
     def apply(cls, model, name, amount,
               importance_scores=None, /, 
               batch_size=8, epochs=10, learning_rate=1e-4,
-              train_count=2000, dataset_path='./KonIQ-10k/',
-              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True, is_crop=False,
+              train_count=2000, dataset_path='KonIQ-10k/1024x768',
+              dataset_labels_path='data/KonIQ-10kinfo.mat', is_resize=True, is_crop=False,
               height=498, width=664):
         hsic_prune = HSICEstimator(model, amount, batch_size, lr=learning_rate, epochs=epochs)
         hsic_prune.set_data_loader(train_count=train_count, dataset_path=dataset_path,
@@ -303,27 +346,59 @@ class PLSEsitimator:
         X = np.array(X)
         return X
 
+    # def flatten(self, features: List[torch.Tensor]) -> torch.Tensor:
+    #     n_samples = features[0].shape[0]
+    #     conv_count = len(features)
+    #     X = None
+    #     for idx in range(conv_count):
+    #         if X is None:
+    #             # Flatten the first feature map
+    #             X = features[idx].reshape(n_samples, -1)
+    #             self.idx_score_layer.append((0, X.shape[1] - 1))
+    #         else:
+    #             # Flatten subsequent feature maps
+    #             tmp = features[idx].reshape(n_samples, -1)
+    #             self.idx_score_layer.append((X.shape[1], X.shape[1] + tmp.shape[1] - 1))
+    #             X = torch.cat((X, tmp), dim=1)  # Concatenate along feature dimension
+    #     return X
+
     def VIP(self, x, y, pls_model):
-        t = Tensor(pls_model.x_scores_).to(self.device)
-        w = Tensor(pls_model.x_weights_).to(self.device)
-        q = Tensor(pls_model.y_loadings_).to(self.device)
+        # t = Tensor(pls_model.x_scores_).to(self.device)
+        # w = Tensor(pls_model.x_weights_).to(self.device)
+        # q = Tensor(pls_model.y_loadings_).to(self.device)
+        t = pls_model.T
+        w = pls_model.W
+        q = pls_model.Q
 
         m, p = x.shape
         _, h = t.shape
-
-        self.vips = np.zeros((p,))
-        print(self.vips.shape)
-        s = torch.diag(torch.mm(torch.mm(torch.mm(t.t(), t), q.t()), q)).reshape(h, -1)
-        print('S', s.shape, s.t())
+        s = torch.diag(torch.mm(t.T @ t, q.T @ q)).reshape(h, -1)  # (h, 1)
         total_s = torch.sum(s)
-        print(total_s)
 
-        for i in tqdm(range(p), total=p):
-            weight = Tensor([(w[i, j] / torch.linalg.norm(w[:, j])).to(self.device) ** 2
-                             for j in range(h)]).to(self.device)
-            weight = weight.unsqueeze(1)
-            elem = torch.sqrt(p * (torch.mm(s.t(), weight).to(self.device)) / total_s).to(self.device)
-            self.vips[i] = elem.detach().cpu().numpy()
+        # Normalize weights for each component
+        norm_w = torch.linalg.norm(w, dim=0, keepdim=True)  # (1, h)
+        normalized_w = (w / norm_w) ** 2  # (p, h)
+
+        # Compute VIP scores for all features simultaneously
+        vip_scores = torch.sqrt(
+            p * (normalized_w @ s / total_s).squeeze()
+        )  # (p,)
+
+        self.vips = vip_scores
+
+        # self.vips = torch.zeros((p,))
+        # print(self.vips.shape)
+        # s = torch.diag(torch.mm(torch.mm(torch.mm(t.t(), t), q.t()), q)).reshape(h, -1)
+        # print('S', s.shape, s.t())
+        # total_s = torch.sum(s)
+        # print(total_s)
+
+        # for i in tqdm(range(p), total=p):
+        #     weight = Tensor([(w[i, j] / torch.linalg.norm(w[:, j])) ** 2
+        #                      for j in range(h)])
+        #     weight = weight.unsqueeze(1)
+        #     elem = torch.sqrt(p * (torch.mm(s.t(), weight).to(self.device)) / total_s)
+        #     self.vips[i] = elem
         return self.vips
 
     def get_layer_features(self, loader: Dataset) -> Tuple[List, List]:
@@ -346,6 +421,32 @@ class PLSEsitimator:
                 X = out
                 y = np.array(label)
         return X, y
+
+    # def get_layer_features(self, loader: Dataset) -> Tuple[List[torch.Tensor], torch.Tensor]:
+    #     convs_count = len(self.feature_maps)
+    #     X = [None for _ in range(convs_count)]  # Initialize list for feature maps
+    #     y = None  # Initialize tensor for labels
+
+    #     for im, label in tqdm(loader, total=len(loader)):
+    #         im = im.to(self.device)  # Move batch of images to the device
+    #         x = im
+
+    #         # Extract features for all layers in `feature_maps`
+    #         out = [x := feature(x) for feature in self.feature_maps]
+
+    #         # Update X and y with batch outputs
+    #         if X[0] is not None:
+    #             X = [torch.cat((X[i], out[i].detach()), dim=0) for i in range(convs_count)]
+    #             y = torch.cat((y, label.to(self.device)), dim=0)
+    #         else:
+    #             X = [out_item.detach() for out_item in out]
+    #             y = label.to(self.device)
+
+    #     # Optionally convert to numpy
+    #     # X = [x.cpu().numpy() for x in X]
+    #     # y = y.cpu().numpy()
+
+    #     return X, y
 
     def _pooling_module(self, features):
         if self.kernel is not None:
@@ -386,7 +487,7 @@ class PLSEsitimator:
         return th
 
     def _generate_score_layer(self, X, y) -> None:
-        scores = self.VIP(X, y, self.pls)
+        scores = self.VIP(X, y, self.pls).detach().cpu().numpy()
         self.score_layer = []
         self.score_max = 0
         for idx, conv in enumerate(self.convs):
@@ -432,7 +533,7 @@ class PLSEsitimator:
                 self.score_layer[idx] = score_filters
 
     def fit(self, X, y):
-        self.pls_model = PLSRegression(n_components=self.n_comp, scale=True)
+        self.pls_model = PLSRegressionCUDA(n_components=self.n_comp)
         self.pls_model.fit(X, y)
         self.pls = self.pls_model
         # self.pls = PLSGPU(self.pls_model, batch_size=X.shape[0])
@@ -443,7 +544,7 @@ class PLSEsitimator:
 
     @staticmethod
     def __cv(x):
-        return np.std(x)/np.mean(x)
+        return torch.std(x)/torch.mean(x)
 
 class PLSPrune(BasePruningMethod):
     PRUNING_TYPE = 'unstructured'
@@ -461,14 +562,16 @@ class PLSPrune(BasePruningMethod):
 
     @classmethod
     def _load_data(cls, *args, **kwargs) -> PruneDataLoader:
-        data_loader = PruneDataLoader(**kwargs)
+        data_loader = DataLoader(PruneDataLoader(**kwargs), 
+                                 batch_size=1
+                                 )
         return data_loader
 
     @classmethod
     def apply(cls, model, name, amount, c=2,
               importance_scores=None, /, discriminative=False,
-              train_count=20, kernel=1, dataset_path='./KonIQ-10k/',
-              dataset_labels_path='./data/KonIQ-10kinfo.mat', is_resize=True, is_crop=False,
+              train_count=20, kernel=1, dataset_path='KonIQ-10k/1024x768',
+              dataset_labels_path='data/KonIQ-10kinfo.mat', is_resize=True, is_crop=False,
               height=498, width=664):
         prune_loader = cls._load_data(cls, train_count=train_count, dataset_path=dataset_path,
                                       dataset_labels_path=dataset_labels_path, 
@@ -479,6 +582,9 @@ class PLSPrune(BasePruningMethod):
 
         X, y = pls_prune.get_layer_features(prune_loader)
         X = pls_prune.flatten(X)
+        # y = y.unsqueeze(1)
+        X, y = torch.from_numpy(X), torch.from_numpy(y)
+        print('SHAPE: ', X.shape, y.shape)
         pls_prune.fit(X, y)
 
         cls.prune_idxs = pls_prune.get_prune_idxs(amount=amount)
@@ -511,13 +617,16 @@ def hsic_prune(model: nn.Module, amount, /,
     for i in range(len(HSICPrune.convs)):
         prune_parameters.append((HSICPrune.convs[i], 'weight'))
 
-    prune_parameters = tuple(prune_parameters)
-    for i in range(len(HSICPrune.convs)):
-        module = HSICPrune.convs[i]
-        prune.remove(module, 'weight')
+    if kwargs.get('permanent', False):
+        prune_parameters = tuple(prune_parameters)
+        for i in range(len(HSICPrune.convs)):
+            module = HSICPrune.convs[i]
+            prune.remove(module, 'weight')
     return prune_parameters
 
-def displs_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50, kernel=None) -> Tuple:
+def displs_prune(model: nn.Module, amount, /, 
+                 width=120, height=90, images_count=50, kernel=None, 
+                 **kwargs) -> Tuple:
     resnet_model = model.features
     h = height  #16#90
     w = width  #24#120
@@ -531,14 +640,16 @@ def displs_prune(model: nn.Module, amount, /, width=120, height=90, images_count
     for i in range(len(PLSPrune.convs)):
         prune_parameters.append((PLSPrune.convs[i], 'weight'))
 
-    prune_parameters = tuple(prune_parameters)
-    for i in range(len(PLSPrune.convs)):
-        module = PLSPrune.convs[i]
-        prune.remove(module, 'weight')
+    if kwargs.get('permanent', False):
+        prune_parameters = tuple(prune_parameters)
+        for i in range(len(PLSPrune.convs)):
+            module = PLSPrune.convs[i]
+            prune.remove(module, 'weight')
     return prune_parameters
 
-def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50, kernel=None) -> Tuple:
-    print(model)
+def pls_prune(model: nn.Module, amount, /, 
+              width=120, height=90, images_count=50, kernel=None, 
+              **kwargs) -> Tuple:
     resnet_model = model.features
     h = height  #16#90
     w = width  #24#120
@@ -552,10 +663,11 @@ def pls_prune(model: nn.Module, amount, /, width=120, height=90, images_count=50
     for i in range(len(PLSPrune.convs)):
         prune_parameters.append((PLSPrune.convs[i], 'weight'))
 
-    prune_parameters = tuple(prune_parameters)
-    for i in range(len(PLSPrune.convs)):
-        module = PLSPrune.convs[i]
-        prune.remove(module, 'weight')
+    if kwargs.get('permanent', False):
+        prune_parameters = tuple(prune_parameters)
+        for i in range(len(PLSPrune.convs)):
+            module = PLSPrune.convs[i]
+            prune.remove(module, 'weight')
     return prune_parameters
 
 
@@ -570,21 +682,26 @@ def get_prune_features(model: nn.Module) -> List:
     return prune_params_list
 
 
-def l1_prune(model: nn.Module, amount: float) -> Tuple:
+def l1_prune(model: nn.Module, amount: float, **kwargs) -> Tuple:
     prune_params = tuple(get_prune_features(model))
     prune.global_unstructured(
         parameters=prune_params,
         pruning_method=prune.L1Unstructured,
         amount=amount
     )
-    for module, name in prune_params:
-        prune.remove(module, name)
+    if kwargs.get('permanent', False):
+        for module, name in prune_params:
+            prune.remove(module, name)
+    print(list(model.named_buffers()))
     return prune_params
 
 
-def ln_prune(model: nn.Module, amount: float, n: int) -> Tuple:
+def ln_prune(model: nn.Module, amount: float, n: int, **kwargs) -> Tuple:
     prune_params = tuple(get_prune_features(model))
     for module, name in prune_params:
         prune.ln_structured(module, name, amount=amount, n=n, dim=0)
-        prune.remove(module, name)
+
+    if kwargs.get('permanent', False):
+        for module, name in prune_params:
+            prune.remove(module, name)
     return prune_params

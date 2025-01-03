@@ -24,6 +24,7 @@ def denorm(batch, mean, std):
     return batch * std.view(1,-1,1,1) + mean.view(1,-1,1,1)
 
 def fgsm_attack(data, eps, alpha, model, metric_range, k, b, loss_fn=loss_fn, device='cuda'):
+    data = denorm(data, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     noise = torch.empty(*data.shape, device=device)
     noise.uniform_(-eps, eps)
 
@@ -38,7 +39,7 @@ def fgsm_attack(data, eps, alpha, model, metric_range, k, b, loss_fn=loss_fn, de
     grad_sign = data_grad.sign()
     perturbed_data = data - alpha*grad_sign
     perturbed_data.clamp_(0, 1)
-    return perturbed_data
+    return normalize(perturbed_data, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 
 def attack_callback(
         image_,
