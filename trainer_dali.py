@@ -402,6 +402,7 @@ class AdversarialTrainer:
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
         datasets = ['KonIQ-10k', 'NIPS']
+        # datasets = ['NIPS']
         self.model.load_state_dict(checkpoint['model'])
         self.replace_backward_activations(self.config['options']['activation'])
         self.metric_computer = IQAPerformance()
@@ -435,6 +436,7 @@ class AdversarialTrainer:
                         )
             results = {}
             self.model.eval()
+            
             self.metric_computer.reset()
             for step, data in enumerate(self.test_loader):
                 self._val_step(data)

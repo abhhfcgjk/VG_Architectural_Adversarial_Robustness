@@ -1,0 +1,8 @@
+--activation|relu|--prune|0.1|--prune_type|displs|--test|--iters|1
+--activation|relu|--prune|0.1|--prune_type|displs|--test|--iters|3
+--activation|relu|--prune|0.1|--prune_type|displs|--test|--iters|5
+--activation|relu|--prune|0.1|--prune_type|displs|--test|--iters|8
+--activation|relu|--prune|0.1|--prune_type|pls|--test|--iters|1
+--activation|relu|--prune|0.1|--prune_type|pls|--test|--iters|3
+--activation|relu|--prune|0.1|--prune_type|pls|--test|--iters|5
+--activation|relu|--prune|0.1|--prune_type|pls|--test|--iters|8

@@ -1,6 +1,8 @@
---prune|0.1|--prune_type|pls|--prune_epochs|15
---prune|0.1|--prune_type|displs|--prune_epochs|15
---prune|0.1|--prune_type|hsic|--prune_epochs|15
---prune|0.1|--prune_type|l1|--prune_epochs|15
---prune|0.1|--prune_type|l2|--prune_epochs|15
---activation|relu|--cayley1
+--activation|Felu|--cayley2
+--activation|Fgelu|--cayley2
+--activation|Fsilu|--cayley2
+--activation|relu|--cayley2|--prune|0.1|--prune_type|l1
+--activation|relu|--cayley2|--prune|0.1|--prune_type|l2
+--activation|relu|--cayley2|--prune|0.1|--prune_type|pls
+--activation|relu|--cayley2|--prune|0.1|--prune_type|displs
+--activation|relu|--cayley2|--prune|0.1|--prune_type|hsic
