@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.distributed as dist
 import torch.multiprocessing as multiprocessing
 from torch.optim import SGD, Adam, lr_scheduler
+from torch.nn.utils import prune
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 
@@ -23,7 +24,9 @@ from attacks.pgd import PGD, AutoPGD
 from attacks.base import Attacker
 from lr_scheduler import SimpleLRScheduler
 from model import DBCNN, normalize_model
+from activ import ReLU_ELU, ReLU_SiLU, swap_all_activations
 from datasets.koniq10k_dali import get_data_loaders
+from datasets.nips_dali import get_data_loader
 from log import dump_config
 from metrics import IQAPerformance, dump_scalar_metrics
 from utils import load_config
@@ -46,6 +49,11 @@ class AdversarialTrainer:
         # self.config = config_path
         self.eval_only = self.config["eval_only"]
 
+        self.is_gradnorm_regularization = self.config['train']['gr']
+        self.h_gradnorm_regularization = 0.01
+        self.weight_gradnorm_regularization = 0.0005
+        self.use_mask = True if (self.config['options']['prune'] > 0)and(not self.config['eval_only']) else False
+
         self.world_size = torch.cuda.device_count()
         self.distributed = self.world_size > 1
         self.gpu = gpu
@@ -55,23 +63,25 @@ class AdversarialTrainer:
             self.setup_distributed()
 
         self.fc_model_dir = Path(self.config['fc_model'])
+        self.db_model_dir = Path(self.config['db_model'])
         scnn_root = self.config['data']['scnn_root']
 
         self.options = self.config['options']
-        self.options_hash = self.__get_options_hash(self.options)
+        adv_status = '-adv' if self.config['train'].get('type', False) else ''
+        gr_status = '-gr' if self.config['train']['gr'] else ''
+        self.options_hash = self.__get_options_hash(self.options) + gr_status + adv_status
         self.model = normalize_model(
-            DBCNN(scnn_root, **self.options),
+            DBCNN(scnn_root,self.config, **self.options),
             mean=(0.485, 0.456, 0.406),
             std=(0.229, 0.224, 0.225),
         )
-        self.model.to(self.gpu)
+        self.model = self.model.cuda()
         print(self.model.model)
 
         # checkpoint = torch.load()
         # self.model.load_state_dict(checkpoint['model'])
-
-        self._init_pretrained()
-        # self._init_fc()
+        self._prepair_prune()
+        self._init_fc()
         self._init_logger()
 
     # def __del__(self):
@@ -112,6 +122,9 @@ class AdversarialTrainer:
                 / f'{str(datetime.now())[:-4]}_{exp}_{self.config["lr_scheduler"]["type"]}'
             )
             self.log_dir.mkdir(parents=True, exist_ok=True)
+            if self.eval_only:
+                self.results_csv = Path(self.config['results_path'])
+                self.results_csv.mkdir(parents=True, exist_ok=True)
 
             self.writer = SummaryWriter(log_dir=self.log_dir)
 
@@ -123,18 +136,32 @@ class AdversarialTrainer:
 
             self.start_training_time = time.time()
 
-    def _init_pretrained(self):
-        if self.options['prune'] > 0.0:
-            assert self.options['fc'] == False, "Set \'fc\' option to False"
-            self._prepair_prune()
-        else:
-            self._init_fc()
+    def _prepair_prune(self):
+        if self.config['options']['prune'] <= 0.:
+            return
+        self.end_epoch = self.config['options']['prune_epochs']
+        self.config['lr_scheduler']['type'] = 'multistep'
+        self.config['train']['lr'] = self.config['options']['prune_lr']
+        self.config['train']['epochs'] = self.config['options']['prune_epochs']
+        # ckpt = torch.load(self.config['db_model'])
+        # print(f"Original model loaded {self.config['db_model']}")
+        # self.model.load_state_dict(ckpt['model'])
 
     def _init_fc(self):
-        if self.options['fc']:
-            self.fc_model_dir.mkdir(parents=True, exist_ok=True)
+        if self.config['options']['prune'] > 0:
+            self.options['fc'] = False
             return
-        fc_model = torch.load(self.fc_model_dir / f'{self.options_hash}.pkl')
+        if self.options['fc']:
+            # self.fc_model_dir.mkdir(parents=True, exist_ok=True)
+            # self.db_model_dir.mkdir(parents=True, exist_ok=True)
+            
+            if os.path.exists(self.config['attack']['path']['checkpoints']):
+                print(f"db_model loaded {self.config['attack']['path']['checkpoints']}")
+                db_model = torch.load(self.config['attack']['path']['checkpoints'])
+                self.model.load_state_dict(db_model['model'])
+            return
+        # fc_model = torch.load(self.fc_model_dir / f'{self.options_hash}.pkl')
+        fc_model = torch.load(self.fc_model_dir)
         self.model.load_state_dict(fc_model)
 
     def train(self) -> None:
@@ -293,9 +320,10 @@ class AdversarialTrainer:
 
                 if self.options['fc'] == True:
                     torch.save(self.model.state_dict(), 
-                               self.fc_model_dir / f'{self.options_hash}.pkl')
-                    print(f"fc_model saved to {self.fc_model_dir / f'{self.options_hash}.pkl'}")
+                               self.fc_model_dir)
+                    print(f"fc_model saved to {self.fc_model_dir}")
                 elif self.options['fc'] == False:
+                    torch.save(self.model.state_dict(), self.fc_model_dir)
                     torch.save(checkpoint, self.log_dir / 'best_model.pth')
 
                 self.best_val_criterion = val_criterion
@@ -346,6 +374,8 @@ class AdversarialTrainer:
         preds = self.metric_computer.preds
         checkpoint['max'] = np.max(preds)
         checkpoint['min'] = np.min(preds)
+        self.save_checkpoints(checkpoint, self.config['attack']['path']['checkpoints'],
+                              model=self.model, use_mask=self.use_mask)
         torch.save(checkpoint, self.log_dir / 'best_model.pth')
 
     def _train_step(self, data, step: int, start_time: float) -> Dict[str, float]:
@@ -365,6 +395,8 @@ class AdversarialTrainer:
 
             model_out = self.model(inputs)
             loss = self.loss(model_out, label.unsqueeze(1))
+            if self.is_gradnorm_regularization:
+                loss += self.weight_gradnorm_regularization*self._gradnorm_regularization(inputs)
 
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
@@ -375,9 +407,13 @@ class AdversarialTrainer:
         return metrics
 
     def _val_step(self, data, attack: Attacker = None) ->  None:
-        inputs, label = data[0]['data'], data[0]['label']
-        label = label.squeeze(-1)
-        label = label.cuda(self.gpu, non_blocking=True)
+        if len(data[0])>1:
+            inputs, label = data[0]['data'], data[0]['label']
+            label = label.squeeze(-1)
+            label = label.cuda(self.gpu, non_blocking=True)
+        else:
+            inputs = data[0]['image']
+            label = torch.zeros(len(data[0]['image']), 1).cuda(self.gpu, non_blocking=True)
 
         if attack:
             inputs = attack.run(inputs, label)
@@ -385,19 +421,10 @@ class AdversarialTrainer:
         model_out = self.model(inputs)
         self.metric_computer.update(model_out, label)
 
-    def _gradnorm_regularize(self, images):
-        get_pred = lambda output: output[-1]*self.k[0] + self.b[0]
-        images = images.cuda()
-        images.requires_grad_(True)
-        
-        output_cur = self.compute_output(images, None)
-
-        pred_cur = get_pred(output_cur)
-
-        dx = torch.autograd.grad(pred_cur, 
-                                 images, 
-                                 grad_outputs=torch.ones_like(pred_cur), 
-                                 retain_graph=True)
+    def _gradnorm_regularization(self, images):
+        images = images.clone().detach().requires_grad_(True).cuda()
+        pred_cur = self.model(images)
+        dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
         dx = dx[0]
         images.requires_grad_(False)
 
@@ -407,12 +434,9 @@ class AdversarialTrainer:
         v = v.view(dx.shape).detach()
         x2 = images + self.h_gradnorm_regularization*v
 
-        output_pert = self.compute_output(x2, None)
-        pred_pert = get_pred(output_pert)
-
+        pred_pert = self.model(x2)
         dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
         loss = dl.pow(2).mean()/2
-
         return loss
     
     def prune(self):
@@ -425,6 +449,79 @@ class AdversarialTrainer:
         self.model.load_state_dict(ckpt['model'])
         self.config['train']['lr'] = self.options['prune_lr']
         self.config['train']['epochs'] = self.options['prune_epochs']
+
+    def test(self) -> None:
+        checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
+        datasets = ['KonIQ-10k', 'NIPS']
+        self.model.load_state_dict(checkpoint['model'])
+        # self.replace_activation(self.model, )
+        self.metric_computer = IQAPerformance()
+        metric_range = checkpoint['max'] - checkpoint['min']
+        
+        print(checkpoint['min'], checkpoint['max'])
+        print(f'Metric range: {metric_range}')
+        print('SROCC: ', checkpoint['SROCC'])
+        print('PLCC: ', checkpoint['PLCC'])
+
+        for _dataset in datasets:
+            if _dataset=="NIPS":
+                self.test_loader = get_data_loader(
+                            directory=self.config['test_data']['NIPS']['directory'],
+                            rank=self.gpu,
+                            num_tasks=self.world_size,
+                            batch_size=self.config['train']['batch_size'],
+                            num_workers=self.config['train']['num_workers'],
+                            seed=self.config['seed']
+                        )
+            elif _dataset=="KonIQ-10k":
+                self.test_loader = get_data_loaders(
+                            rank=self.gpu,
+                            num_tasks=self.world_size,
+                            args=self.config['test_data']['KonIQ-10k'],
+                            batch_size=self.config['train']['batch_size'],
+                            num_workers=self.config['train']['num_workers'],
+                            seed=self.config['seed'],
+                            phase="test",
+                        )
+            results = {}
+            self.model.eval()
+            self.metric_computer.reset()
+            for step, data in enumerate(self.test_loader):
+                self._val_step(data)
+
+            orig_preds = self.metric_computer.preds.copy()
+            orig_preds = np.array(orig_preds)
+            orig_preds_scaled = (orig_preds - checkpoint['min']) / metric_range
+            results['origin_preds'] = orig_preds
+            results['orig_preds_scaled'] = orig_preds_scaled
+    
+            for attack_args in self.config['attack']['test']:
+                attack = self._init_attack(attack_args, "test", metric_range=metric_range)
+
+                self.metric_computer.reset()
+                for step, data in enumerate(self.test_loader):
+                    self._val_step(data, attack)
+
+                att_preds = np.array(self.metric_computer.preds)
+                att_preds_scaled = (att_preds - checkpoint['min']) / metric_range
+                results[f'preds_eps={attack_args["params"]["eps"]}'] = att_preds
+                results[f'preds_scaled={attack_args["params"]["eps"]}'] = att_preds_scaled
+
+                abs_gain = np.mean(att_preds - orig_preds)
+                print(f'Abs gain for eps={attack_args["params"]["eps"]}: {abs_gain}')
+
+                abs_gain = np.mean(att_preds_scaled - orig_preds_scaled)
+                print(f'Abs gain for eps={attack_args["params"]["eps"]}: {abs_gain}')
+
+                rel_gain = np.mean((att_preds_scaled - orig_preds_scaled) / (orig_preds_scaled + 1))
+                print(f'Relative gain for eps={attack_args["params"]["eps"]}: {rel_gain}')
+            
+            if len(self.config['attack']['test']) > 0:
+                form = f"{_dataset}_vgg16+{self.config['options']['activation']}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
+                pd.DataFrame.from_dict(results).to_csv(
+                    self.results_csv / form,
+                    index=False
+                )
 
     def eval(self) -> None:
 
@@ -459,7 +556,11 @@ class AdversarialTrainer:
         checkpoint['PLCC'] = self.metric_computer.plcc
         print('SROCC: ', checkpoint['SROCC'])
         print('PLCC: ', checkpoint['PLCC'])
-        torch.save(checkpoint, self.log_dir / 'best_model.pth')
+        # torch.save(checkpoint, self.log_dir / 'best_model.pth')
+        # self.save_checkpoints(checkpoint, self.log_dir / 'best_model.pth',
+        #         use_mask=self.use_mask, model=self.model)
+        self.save_checkpoints(checkpoint, self.config['attack']['path']['checkpoints'],
+                        use_mask=False, model=self.model)
 
         orig_preds = self.metric_computer.preds.copy()
         orig_preds = np.array(orig_preds)
@@ -504,7 +605,25 @@ class AdversarialTrainer:
         dist.init_process_group("nccl", rank=self.gpu, world_size=self.world_size)
         torch.cuda.set_device(self.gpu)
 
-    
+    @staticmethod
+    def save_checkpoints(checkpoint, trained_model_file, model=None, use_mask=False):
+        if use_mask:
+            # model_copy = copy.deepcopy(model)
+            for module, name in model.model.prune_parameters:
+                prune.remove(module, name)
+            checkpoint['model'] = model.state_dict()
+            torch.save(checkpoint, trained_model_file)
+        else:
+            torch.save(checkpoint, trained_model_file)
+
+    def replace_backward_activations(self, activation_name="Frelu_silu"):
+        if activation_name == "Frelu_silu":
+            swap_all_activations(self.model, ReLU_SiLU, nn.ReLU)
+        elif activation_name == "Frelu_elu":
+            swap_all_activations(self.model, ReLU_ELU, nn.ReLU)
+        else:
+            return
+
     @staticmethod
     def __get_options_hash(options):
         def __help(options):
@@ -536,7 +655,7 @@ class AdversarialTrainer:
     def exec(cls, gpu, config_path):
         trainer = cls(gpu=gpu, config_path=config_path)
         if trainer.eval_only:
-            trainer.eval()
+            trainer.test()
         else:
             trainer.train()
             print(str(datetime.now())[:-4])
