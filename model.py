@@ -132,6 +132,7 @@ class KonCept512(nn.Module):
     def forward(self, x):
         x = self.base(x)
         x = nn.functional.avg_pool2d(x, x.size()[-2:])
+        # x = nn.functional.adaptive_avg_pool2d(x, (1, 1))
         x = x.view(x.size(0), -1)
         x = self.fc(x)
 
