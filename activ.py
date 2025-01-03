@@ -147,5 +147,5 @@ def swap_all_activations(model, from_activation: nn.Module, to_activation: nn.Mo
         if isinstance(layer, from_activation):
             setattr(model, name, to_activation())
         else:
-            swap_all_activations(layer, from_activation, to_activation())
+            swap_all_activations(layer, from_activation, to_activation)
 

@@ -1,11 +1,12 @@
 # Default parameters for training DBCNN
 label_strategy: origin
 perc: no
-eval_only: no
+eval_only: yes
 seed: 5102023
 checkpoint_path: null
 fc_model: ./fc_model
 db_model: ./db_model
+results_path: csv
 
 options:
   activation: relu
@@ -26,8 +27,15 @@ data:
   data_info: mnt/KonIQ-10k/koniq10k_distributions_sets.csv
   directory: mnt/KonIQ-10k/1024x768
 
+test_data:
+  NIPS: 
+    directory: mnt/NIPS
+  KonIQ-10k:
+    data_info: mnt/KonIQ-10k/koniq10k_distributions_sets.csv
+    directory: mnt/KonIQ-10k/1024x768
+
 log:
-  directory: checkpoints/dbcnn1024
+  directory: ./checkpoints/dbcnn1024
 
 lr_scheduler:
   type: multistep
@@ -45,7 +53,7 @@ train:
 
 attack:
   path:
-    checkpoints: mnt/DBCNN-backbone|vgg16-activation|relu.pth
+    checkpoints: mnt/DBCNN-activation=relu.pth
   train:
     type: none
   test:

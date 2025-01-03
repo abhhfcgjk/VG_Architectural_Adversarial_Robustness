@@ -3,7 +3,6 @@
 #SBATCH --ntasks-per-gpu=6
 #SBATCH --job-name=28i_mel-dbcnn
 #SBATCH --time=1-1:00
-#SBATCH --dependency=singleton
 #SBATCH --gpus=8
 set -e
 

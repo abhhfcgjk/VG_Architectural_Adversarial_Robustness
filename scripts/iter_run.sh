@@ -1,6 +1,6 @@
 #!/bin/bash
 
-for i in {0..6}; do
+for i in {0..9}; do
 sbatch -W scripts/run_dali.sh fc
 wait
 sbatch -W scripts/run_dali.sh

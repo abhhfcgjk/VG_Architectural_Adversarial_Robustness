@@ -11,10 +11,10 @@ def run(args):
 
     if args.fc:
         config['train']['lr'] = 1e-3
-        config['train']['epochs'] = 70
+        config['train']['epochs'] = 50
     else:
         config['train']['lr'] = 1e-5
-        config['train']['epochs'] = 30
+        config['train']['epochs'] = 50
     config['options']['fc'] = args.fc
     config['options']['activation'] = args.activation
     config['options']['backbone'] = args.backbone
@@ -22,6 +22,10 @@ def run(args):
     config['options']['prune_lr'] = args.prune_lr
     config['options']['prune_epochs'] = args.prune_epochs
     config['options']['prune_type'] = args.prune_type
+    config['options']['cayley1'] = args.cayley1
+    config['options']['cayley2'] = args.cayley2
+    config['options']['cayley3'] = args.cayley3
+    config['options']['cayley4'] = args.cayley4
     config['train']['gr'] = args.gr
 
     if config['options']['prune'] > 0:
@@ -47,6 +51,7 @@ def run(args):
         config['attack']['train']['type'] = 'fgsm'
         config['attack']['train']['params'] = {'eps': 4., 'alpha': 5., 'mode': 'uniform'}
         config['train']['epochs'] = 30
+        
 
     config['attack']['path']['checkpoints'] = 'mnt/DBCNN{}{}{}{}{}{}{}{}{}.pth'.format(
                                                                         backbone_satatus, 
@@ -58,6 +63,26 @@ def run(args):
                                                                         gr_status, prune_status,
                                                                         activation_status,
                                                                         )
+    config['db_model'] = 'mnt/DBCNN{}{}{}{}{}{}{}{}.pth'.format(
+                                                                backbone_satatus, 
+                                                                cayley1_status,
+                                                                cayley2_status,
+                                                                cayley3_status,
+                                                                cayley4_status,
+                                                                adv_status,
+                                                                gr_status,
+                                                                activation_status,
+                                                                )
+    config['fc_model'] = 'fc_model/DBCNN{}{}{}{}{}{}{}{}{}.pkl'.format(
+                                                                backbone_satatus, 
+                                                                cayley1_status,
+                                                                cayley2_status,
+                                                                cayley3_status,
+                                                                cayley4_status,
+                                                                adv_status,
+                                                                gr_status, prune_status,
+                                                                activation_status,
+                                                                )
     test_status = 'test' if args.test else ''
     form = '{}config{}{}{}{}{}{}{}{}{}{}_PGD={}.yaml'.format(
                                                     test_status,
