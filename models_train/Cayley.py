@@ -34,7 +34,60 @@ class StridedConv(nn.Module):
         if striding:
             self.register_forward_pre_hook(lambda _, x: \
                     einops.rearrange(x[0], downsample, k1=2, k2=2))  
+
+class IterativeInverse(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, A, psi=1., eps=1e-3, max_iters=50):
+        """
+        Forward pass for matrix inversion using Newton-Schulz iteration.
+        """
+        n = A.size(-1)
+        I = torch.eye(n, dtype=A.dtype, device=A.device)
+        X = A.transpose(1, 2) / torch.norm(A@A.transpose(1, 2), p='fro')
         
+        #X = psi* I
+        ctx.save_for_backward(A, X, I)
+        ctx.num_iters = max_iters
+        residual = 0
+        res0 = 10000
+        X_best = X
+
+        # for _ in range(num_iters):
+            # X = 2 * X - X @ A @ X
+        for i in range(max_iters):
+            X_new = 2 * X - X @ A @ X
+            residual = torch.norm(A @ X_new - I)  # Residual error
+            # print(residual)
+            if res0 > residual:
+                X_best = X_new
+                res0 = residual
+            elif res0 < eps and residual > res0:
+                X = X_best
+                ctx.num_iters = i + 1
+                break
+            else:
+                X = X_new
+
+        ctx.save_for_backward(A, X)
+        print("Iterative inverse: {} iterations, error {}".format(ctx.num_iters, residual))
+        return X
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        """
+        Backward pass for matrix inversion.
+        """
+        A, X = ctx.saved_tensors
+        # print(A.shape, X.shape, grad_output.shape)
+        num_iters = ctx.num_iters
+
+        grad_A = torch.zeros_like(A)
+
+        for _ in range(num_iters):
+            grad_A += -grad_output @ X.transpose(1, 2) @ A.transpose(1, 2) - grad_output.transpose(1, 2) @ X.transpose(1, 2) @ A
+
+        return grad_A, None, None, None
+
 def cayley(W):
     if len(W.shape) == 2:
         return cayley(W[None])[0]
@@ -44,7 +97,10 @@ def cayley(W):
     U, V = W[:, :cin], W[:, cin:]
     I = torch.eye(cin, dtype=W.dtype, device=W.device)[None, :, :]
     A = U - U.conj().transpose(1, 2) + V.conj().transpose(1, 2) @ V
-    iIpA = torch.inverse(I + A)
+    # print(A.shape)
+    # iIpA = torch.inverse(I + A)
+    psi = 1. / (1. + torch.norm(U - U.conj().transpose(1, 2), p='fro') + torch.norm(V.conj().transpose(1, 2) @ V, p='fro'))
+    iIpA = IterativeInverse.apply(I + A, psi, 1e-3, 200)
     return torch.cat((iIpA @ (I - A), -2 * V @ iIpA), axis=1)
 
 class CayleyConv(StridedConv, nn.Conv2d):
@@ -54,28 +110,22 @@ class CayleyConv(StridedConv, nn.Conv2d):
             self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float64, requires_grad=True).cuda())
         else:
             self.register_parameter('alpha', None)
-        # self.alpha = nn.Parameter(torch.tensor(1, dtype=torch.float32, requires_grad=True).cuda())
-
-
     def fft_shift_matrix(self, n, s):
         shift = torch.arange(0, n).repeat((n, 1))
         shift = shift + shift.T
         return torch.exp(1j * 2 * np.pi * s * shift / n)
-    
     def forward(self, x):
         x = x.to(torch.float64)
         cout, cin, _, _ = self.weight.shape
         batches, _, n, _ = x.shape
         if not hasattr(self, 'shift_matrix'):
             s = (self.weight.shape[2] - 1) // 2
-            self.shift_matrix = self.fft_shift_matrix(n, -s)[:, :(n//2 + 1)].reshape(n * (n // 2 + 1), 1, 1).to(x.device)
-        ic(x.shape)
-        ic(n, n*(n//2+1),cin, batches)
+            self.shift_matrix = self.fft_shift_matrix(n, -s)[:, :(n//2 + 1)]\
+                .reshape(n * (n // 2 + 1), 1, 1).to(x.device)
         xfft = torch.fft.rfft2(x).permute(2, 3, 1, 0)
-        ic(xfft.shape)
         xfft = xfft.reshape(n * (n // 2 + 1), cin, batches)
-        ic(xfft.shape)
-        wfft = self.shift_matrix * torch.fft.rfft2(self.weight, (n, n)).reshape(cout, cin, n * (n // 2 + 1)).permute(2, 0, 1).conj()
+        wfft = self.shift_matrix * torch.fft.rfft2(self.weight, (n, n))\
+                   .reshape(cout, cin, n * (n // 2 + 1)).permute(2, 0, 1).conj()
         if self.alpha is None:
             self.alpha = nn.Parameter(torch.tensor(wfft.norm().item(), requires_grad=True).to(x.device))
         wfft = wfft.to(torch.complex64)
@@ -200,3 +250,14 @@ def swap_conv_to_lipschitz(model):
 
 def get_lipschitz_model(model):
     return swap_conv_to_lipschitz(model)
+
+
+if __name__=='__main__':
+    A = torch.rand(4, 4, dtype=torch.float64, requires_grad=True).cuda() + 4 * torch.eye(4).cuda()
+    X = IterativeInverse.apply(A, 10)  # Forward pass with 10 iterations
+    loss = torch.sum(X)
+    print(X)
+    print(torch.inverse(A))
+    print(loss)
+    loss.backward()  # Backpropagate
+    print(A.grad)
