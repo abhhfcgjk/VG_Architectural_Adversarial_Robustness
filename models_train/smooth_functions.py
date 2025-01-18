@@ -8,30 +8,36 @@ def sqish(x, alpha, beta, gamma):
 
 class Sqish_Function(Function):
     @staticmethod
-    def forward(ctx, x, alpha, beta, gamma):
-        result = sqish(x, alpha, beta, gamma)
+    def forward(ctx, x, alpha):
+        # result = sqish(x, alpha, beta, gamma)
 
-        d1 = beta*torch.exp(-2*(1-alpha)*gamma*x) + 1
-        d2 = torch.pow(d1, 1.5)
+        # d1 = beta*torch.exp(-2*(1-alpha)*gamma*x) + 1
+        # d2 = torch.pow(d1, 1.5)
 
-        dx = alpha + (1-alpha)/torch.sqrt(d1) + (1-alpha)*(1-alpha)*beta*gamma*x*(d1-1)/d2
-        dalpha = x - x/torch.sqrt(d1) - beta*x*x*gamma*(1-alpha)*(d1-1)/d2
-        dbeta = (alpha-1)*x*(d1-1)/(2*d2)
-        dgamma = (alpha-1)*(alpha-1)*beta*x*x*(d1-1)/d2 
+        # dx = alpha + (1-alpha)/torch.sqrt(d1) + (1-alpha)*(1-alpha)*beta*gamma*x*(d1-1)/d2
+        # dalpha = x - x/torch.sqrt(d1) - beta*x*x*gamma*(1-alpha)*(d1-1)/d2
+        # dbeta = (alpha-1)*x*(d1-1)/(2*d2)
+        # dgamma = (alpha-1)*(alpha-1)*beta*x*x*(d1-1)/d2
 
-        ctx.save_for_backward(dx, dalpha, dbeta, dgamma)
+        # ctx.save_for_backward(dx, dalpha, dbeta, dgamma)
+
+
+        result = x / (torch.sqrt(1 + torch.exp(-2*alpha*x)))
+        dx = torch.sqrt(1+torch.exp(2*alpha*x))*(torch.exp(3*alpha*x)+(alpha*x+1)*torch.exp(alpha*x))/(torch.exp(4*alpha*x)+2*torch.exp(2*alpha*x)+1)
+        dalpha = torch.sqrt(1+torch.exp(2*alpha*x))*x*x*torch.exp(alpha*x)/(torch.exp(4*alpha*x)+2*torch.exp(2*alpha*x)+1)
+        ctx.save_for_backward(dx, dalpha)
         return result
 
     @staticmethod
     def backward(ctx, grad_output):
-        dx, dalpha, dbeta, dgamma = ctx.saved_tensors
+        dx, dalpha = ctx.saved_tensors
         
         # result = grad_output * dx
         return (
                 grad_output * dx, 
                 grad_output * dalpha, 
-                grad_output * dbeta, 
-                grad_output * dgamma
+                # grad_output * dbeta, 
+                # grad_output * dgamma
             )
     
 
@@ -39,12 +45,12 @@ class Sqish(nn.Module):
     def __init__(self, inplace: bool = False):
         super(Sqish, self).__init__()
         self.inplace = inplace
-        self.alpha = nn.Parameter(torch.max(torch.tensor(1), torch.randn(1)))
-        self.beta = nn.Parameter(torch.max(torch.tensor(1), torch.randn(1)))
-        self.gamma = nn.Parameter(torch.max(torch.tensor(1), torch.randn(1)))
+        self.alpha = nn.Parameter(torch.tensor(1.))
+        # self.beta = nn.Parameter(torch.tensor(1.))
+        # self.gamma = nn.Parameter(torch.tensor(1.))
     
     def forward(self, input: Tensor) -> Tensor:
         if self.inplace:
-            input = Sqish_Function.apply(input, self.alpha, self.beta, self.gamma)
+            input = Sqish_Function.apply(input, self.alpha)
             return input
-        return Sqish_Function.apply(input, self.alpha, self.beta, self.gamma)
+        return Sqish_Function.apply(input, self.alpha)

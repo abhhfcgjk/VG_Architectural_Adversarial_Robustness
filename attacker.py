@@ -30,7 +30,8 @@ class Attack:
 
     def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu',
                  gabor=False, gradnorm_regularization=False, adv=False, cayley=False, 
-                 cayley_pool=False, cayley_pair=False, quantize=False) -> None:
+                 cayley_pool=False, cayley_pair=False, quantize=False, cayley1=False,
+                 cayley2=False, cayley3=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -43,6 +44,9 @@ class Attack:
         self.activation = activation
         self.gradnorm_regularization = gradnorm_regularization
         self.cayley = cayley
+        self.cayley1 = cayley1
+        self.cayley2 = cayley2
+        self.cayley3 = cayley3
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
         self.adv = adv
@@ -52,7 +56,8 @@ class Attack:
         self.model = Linearity(arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
-                           cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair, quantize=quantize).to(self.device)
+                           cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair, quantize=quantize,
+                           cayley1=cayley1, cayley2=cayley2, cayley3=cayley3).to(self.device)
         ic(self.model)
         # self.model.eval()
 
@@ -75,6 +80,7 @@ class Attack:
         # raise NameError(f"No model {self.model_name}.")
 
     def load_checkpoints(self, checkpoints_path="LinearityIQA/checkpoints/p1q2.pth"):
+        print(self.model)
         self.checkpoint = torch.load(checkpoints_path, map_location=self.device)
         # ic(self.checkpoint['model']['cayley_block6.conv_cayley.alpha'])
         ic(self.model.state_dict().keys())
@@ -270,7 +276,10 @@ class Attack:
 
         assert csv_results_dir
         cl = f'+cayley' if self.cayley else ''
-        clp = f'+cayley_pool' if self.cayley_pool else ''
+        cl1 = f'+cayley1' if self.cayley1 else ''
+        cl2 = f'+cayley2' if self.cayley2 else ''
+        cl3 = f'+cayley3' if self.cayley3 else ''
+        clp = f'+cayley_pool_iter' if self.cayley_pool else ''
         cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
@@ -278,7 +287,7 @@ class Attack:
         quant = f"+quantize" if self.quantize else ''
         adv = f"+adv" if self.adv else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{gr}{adv}{prune}{quant}+{activation}'
+        arch_status = f'{self.arch}{cl}{clp}{cp}{cl1}{cl2}{cl3}{gr}{adv}{prune}{quant}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
                                             self.dataset,
                                             arch_status,

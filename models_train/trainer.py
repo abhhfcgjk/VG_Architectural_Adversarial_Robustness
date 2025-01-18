@@ -14,6 +14,7 @@ from models_train.swap_convs import swap_to_quntized
 import models_train.iterative as iterative 
 from torch.utils.tensorboard import SummaryWriter
 import datetime
+import time
 import numpy as np
 from typing import Dict
 from tqdm import tqdm
@@ -58,6 +59,9 @@ class Trainer:
         self.cayley = args.cayley
         self.cayley_pool = args.cayley_pool
         self.cayley_pair = args.cayley_pair
+        self.cayley1 = args.cayley1
+        self.cayley2 = args.cayley2
+        self.cayley3 = args.cayley3
 
         self.pruning = args.pruning
         self.prune_iters = args.prune_iters
@@ -86,7 +90,9 @@ class Trainer:
                               activation=args.activation, dlayer=self.dlayer,
                               pruning=self.pruning, gabor=args.gabor,
                               cayley=self.cayley, cayley_pool=self.cayley_pool, 
-                              cayley_pair=self.cayley_pair, quantize=False).to(self.device)
+                              cayley_pair=self.cayley_pair, quantize=False,
+                              cayley1=self.cayley1, cayley2=self.cayley2,
+                              cayley3=self.cayley3).to(self.device)
 
         print(self.model)
         # self.scaler = GradScaler()
@@ -226,9 +232,10 @@ class Trainer:
 
     def _train_loop(self):
         train_data_len = len(self.train_loader)
+        epoch_mean_time = 0
         while self.current_epoch < self.epochs:
+            start_time = time.time()
             self.model.train()
-            
             done_steps = self.current_epoch * train_data_len
             for step, (inputs, label) in tqdm(enumerate(self.train_loader), total=train_data_len):
                 label = [k.to(self.device) for k in label]
@@ -244,6 +251,9 @@ class Trainer:
 
             self.scheduler.step(self.current_epoch)
             self.current_epoch += 1
+            epoch_time = time.time() - start_time
+            print(f"Epoch time: {epoch_time}")
+            epoch_mean_time += epoch_time
 
             self.metric_computer.reset()
             self.model.eval()
@@ -309,6 +319,7 @@ class Trainer:
         self.save_checkpoints(checkpoint, self.args.trained_model_file, 
                               use_mask=False)
         print('checkpoints saved')
+        print(f"Mean epoch time: {epoch_mean_time/self.epochs}")
 
         checkpoint = torch.load(self.args.trained_model_file)
         self.model.load_state_dict(checkpoint['model'])

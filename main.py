@@ -32,7 +32,13 @@ def get_format_string(args):
     if args.cayley:
         format_str += f'-cl={args.cayley}'
     if args.cayley_pool:
-        format_str += f'-clp={args.cayley_pool}'
+        format_str += f'-clp_my={args.cayley_pool}'
+    if args.cayley1:
+        format_str += f'-cayley1={args.cayley1}'
+    if args.cayley2:
+        format_str += f'-cayley2={args.cayley2}'
+    if args.cayley3:
+        format_str += f'-cayley3={args.cayley3}'
     if args.cayley_pair:
         format_str += f'-cp={args.cayley_pair}'
     if args.gabor:
@@ -54,7 +60,8 @@ def run(args):
                            device=args.device, pruning=args.pruning, t_prune=args.pruning_type, gabor=args.gabor,
                            gradnorm_regularization=args.gradnorm_regularization, adv=args.adv,
                            cayley=args.cayley, cayley_pool=args.cayley_pool, cayley_pair=args.cayley_pair,
-                           quantize=args.quantize
+                           quantize=args.quantize, 
+                           cayley1=args.cayley1, cayley2=args.cayley2, cayley3=args.cayley3
                            )
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
@@ -152,6 +159,9 @@ if __name__ == "__main__":
     parser.add_argument('--noise', action='store_true', help="Use normal noise on batch")
     parser.add_argument('-gr', '--gradnorm_regularization', action='store_true', help="Use gradient-norm regularization")
     parser.add_argument('-cl', '--cayley', action='store_true', help="Use cayley block with conv")
+    parser.add_argument('-cl1', '--cayley1', action='store_true', help="After conv4 and before conv5")
+    parser.add_argument('-cl2', '--cayley2', action='store_true', help="After conv4 and before conv5")
+    parser.add_argument('-cl3', '--cayley3', action='store_true', help="After conv4 and before conv5")
     parser.add_argument('-clp', '--cayley_pool', action='store_true', help="Use cayley block with pooling")
     parser.add_argument('-cp', '--cayley_pair', action='store_true', help="Use cayley block after conv4, conv5")
     parser.add_argument('--crop', action='store_true', help='Use crop for image')

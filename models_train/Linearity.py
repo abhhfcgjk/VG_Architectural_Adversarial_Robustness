@@ -96,6 +96,9 @@ class Linearity(IQA):
         self.cayley = kwargs.get('cayley', False)
         self.cayley_pool = kwargs.get('cayley_pool', False)
         self.cayley_pair = kwargs.get('cayley_pair', False)
+        self.cayley1 = kwargs.get('cayley1', False)
+        self.cayley2 = kwargs.get('cayley2', False)
+        self.cayley3 = kwargs.get('cayley3', False)
         self.is_quantize = kwargs.get('quantize', False)
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
@@ -117,6 +120,16 @@ class Linearity(IQA):
                 nn.MaxPool2d(kernel_size=(16,32), stride=(2,2), padding=(0,0)),
                 nn.MaxPool2d(kernel_size=(18,42), stride=(1,1), dilation=(1,2), padding=0)
             )
+
+        if self.cayley1:
+            self.cayley_block1 = CayleyBlockPool(3, 3, stride=1, padding=0, kernel_size=3)
+        if self.cayley2:
+            self.cayley_block2 = CayleyBlockPool(64, 64, stride=1, padding=0, kernel_size=3)
+        if self.cayley3:
+            self.cayley_block3 = CayleyBlockPool(256, 256, stride=1, padding=0, kernel_size=3)
+        self.id_cl1 = 0
+        self.id_cl2 = 4
+        self.id_cl3 = 5
 
         if self.cayley:
             self.cayley_block6 = CayleyBlockPool(512, 200, stride=1, padding=0, kernel_size=3)
@@ -206,6 +219,15 @@ class Linearity(IQA):
             if ii==self.id1 and self.cayley:
                 ic(x.shape)
                 x = self.cayley_block6(x)
+            if ii==self.id_cl1 and self.cayley1:
+                print(self.cayley_block1)
+                x = self.cayley_block1(x)
+            if ii==self.id_cl2 and self.cayley2:
+                print(self.cayley_block2)
+                x = self.cayley_block2(x)
+            if ii==self.id_cl3 and self.cayley3:
+                print(self.cayley_block3)
+                x = self.cayley_block3(x)
             x = model(x)
             
             ic(x.shape)
