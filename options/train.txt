@@ -1,6 +1,6 @@
---gr
---activation|Frelu_silu
---adv
---activation|Felu|--cayley1
---activation|Fsilu|--cayley1
---activation|Fgelu|--cayley1
+--activation|Felu|--adv
+--activation|Fsilu|--adv
+--activation|Fgelu|--adv
+--activation|Felu|--gr
+--activation|Fsilu|--gr
+--activation|Fgelu|--gr

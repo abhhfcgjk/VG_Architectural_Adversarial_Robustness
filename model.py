@@ -34,7 +34,7 @@ class KonCept512(nn.Module):
         self.Activ = None
         self.db_model_dir = kwargs.get('db_model')
         self.is_cayley1 = kwargs.get('cayley1', False)
-        self.is_cayley2 = kwargs.get('cayley1', False)
+        self.is_cayley2 = kwargs.get('cayley2', False)
         self.prune_amount = kwargs.get('prune', 0.0)
 
         base_model = inceptionresnetv2(num_classes=1000, pretrained="imagenet")
@@ -47,7 +47,7 @@ class KonCept512(nn.Module):
             self.base = nn.Sequential(*list(self.base.children())[:-3],
                                       self.cayley1,
                                       *list(self.base.children())[-3:])
-        elif self.is_cayley1:
+        elif self.is_cayley2:
             print(self)
             self.cayley2 = CayleyBlockPool(in_channels=2080, intermed_channels=1500, 
                                           stride=1, padding=0, kernel_size=3)

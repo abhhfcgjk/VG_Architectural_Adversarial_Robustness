@@ -13,6 +13,8 @@ models_train/results
 models_train/checkpoints/*
 *.pth
 *.pt
+*.yaml
+*.gz
 models_train/results_in_the_paper/*.pdf
 *.pdf
 graph_data
