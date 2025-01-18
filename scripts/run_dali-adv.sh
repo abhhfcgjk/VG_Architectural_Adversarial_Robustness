@@ -8,8 +8,12 @@ set -e
 
 fc=$1
 
-mapfile -t args < /scratch/amoskalenko/users/28i_mel/vanDBCNN/options/fc_args_test.txt
-
+if [ "$fc" = "fc" ]
+then
+    mapfile -t args < /scratch/amoskalenko/users/28i_mel/vanDBCNN/options/fc_args-adv.txt
+else
+    mapfile -t args < /scratch/amoskalenko/users/28i_mel/vanDBCNN/options/nofc_args-adv.txt
+fi
 metric_name="DBCNN"
 dir_name="."
 config_dir="/scratch/amoskalenko/users/28i_mel/vanDBCNN/presets"
@@ -27,7 +31,7 @@ for arg in "${args[@]}"; do
     --container-image /scratch/amoskalenko/users/28i_mel/images/28i_mel+dbcnn+arch_rob.sqsh \
     --container-mounts /scratch/amoskalenko/users/28i_mel/vanDBCNN:/workdir/vg bash \
     -c "cd vg && \
-    pip install -r requirements.txt && \
-    python main.py --config presets/'${config_name}' > DBCNNtest'${config_name//.yaml/}'.out" &
+    pip install -I -r requirements.txt && \
+    python main.py --config presets/'${config_name}' > DBCNN'${config_name//.yaml/}'.out" &
 done
 wait

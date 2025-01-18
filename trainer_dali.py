@@ -53,6 +53,8 @@ class AdversarialTrainer:
         self.h_gradnorm_regularization = 0.01
         self.weight_gradnorm_regularization = 0.0005
         self.use_mask = True if (self.config['options']['prune'] > 0)and(not self.config['eval_only']) else False
+        self.is_adv = True if self.config['attack']['train'] != "none" else False
+
 
         self.world_size = torch.cuda.device_count()
         self.distributed = self.world_size > 1
@@ -249,6 +251,10 @@ class AdversarialTrainer:
         attack_name = attack_config["type"]
         if attack_name == "none":
             return None
+        if self.is_adv:
+            path = self.config['db_model'].replace('-adv', '')
+            ckpt = torch.load(path)['model']
+            self.model.load_state_dict(ckpt)
 
         attackers = {"fgsm": FGSM, "pgd": PGD, "apgd": AutoPGD}
         attacker_cls = attackers.get(attack_name)
@@ -441,12 +447,13 @@ class AdversarialTrainer:
 
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
-        datasets = ['KonIQ-10k', 'NIPS']
+        datasets = ['NIPS', 'KonIQ-10k']
         self.model.load_state_dict(checkpoint['model'])
         # self.replace_activation(self.model, )
         self.metric_computer = IQAPerformance()
         metric_range = checkpoint['max'] - checkpoint['min']
-        
+        self.hash = self.__get_options_hash(self.config['options'])
+
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric range: {metric_range}')
         print('SROCC: ', checkpoint['SROCC'])
@@ -506,7 +513,7 @@ class AdversarialTrainer:
                 print(f'Relative gain for eps={attack_args["params"]["eps"]}: {rel_gain}')
             
             if len(self.config['attack']['test']) > 0:
-                form = f"{_dataset}_vgg16+{self.config['options']['activation']}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
+                form = f"{_dataset}_vgg16+{self.hash}-gr={self.config['train']['gr']}-adv={self.is_adv}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
                 pd.DataFrame.from_dict(results).to_csv(
                     self.results_csv / form,
                     index=False

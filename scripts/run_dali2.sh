@@ -31,7 +31,7 @@ for arg in "${args[@]}"; do
     --container-image /scratch/amoskalenko/users/28i_mel/images/28i_mel+dbcnn+arch_rob.sqsh \
     --container-mounts /scratch/amoskalenko/users/28i_mel/vanDBCNN:/workdir/vg bash \
     -c "cd vg && \
-    pip install -r requirements.txt && \
+    pip install -I -r requirements.txt && \
     python main.py --config presets/'${config_name}' > DBCNN'${config_name//.yaml/}'.out" &
 done
 wait

@@ -153,24 +153,24 @@ class DBCNN(torch.nn.Module):
 
     def __set_activation(self, activ_function):
         if activ_function=='Frelu_elu':
-            activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
-            # activ.swap_all_activations(self.features2, nn.ReLU, activ.ReLU_ELU)
+            # activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_ELU)
+            activ.swap_all_activations(self.features2, nn.ReLU, activ.ReLU_ELU)
             self.Activ = activ.ReLU_ELU
         elif activ_function=='Frelu_silu':
-            activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_SiLU)
-            # activ.swap_all_activations(self.features2, nn.ReLU, activ.ReLU_SiLU)
+            # activ.swap_all_activations(self.features1, nn.ReLU, activ.ReLU_SiLU)
+            activ.swap_all_activations(self.features2, nn.ReLU, activ.ReLU_SiLU)
             self.Activ = activ.ReLU_SiLU
         elif activ_function=='Felu':
-            activ.swap_all_activations(self.features1, nn.ReLU, nn.ELU)
-            # activ.swap_all_activations(self.features2, nn.ReLU, nn.ELU)
+            # activ.swap_all_activations(self.features1, nn.ReLU, nn.ELU)
+            activ.swap_all_activations(self.features2, nn.ReLU, nn.ELU)
             self.Activ = nn.ELU
         elif activ_function=='Fsilu':
-            activ.swap_all_activations(self.features1, nn.ReLU, nn.SiLU)
-            # activ.swap_all_activations(self.features2, nn.ReLU, nn.SiLU)
+            # activ.swap_all_activations(self.features1, nn.ReLU, nn.SiLU)
+            activ.swap_all_activations(self.features2, nn.ReLU, nn.SiLU)
             self.Activ = nn.SiLU
         elif activ_function=='Fgelu':
-            activ.swap_all_activations(self.features1, nn.ReLU, nn.GELU)
-            # activ.swap_all_activations(self.features2, nn.ReLU, nn.GELU)
+            # activ.swap_all_activations(self.features1, nn.ReLU, nn.GELU)
+            activ.swap_all_activations(self.features2, nn.ReLU, nn.GELU)
             self.Activ = nn.GELU
         else:
             # activ.swap_all_activations(self.features1, nn.ReLU, nn.ReLU)
@@ -181,7 +181,7 @@ class DBCNN(torch.nn.Module):
         self.pruning_type = prtype
 
         if prtype == 'l1':
-            self.prune_parameters = l1_prune(self, amount)
+            self.prune_parameters = l1_prune(self.features1, amount)
         elif prtype == 'pls':
             self.prune_parameters = pls_prune(self, amount, **kwargs)
         elif prtype == 'displs':
@@ -208,21 +208,29 @@ class DBCNN(torch.nn.Module):
         W = X1.size()[3]
         assert X1.size()[1] == 512
         X2 = self.features2(X)
+        # print(X1)
+        # print(X2)
         H2 = X2.size()[2]
         W2 = X2.size()[3]
         assert X2.size()[1] == 128        
         
         if (H != H2) | (W != W2):
             X2 = F.upsample_bilinear(X2,(H,W))
+            # print("Upsample", X2)
 
         X1 = X1.view(N, 512, H*W)
-        X2 = X2.view(N, 128, H*W)  
+        X2 = X2.view(N, 128, H*W)
+         
         X = torch.bmm(X1, torch.transpose(X2, 1, 2)) / (H*W)  # Bilinear
+        # print(X)
         assert X.size() == (N, 512, 128)
         X = X.view(N, 512*128)
         X = torch.sqrt(torch.abs(X) + 1e-8)
+        # print(X)
         X = torch.nn.functional.normalize(X)
+        # print(X)
         X = self.fc(X)
+        # print(X)
         assert X.size() == (N, 1)
         return X
 

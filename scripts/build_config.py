@@ -50,8 +50,7 @@ def run(args):
     if args.adv:
         config['attack']['train']['type'] = 'fgsm'
         config['attack']['train']['params'] = {'eps': 4., 'alpha': 5., 'mode': 'uniform'}
-        config['train']['epochs'] = 30
-        
+        config['train']['epochs'] = 50
 
     config['attack']['path']['checkpoints'] = 'mnt/DBCNN{}{}{}{}{}{}{}{}{}.pth'.format(
                                                                         backbone_satatus, 

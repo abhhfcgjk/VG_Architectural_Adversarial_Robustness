@@ -6,6 +6,7 @@ fc_model/
 mnt/
 models_train/KonIQ-10k
 *.out
+*.yaml
 /venv
 __pycache__/
 

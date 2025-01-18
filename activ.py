@@ -145,7 +145,10 @@ def ReLU_to_ReLUSiLU(model):
 def swap_all_activations(model, from_activation: nn.Module, to_activation: nn.Module):
     for name, layer in model.named_children():
         if isinstance(layer, from_activation):
-            setattr(model, name, to_activation())
+            if hasattr(to_activation, 'inplace'):
+                setattr(model, name, to_activation(inplace=True))
+            else:
+                setattr(model, name, to_activation())
         else:
             swap_all_activations(layer, from_activation, to_activation)
 

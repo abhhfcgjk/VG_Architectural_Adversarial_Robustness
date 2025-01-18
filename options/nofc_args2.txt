@@ -1,5 +1,7 @@
-
---cayley1
---cayley2
---cayley3
---cayley4
+--activation|Fsilu
+--activation|Felu
+--activation|Fgelu
+--cayley1|--activation|Felu
+--cayley2|--activation|Felu
+--cayley3|--activation|Felu
+--cayley4|--activation|Felu

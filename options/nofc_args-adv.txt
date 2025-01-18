@@ -1,0 +1,4 @@
+--adv|--activation|relu
+--adv|--activation|Felu
+--adv|--activation|Fsilu
+--adv|--activation|Fgelu
