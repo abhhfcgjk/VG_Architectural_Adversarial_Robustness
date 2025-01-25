@@ -99,6 +99,7 @@ class Linearity(IQA):
         self.cayley1 = kwargs.get('cayley1', False)
         self.cayley2 = kwargs.get('cayley2', False)
         self.cayley3 = kwargs.get('cayley3', False)
+        self.cayley4 = kwargs.get('cayley4', False)
         self.is_quantize = kwargs.get('quantize', False)
         # self.arch = arch
         if pool in ['max', 'min', 'avg', 'std']:
@@ -127,9 +128,12 @@ class Linearity(IQA):
             self.cayley_block2 = CayleyBlockPool(64, 64, stride=1, padding=0, kernel_size=3)
         if self.cayley3:
             self.cayley_block3 = CayleyBlockPool(256, 256, stride=1, padding=0, kernel_size=3)
+        if self.cayley4:
+            self.cayley_block4 = CayleyBlockPool(512, 128, stride=1, padding=0, kernel_size=3)
         self.id_cl1 = 0
         self.id_cl2 = 4
         self.id_cl3 = 5
+        self.id_cl4 = 5
 
         if self.cayley:
             self.cayley_block6 = CayleyBlockPool(512, 200, stride=1, padding=0, kernel_size=3)
@@ -220,15 +224,24 @@ class Linearity(IQA):
                 ic(x.shape)
                 x = self.cayley_block6(x)
             if ii==self.id_cl1 and self.cayley1:
-                print(self.cayley_block1)
+                # print(self.cayley_block1)
                 x = self.cayley_block1(x)
             if ii==self.id_cl2 and self.cayley2:
-                print(self.cayley_block2)
+                # print(self.cayley_block2)
                 x = self.cayley_block2(x)
             if ii==self.id_cl3 and self.cayley3:
-                print(self.cayley_block3)
+                # print(self.cayley_block3)
                 x = self.cayley_block3(x)
-            x = model(x)
+            if ii==self.id_cl4 and self.cayley4:
+                # print(model)
+                for bn, (_, layer) in enumerate(model.named_children()):
+                    # print(layer)
+                    if bn==2:
+                        x = self.cayley_block4(x)
+                    x = layer(x)
+            else:
+                x = model(x)
+            # x = model(x)
             
             ic(x.shape)
             if ii == self.id1:

@@ -62,6 +62,7 @@ class Trainer:
         self.cayley1 = args.cayley1
         self.cayley2 = args.cayley2
         self.cayley3 = args.cayley3
+        self.cayley4 = args.cayley4
 
         self.pruning = args.pruning
         self.prune_iters = args.prune_iters
@@ -92,7 +93,7 @@ class Trainer:
                               cayley=self.cayley, cayley_pool=self.cayley_pool, 
                               cayley_pair=self.cayley_pair, quantize=False,
                               cayley1=self.cayley1, cayley2=self.cayley2,
-                              cayley3=self.cayley3).to(self.device)
+                              cayley3=self.cayley3, cayley4=self.cayley4).to(self.device)
 
         print(self.model)
         # self.scaler = GradScaler()

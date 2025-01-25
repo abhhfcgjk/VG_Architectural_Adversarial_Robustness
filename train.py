@@ -36,6 +36,8 @@ def get_format_string(args) -> str:
         format_str += f'-cayley2={args.cayley2}'
     if args.cayley3:
         format_str += f'-cayley3={args.cayley3}'
+    if args.cayley4:
+        format_str += f'-cayley4={args.cayley4}'
     if args.cayley_pair:
         format_str += f'-cp={args.cayley_pair}'
     if args.gabor:
@@ -178,6 +180,7 @@ if __name__ == "__main__":
     parser.add_argument('-cl1', '--cayley1', action='store_true', help="After conv4 and before conv5")
     parser.add_argument('-cl2', '--cayley2', action='store_true', help="After conv4 and before conv5")
     parser.add_argument('-cl3', '--cayley3', action='store_true', help="After conv4 and before conv5")
+    parser.add_argument('-cl4', '--cayley4', action='store_true', help="After conv4 and before conv5")
     parser.add_argument('-clp', '--cayley_pool', action='store_true', help="After conv4 and before conv5")
     parser.add_argument('-cp', '--cayley_pair', action='store_true', 
                         help="Use cayley block after conv4, conv5 (two CayleyBlock)")

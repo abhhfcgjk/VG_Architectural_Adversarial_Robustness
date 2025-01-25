@@ -31,7 +31,7 @@ class Attack:
     def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu',
                  gabor=False, gradnorm_regularization=False, adv=False, cayley=False, 
                  cayley_pool=False, cayley_pair=False, quantize=False, cayley1=False,
-                 cayley2=False, cayley3=False) -> None:
+                 cayley2=False, cayley3=False, cayley4=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -47,6 +47,7 @@ class Attack:
         self.cayley1 = cayley1
         self.cayley2 = cayley2
         self.cayley3 = cayley3
+        self.cayley4 = cayley4
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
         self.adv = adv
@@ -57,7 +58,7 @@ class Attack:
                            use_bn_end=use_bn_end,
                            P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
                            cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair, quantize=quantize,
-                           cayley1=cayley1, cayley2=cayley2, cayley3=cayley3).to(self.device)
+                           cayley1=cayley1, cayley2=cayley2, cayley3=cayley3, cayley4=cayley4).to(self.device)
         ic(self.model)
         # self.model.eval()
 
