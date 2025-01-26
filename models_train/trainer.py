@@ -320,7 +320,8 @@ class Trainer:
         self.save_checkpoints(checkpoint, self.args.trained_model_file, 
                               use_mask=False)
         print('checkpoints saved')
-        print(f"Mean epoch time: {epoch_mean_time/self.epochs}")
+        epoch_mean_time /= self.epochs
+        print(f"Mean epoch time: {epoch_mean_time}")
 
         checkpoint = torch.load(self.args.trained_model_file)
         self.model.load_state_dict(checkpoint['model'])
@@ -339,7 +340,8 @@ class Trainer:
         checkpoint['min'] = preds.min()
         checkpoint['SROCC'] = self.metric_computer.SROCC
         checkpoint['PLCC'] = self.metric_computer.PLCC
-        checkpoint ['RMSE'] = self.metric_computer.RMSE
+        checkpoint['RMSE'] = self.metric_computer.RMSE
+        checkpoint['epoch_time'] = epoch_mean_time
         self.save_checkpoints(checkpoint, self.args.trained_model_file, 
                               use_mask=False)
         # torch.save(checkpoint, self.args.trained_model_file)
@@ -427,8 +429,10 @@ class Trainer:
         self.model.eval()
         self.metric_computer.reset()
         test_len = len(self.test_loader)
+        start_time = time.time()
         for step, (inputs, label) in tqdm(enumerate(self.test_loader), total=test_len):
             self._val_step(inputs, label)
+        inference_time = time.time() - start_time
         metrics = self.metric_computer.compute()
 
         checkpoint['model'] = self.model.state_dict()
@@ -437,6 +441,8 @@ class Trainer:
         checkpoint ['RMSE'] = self.metric_computer.RMSE
         checkpoint['min'] = self.metric_computer.preds.min()
         checkpoint['max'] = self.metric_computer.preds.max()
+        checkpoint['inference_time'] = inference_time
+        print("Inference time:", inference_time)
         metric_range = checkpoint['max'] - checkpoint['min']
         print(checkpoint['min'], checkpoint['max'])
         print(f'Metric_range:', metric_range)

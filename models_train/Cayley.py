@@ -92,7 +92,6 @@ class IterativeInverse(torch.autograd.Function):
         # X = A.transpose(-1, -2) / torch.norm(A, p='fro', dim=(-1, -2), keepdim=True).square()
         #X = A.transpose(1, 2) / torch.norm(torch.bmm(A,A.transpose(1, 2)), p='fro')
         X = psi* I
-        ctx.save_for_backward(A, I)
 
         for i in range(max_iters):
             AX = torch.bmm(A, X)
@@ -105,33 +104,33 @@ class IterativeInverse(torch.autograd.Function):
         ctx.num_iters = i
         #print("Iterative inverse: {} iterations, error {}".format(ctx.num_iters, residual))
         return X
-    @staticmethod
-    def forward(ctx, A, psi=1.0, eps=1e-4, max_iters=50):
-        n = A.size(-1)
-        I = torch.eye(n, dtype=A.dtype, device=A.device).expand_as(A)
+    # @staticmethod
+    # def forward(ctx, A, psi=1.0, eps=1e-4, max_iters=50):
+    #     n = A.size(-1)
+    #     I = torch.eye(n, dtype=A.dtype, device=A.device).expand_as(A)
         
-        ctx.save_for_backward(A, I)
+    #     ctx.save_for_backward(A, I)
 
-        chunks = torch.chunk(A, chunks=A.shape[0] // 10, dim=0)
-        inv_chunks = []
+    #     chunks = torch.chunk(A, chunks=A.shape[0] // 10, dim=0)
+    #     inv_chunks = []
 
-        for chunk in chunks:
-            X = psi * I
+    #     for chunk in chunks:
+    #         X = psi * I
 
-            for i in range(max_iters):
-                with torch.no_grad():  # Save memory by disabling gradient tracking
-                    AX = torch.bmm(chunk, X)
-                    residual = torch.norm(AX - I, dim=(-1, -2)).max().item()
-                    if residual < eps:
-                        break
-                    X.copy_(2 * X - torch.bmm(X, AX))  # In-place update to save memory
+    #         for i in range(max_iters):
+    #             with torch.no_grad():  # Save memory by disabling gradient tracking
+    #                 AX = torch.bmm(chunk, X)
+    #                 residual = torch.norm(AX - I, dim=(-1, -2)).max().item()
+    #                 if residual < eps:
+    #                     break
+    #                 X.copy_(2 * X - torch.bmm(X, AX))  # In-place update to save memory
 
-            inv_chunks.append(X)
+    #         inv_chunks.append(X)
 
-        X = torch.cat(inv_chunks, dim=0)
-        ctx.save_for_backward(A, X)
-        ctx.num_iters = i
-        return X
+    #     X = torch.cat(inv_chunks, dim=0)
+    #     ctx.save_for_backward(A, X)
+    #     ctx.num_iters = i
+    #     return X
     @staticmethod
     def backward(ctx, grad_output):
         """
@@ -157,7 +156,21 @@ def cayley(W):
     V_herm = V.conj().transpose(1, 2) @ V
     U_skew = U - U.conj().transpose(1, 2)
     A = U_skew + V_herm
-    psi = 1#0 - 1j #torch.tensor(0 + 1j, dtype=torch.complex64)
+
+    # batch_size = U_skew.shape[0]
+    # results = []
+    # for i in range(batch_size):
+    #     matrix = U_skew[i]
+    #     is_toeplitz = True
+    #     # Check if each row is a shifted version of the previous one
+    #     for j in range(1, matrix.shape[0]):
+    #         if not torch.all(matrix[j] == torch.roll(matrix[j-1], shifts=1)):
+    #             is_toeplitz = False
+    #             break
+    #     results.append(is_toeplitz)
+    # print(results)
+
+    psi = 1 #0 - 1j #torch.tensor(0 + 1j, dtype=torch.complex64)
     iIpA = torch.inverse(I + A)
     # iIpA = torch.linalg.cholesky(I+A)
     # psi = 2. / (1. + torch.norm(U_skew.conj(), p='fro') + torch.norm(V_herm.conj(), p='fro'))
@@ -171,7 +184,7 @@ def cayley(W):
     # psi = 2. / (1. + torch.norm(U_skew, p='fro') + torch.norm(V_herm, p='fro'))
     # print(psi)
     # iIpA = IterativeInverse.apply(I + A, psi, 1e-4, 200)
-    return torch.cat((iIpA @ (I - A), -2 * V @ iIpA), axis=1) 
+    return torch.cat((iIpA @ (I - A), -2 * V @ iIpA), axis=1)
 
 class CayleyConv(StridedConv, nn.Conv2d):
     def __init__(self, *args, **kwargs):

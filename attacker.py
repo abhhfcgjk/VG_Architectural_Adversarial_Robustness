@@ -280,6 +280,7 @@ class Attack:
         cl1 = f'+cayley1' if self.cayley1 else ''
         cl2 = f'+cayley2' if self.cayley2 else ''
         cl3 = f'+cayley3' if self.cayley3 else ''
+        cl4 = f'+cayley4' if self.cayley4 else ''
         clp = f'+cayley_pool_iter' if self.cayley_pool else ''
         cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
@@ -288,7 +289,7 @@ class Attack:
         quant = f"+quantize" if self.quantize else ''
         adv = f"+adv" if self.adv else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{cl1}{cl2}{cl3}{gr}{adv}{prune}{quant}+{activation}'
+        arch_status = f'{self.arch}{cl}{clp}{cp}{cl1}{cl2}{cl3}{cl4}{gr}{adv}{prune}{quant}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
                                             self.dataset,
                                             arch_status,
