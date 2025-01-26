@@ -1,7 +1,8 @@
---fc|--activation|Fsilu
---fc|--activation|Felu
---fc|--activation|Fgelu
---fc|--cayley1|--activation|Felu
---fc|--cayley2|--activation|Felu
---fc|--cayley3|--activation|Felu
---fc|--cayley4|--activation|Felu
+--fc|--cayley1|--activation|Fgelu
+--fc|--cayley2|--activation|Fgelu
+--fc|--cayley3|--activation|Fgelu
+--fc|--cayley4|--activation|Fgelu
+--fc|--cayley1|--activation|Fsilu
+--fc|--cayley2|--activation|Fsilu
+--fc|--cayley3|--activation|Fsilu
+--fc|--cayley4|--activation|Fsilu

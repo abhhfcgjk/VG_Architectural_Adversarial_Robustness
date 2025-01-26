@@ -126,7 +126,7 @@ class AdversarialTrainer:
             self.log_dir.mkdir(parents=True, exist_ok=True)
             if self.eval_only:
                 self.results_csv = Path(self.config['results_path'])
-                self.results_csv.mkdir(parents=True, exist_ok=True)
+                # self.results_csv.mkdir(parents=True, exist_ok=True)
 
             self.writer = SummaryWriter(log_dir=self.log_dir)
 
@@ -513,9 +513,9 @@ class AdversarialTrainer:
                 print(f'Relative gain for eps={attack_args["params"]["eps"]}: {rel_gain}')
             
             if len(self.config['attack']['test']) > 0:
-                form = f"{_dataset}_vgg16+{self.hash}-gr={self.config['train']['gr']}-adv={self.is_adv}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
+                # form = f"{_dataset}_vgg16+{self.hash}-gr={self.config['train']['gr']}-adv={self.is_adv}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
                 pd.DataFrame.from_dict(results).to_csv(
-                    self.results_csv / form,
+                    f'csv/{_dataset}_{self.results_csv}',
                     index=False
                 )
 

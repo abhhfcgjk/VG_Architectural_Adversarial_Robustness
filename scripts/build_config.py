@@ -82,6 +82,18 @@ def run(args):
                                                                 gr_status, prune_status,
                                                                 activation_status,
                                                                 )
+    config['results_path'] = '{}{}{}{}{}{}{}{}{}{}'.format(
+                            args.backbone,
+                            adv_status.replace('-', '+'),
+                            gr_status.replace('-', '+'),
+                            cayley1_status.replace('-', '+'),
+                            cayley2_status.replace('-', '+'),
+                            cayley3_status.replace('-', '+'),
+                            cayley4_status.replace('-', '+'),
+                            f'+{args.prune}_{args.prune_type}' if args.prune > 0. else '',
+                            f'+{args.activation}',
+                            f'_PGD={args.iters}.csv'
+                        )
     test_status = 'test' if args.test else ''
     form = '{}config{}{}{}{}{}{}{}{}{}{}_PGD={}.yaml'.format(
                                                     test_status,
