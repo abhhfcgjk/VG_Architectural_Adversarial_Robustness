@@ -32,7 +32,7 @@ def get_format_string(args):
     if args.cayley:
         format_str += f'-cl={args.cayley}'
     if args.cayley_pool:
-        format_str += f'-clp_my={args.cayley_pool}'
+        format_str += f'-clp={args.cayley_pool}'
     if args.cayley1:
         format_str += f'-cayley1={args.cayley1}'
     if args.cayley2:

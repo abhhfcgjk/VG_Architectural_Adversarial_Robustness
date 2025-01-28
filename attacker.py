@@ -281,7 +281,7 @@ class Attack:
         cl2 = f'+cayley2' if self.cayley2 else ''
         cl3 = f'+cayley3' if self.cayley3 else ''
         cl4 = f'+cayley4' if self.cayley4 else ''
-        clp = f'+cayley_pool_iter' if self.cayley_pool else ''
+        clp = f'+cayley_pool' if self.cayley_pool else ''
         cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
