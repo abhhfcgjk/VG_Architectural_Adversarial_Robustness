@@ -270,7 +270,7 @@ class Trainer:
             )
             val_criterion = abs(metrics[self.args.val_criterion])
             # print(val_criterion, self.best_val_criterion)
-            if (val_criterion > self.best_val_criterion) and (self.current_epoch > 10):
+            if (val_criterion > self.best_val_criterion) and (self.current_epoch > 10): # for adv epochs>10
                 # if self.args.debug:
                 # print('max:', 'max_pred', 'min:', 'min_pred')
                 checkpoint = {
@@ -280,7 +280,7 @@ class Trainer:
                     'b': self.b,
                 }
                 self.save_checkpoints(checkpoint, self.args.trained_model_file, 
-                                      use_mask=False)
+                                      use_mask=False, model=self.model)
                 # torch.save(checkpoint, self.args.trained_model_file)
 
                 self.best_val_criterion = val_criterion
@@ -343,7 +343,7 @@ class Trainer:
         checkpoint['RMSE'] = self.metric_computer.RMSE
         checkpoint['epoch_time'] = epoch_mean_time
         self.save_checkpoints(checkpoint, self.args.trained_model_file, 
-                              use_mask=False)
+                              use_mask=False, model=self.model)
         # torch.save(checkpoint, self.args.trained_model_file)
         # Task.current_task().upload_artifact(name="Metrics", 
         #                                     artifact_object={
@@ -536,7 +536,10 @@ class Trainer:
         if use_mask:
             # model_copy = copy.deepcopy(model)
             for module, name in model.prune_parameters:
-                prune.remove(module, name)
+                try:
+                    prune.remove(module, name)
+                except Exception as ex:
+                    print(ex)
             checkpoint['model'] = model.state_dict()
             torch.save(checkpoint, trained_model_file)
         else:

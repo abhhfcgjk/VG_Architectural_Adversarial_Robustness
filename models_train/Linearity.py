@@ -222,21 +222,26 @@ class Linearity(IQA):
             ic(model)
             if ii==self.id1 and self.cayley:
                 ic(x.shape)
+                print('cayley:', x.shape)
                 x = self.cayley_block6(x)
             if ii==self.id_cl1 and self.cayley1:
                 # print(self.cayley_block1)
+                print('cayley1:', x.shape)
                 x = self.cayley_block1(x)
             if ii==self.id_cl2 and self.cayley2:
                 # print(self.cayley_block2)
+                print('cayley2:', x.shape)
                 x = self.cayley_block2(x)
             if ii==self.id_cl3 and self.cayley3:
                 # print(self.cayley_block3)
+                print('cayley3:', x.shape)
                 x = self.cayley_block3(x)
             if ii==self.id_cl4 and self.cayley4:
                 # print(model)
                 for bn, (_, layer) in enumerate(model.named_children()):
                     # print(layer)
                     if bn==2:
+                        print('cayley4:', x.shape)
                         x = self.cayley_block4(x)
                     x = layer(x)
             else:
@@ -248,11 +253,11 @@ class Linearity(IQA):
                 # if self.cayley:
                 #     x = self.cayley_block6(x)
                 if self.cayley_pool:
-                    ic(x.shape)
+                    print('cayley_pool:', x.shape)
                     x = self.cayley_block6(x)
-                
                 x6 = x
                 if self.cayley_pair:
+                    print('cayley_pair:', x.shape)
                     x6 = self.cayley_conv4(x6)
                 ic(x6.shape)
                 x6 = SPSP(x6, P=self.P6, method=self.pool)
