@@ -41,15 +41,15 @@ class KonCept512(nn.Module):
         self.base = nn.Sequential(*list(base_model.children())[:-1])
 
         if self.is_cayley1:
-            print(self)
-            self.cayley1 = CayleyBlockPool(in_channels=2080, intermed_channels=1500, 
+            # print(self)
+            self.cayley1 = CayleyBlockPool(in_channels=2080, intermed_channels=1040, 
                                           stride=1, padding=0, kernel_size=3)
             self.base = nn.Sequential(*list(self.base.children())[:-3],
                                       self.cayley1,
                                       *list(self.base.children())[-3:])
         elif self.is_cayley2:
-            print(self)
-            self.cayley2 = CayleyBlockPool(in_channels=2080, intermed_channels=1500, 
+            # print(self)
+            self.cayley2 = CayleyBlockPool(in_channels=2080, intermed_channels=1040, 
                                           stride=1, padding=0, kernel_size=3)
             self.base = nn.Sequential(*list(self.base.children())[:-2],
                                       self.cayley2,

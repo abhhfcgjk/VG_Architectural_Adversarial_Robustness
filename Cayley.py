@@ -240,7 +240,7 @@ class CayleyBlockPool(nn.Module):
         if w > h:
             delta = w - h
             up = int(np.ceil(h*0.02)+1)
-            ic(up, delta)
+            # ic(up, delta)
             kernel_size = (up, up+delta)
             return F.max_pool2d(x, kernel_size=kernel_size, stride=1)
         elif w < h:
@@ -251,20 +251,20 @@ class CayleyBlockPool(nn.Module):
         return x
 
     def forward(self, X):
-        ic("Cayley(")
+        # ic("Cayley(")
         # ic(X.shape)
         # x = self.conv_in(X)
-        ic(X.shape)
+        # ic(X.shape)
         _, _, h, w = X.shape
         x = self.pool_to_square(X, h, w)
-        ic(x.shape)
+        # ic(x.shape)
         x = self.conv_in(x)
-        ic(x.shape)
+        # ic(x.shape)
         out = self.conv_cayley(x)
-        ic(out.shape)
+        # ic(out.shape)
         # out = self.conv_out(out)
         # ic(out.shape)
-        ic(")cayley")
+        # ic(")cayley")
         return out
 
 def swap_conv_to_lipschitz(model):
