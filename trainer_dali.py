@@ -387,7 +387,7 @@ class AdversarialTrainer:
     def _train_step(self, data, step: int, start_time: float) -> Dict[str, float]:
         metrics = {}
         inputs, label = data[0]['data'], data[0]['label']
-
+        print(inputs.shape)
         label = label.squeeze(-1)
         label = label.cuda(self.gpu, non_blocking=True)
 
@@ -413,6 +413,7 @@ class AdversarialTrainer:
         return metrics
 
     def _val_step(self, data, attack: Attacker = None) ->  None:
+        # tr = transforms.Resize((768, 1024))
         if len(data[0])>1:
             inputs, label = data[0]['data'], data[0]['label']
             label = label.squeeze(-1)
@@ -423,7 +424,7 @@ class AdversarialTrainer:
 
         if attack:
             inputs = attack.run(inputs, label)
-
+        # print(inputs.shape)
         model_out = self.model(inputs)
         self.metric_computer.update(model_out, label)
 
@@ -447,7 +448,7 @@ class AdversarialTrainer:
 
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
-        datasets = ['NIPS', 'KonIQ-10k']
+        datasets = ['KonIQ-10k']
         self.model.load_state_dict(checkpoint['model'])
         # self.replace_activation(self.model, )
         self.metric_computer = IQAPerformance()
