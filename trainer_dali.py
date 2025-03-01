@@ -54,7 +54,7 @@ class AdversarialTrainer:
 
         self.is_gradnorm_regularization = self.config['train']['gr']
         self.h_gradnorm_regularization = 0.01
-        self.weight_gradnorm_regularization = 0.0005
+        self.weight_gradnorm_regularization = 0.001
 
         self.is_adv = True if self.config['attack']['train'] != "none" else False
 
@@ -160,6 +160,13 @@ class AdversarialTrainer:
                 self.model, device_ids=[self.gpu]
             )
         self.scaler = GradScaler()
+
+        # if os.path.exists(self.config['db_model']):
+        #     ckpt = torch.load(self.config['db_model'])
+        #     self.model.load_state_dict(ckpt['model'])
+        #     self.optimizer.load_state_dict(ckpt['optimizer'])
+        #     self.current_epoch = ckpt['epoch']
+        #     self.end_epoch = self.current_epoch + self.config['train']['epochs']
 
         self._init_lr_scheduler()
         self.loss = nn.MSELoss()

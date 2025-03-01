@@ -20,6 +20,7 @@ def run(args):
     config['options']['cayley2'] = args.cayley2
     config['eval_only'] = args.test
     config['train']['gr'] = args.gr
+    config['train']['epochs'] = args.epochs
 
     if args.adv:
         config['attack']['train']['type'] = 'fgsm'
@@ -85,6 +86,7 @@ if __name__=='__main__':
     parser.add_argument('--cayley2', action='store_true')
     parser.add_argument('--cayley3', action='store_true')
     parser.add_argument('--cayley4', action='store_true')
+    parser.add_argument('--epochs', type=int, default=70)
     parser.add_argument('--prune', type=float, default=0.0)
     parser.add_argument('--prune_lr', type=float, default=0.0001)
     parser.add_argument('--prune_epochs', type=int, default=15)
