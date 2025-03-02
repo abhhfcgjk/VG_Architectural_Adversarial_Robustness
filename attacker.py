@@ -9,7 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 from torchvision.transforms.functional import resize, to_tensor, normalize, crop
 from torchvision import models
-import models_train.iterative as iterative
+from attacks import iterative, uap, korhonen, zhang
 from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
 from models_train.activ import swap_all_activations, ReLU_ELU
@@ -126,6 +126,7 @@ class Attack:
         self.crop = crop
         self.resize_size_h: int = resize_size_h
         self.resize_size_w: int = resize_size_w
+        self.data_info = data_info
 
         self.loader = DataLoader(
                             TestLoader(
@@ -189,6 +190,26 @@ class Attack:
             os.makedirs(debug_dir, exist_ok=True)
         count = 5
         self.gains = {int(x * 255): [] for x in self.epsilons}
+
+        if attack_type == "UAP":
+            dataloader = DataLoader(
+                                TestLoader(
+                                    dataset=self.dataset,
+                                    dataset_path=self.dataset_path, 
+                                    resize=self.resize, 
+                                    crop=self.crop, 
+                                    resize_size_h=self.resize_size_h, 
+                                    resize_size_w=self.resize_size_w,
+                                    data_info=self.data_info
+                                    ),
+                                batch_size=8
+                                )
+            uap_attack = uap.CumulativeUAP(self.model, self.k, self.b, device=self.device, 
+                                           eps=10, lr=0.0001, n_epochs=iterations,
+                                           metric_range=self.metric_range_test)
+            print("Generating UAP")
+            uap_attack.generate(dataloader)
+
         print("ATTACK")
         for image_num, (img_name, img_) in tqdm(
                 enumerate(self.loader),
@@ -202,12 +223,27 @@ class Attack:
             attacked_vals = {int(x * 255): None for x in self.epsilons}
 
             for _, eps in enumerate(self.epsilons):
-                img_attacked_ = iterative.attack_callback(
-                    img_, model=self.model, attack_type=attack_type, metric_range=self.metric_range_test,
-                    device=self.device,
-                    eps=1.0, iters=iterations, delta=eps, k=self.k, b=self.b
-                )
-                # img_attacked = normalize(img_attacked_,[0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+                if attack_type in ["IFGSM", "PGD"]:
+                    img_attacked_ = iterative.attack_callback(
+                        img_, self.model, self.k, self.b, 
+                        attack_type=attack_type, 
+                        metric_range=self.metric_range_test,
+                        device=self.device,
+                        iters=iterations, delta=eps
+                    )
+                elif attack_type == "UAP":
+                    img_attacked_ = uap_attack.run(img_, None)
+                elif attack_type == "Zhang":
+                    img_attacked_ = zhang.zhang(
+                        img_, self.model, self.k, self.b, metric_range=self.metric_range_test,
+                        device=self.device, iters=iterations
+                    )
+                elif attack_type == "Korhonen":
+                    img_attacked_ = korhonen.korhonen(
+                        img_, self.model, self.k, self.b, 
+                        metric_range=self.metric_range_test,
+                        device=self.device, iters=iterations
+                    )
                 
                 with torch.no_grad():
                     # save_image(img_, f'debug_img/clear{image_num}.png')

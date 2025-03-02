@@ -11,7 +11,7 @@ from models_train.Linearity import Linearity
 from models_train.IQAloss import IQALoss
 from models_train.IQAperformance import IQAPerformanceLinearity, IQAPerfomanceKonCept
 from models_train.swap_convs import swap_to_quntized
-import models_train.iterative as iterative 
+import attacks.iterative as iterative 
 from torch.utils.tensorboard import SummaryWriter
 import datetime
 import time
