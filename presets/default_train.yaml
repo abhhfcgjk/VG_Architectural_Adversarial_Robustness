@@ -1,0 +1,112 @@
+# Default parameters for training TReS
+label_strategy: origin
+perc: no
+eval_only: no
+seed: 5102023
+checkpoint_path: null
+db_model: db_model/tres-backbone|swin-activation|relu.pth
+entity: igor_-m-v-lomonosovmoscow-state-university
+
+data:
+  dataset: KonIQ-10k
+  data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+  directory: KonIQ-10k/1024x768
+  patch_dir: KonIQ-10k/patch
+  patch_info: KonIQ-10k/patch_info.csv
+
+options:
+  activation: relu
+  cayley1: false
+  cayley2: false
+  cayley3: false
+  cayley4: false
+  backbone: swin
+  prune: 0.0
+  prune_lr: 0.00001
+  prune_epochs: 15
+  prune_type: l1
+
+lr_scheduler:
+  type: cosine
+  T_max: 50
+  eta_min: 0
+
+train:
+  lr: 1e-5
+  img_size: 224
+  nhead: 4
+  num_outputs: 1
+  window_size: 4
+  embed_dim: 768
+  dim_mlp: 768
+  depths: 2
+  num_workers: 8
+  batch_size: 8
+  num_patches: 50
+  patch_size: 8
+  epochs: 300
+  val_criterion: PLCC
+  gr: false
+
+attack:
+  path:
+    csv_name: swin+relu
+  train:
+    type: none
+  test:
+    -
+      type: pgd
+      params:
+        eps: 2.0
+        alpha: 2.5
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 4.0
+        alpha: 5.0
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 6.0
+        alpha: 7.5
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 8.0
+        alpha: 10.0
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 1
+        mode: zero
+    -
+      type: korhonen
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 50
+        mode: zero
+    -      
+      type: zhang
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 10
+        mode: zero
+    -
+      type: uap
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 10
+        mode: zero

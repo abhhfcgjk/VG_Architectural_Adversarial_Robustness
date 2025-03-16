@@ -1,0 +1,13 @@
+torch==2.5.
+torchvision
+numpy==1.26.4
+pandas==2.2.3
+tensorboard==2.18.0
+tqdm==4.66.6
+nvidia-dali-cuda110==1.43.0
+scipy==1.13.1
+pytorch-msssim==1.0.0
+wandb
+scikit-misc==0.5.1
+# git+https://github.com/fra31/auto-attack
+# git+https://github.com/RobustBench/robustbench.git
