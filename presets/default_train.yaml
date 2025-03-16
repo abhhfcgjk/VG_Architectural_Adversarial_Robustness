@@ -1,0 +1,108 @@
+# Default parameters for training TReS
+label_strategy: origin
+perc: no
+eval_only: no
+seed: 5102023
+checkpoint_path: null
+db_model: db_model/tres-backbone|resnet50-cayley2-activation|relu.pth
+
+data:
+  dataset: KonIQ-10k
+  data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+  directory: KonIQ-10k/1024x768
+  patch_dir: KonIQ-10k/patch
+  patch_info: KonIQ-10k/patch_info.csv
+
+options:
+  activation: relu
+  cayley1: false
+  cayley2: false
+  cayley3: false
+  cayley4: false
+  backbone: resnet50
+  prune: 0.0
+  prune_lr: 0.00001
+  prune_epochs: 15
+  prune_type: l1
+
+lr_scheduler:
+  type: simple
+  points:
+    0: 0.00002
+
+train:
+  lr: 0.00002
+  nhead: 16
+  num_encoder_layers: 2
+  dim_feedforward: 64
+  num_workers: 4
+  batch_size: 53
+  num_patches: 50
+  patch_size: 224
+  droplr: 1
+  epochs: 5
+  val_criterion: PLCC
+  gr: false
+
+attack:
+  path:
+    csv_name: resnet50+relu
+  train:
+    type: none
+  test:
+    -
+      type: pgd
+      params:
+        eps: 2.0
+        alpha: 2.5
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 4.0
+        alpha: 5.0
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 6.0
+        alpha: 7.5
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 8.0
+        alpha: 10.0
+        iters: 1
+        mode: zero
+    -
+      type: pgd
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 1
+        mode: zero
+    -
+      type: korhonen
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 50
+        mode: zero
+    -      
+      type: zhang
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 10
+        mode: zero
+    -
+      type: uap
+      params:
+        eps: 10.0
+        alpha: 12.5
+        iters: 10
+        mode: zero
