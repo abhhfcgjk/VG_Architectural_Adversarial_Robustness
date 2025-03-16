@@ -308,7 +308,7 @@ class AdversarialTrainer:
         if self.train_attack:
             inputs = self.train_attack.run(inputs, label)
         # print(len(inputs))
-        print(label)
+        # print(label)
 
 #====================================================================
         self.model.zero_grad()
