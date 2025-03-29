@@ -79,6 +79,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --dataset KonIQ-10k --resize --exp_id 0 -
 ```
 ## Testing
 ```
+python main.py -arch resnet101 --activation relu --device cuda --csv_results_dir rs --attack_type UAP -iter 10
 CUDA_VISIBLE_DEVICES=1 nohup python main.py -arch resnet101 --activation relu --device cuda --csv_results_dir rs -iter 1 &
 python main.py -arch resnet50 --activation Fsilu --device cuda --csv_results_dir rs -iter 1 --model KonCept
 python main.py -arch resnet101 -adv --activation Fsilu --device cuda --csv_results_dir rs -iter 1

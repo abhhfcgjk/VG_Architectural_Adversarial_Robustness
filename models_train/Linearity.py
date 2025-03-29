@@ -253,7 +253,7 @@ class Linearity(IQA):
                 # if self.cayley:
                 #     x = self.cayley_block6(x)
                 if self.cayley_pool:
-                    print('cayley_pool:', x.shape)
+                    # print('cayley_pool:', x.shape)
                     x = self.cayley_block6(x)
                 x6 = x
                 if self.cayley_pair:
