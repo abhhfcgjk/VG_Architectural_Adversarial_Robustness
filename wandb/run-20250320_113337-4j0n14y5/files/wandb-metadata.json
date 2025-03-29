@@ -1,0 +1,106 @@
+{
+  "os": "Linux-5.15.0-1042-nvidia-x86_64-with-glibc2.35",
+  "python": "CPython 3.10.12",
+  "startedAt": "2025-03-20T11:33:37.331277Z",
+  "args": [
+    "--config",
+    "testconfig-backbone|inceptionresnetv2-cayley2-activation|relu_PGD=1.yaml"
+  ],
+  "program": "/workdir/vg/main.py",
+  "codePath": "main.py",
+  "git": {
+    "remote": "https://abhhfcgjk:@github.com/abhhfcgjk/VG_Architectural_Adversarial_Robustness.git",
+    "commit": "d8d8fe6be32b9d039e496b25036549025e5c3acd"
+  },
+  "email": "egorrr124@gmail.com",
+  "root": "/workdir/vg",
+  "host": "cn2.sc.test",
+  "executable": "/usr/bin/python",
+  "codePathLocal": "main.py",
+  "cpu_count": 128,
+  "cpu_count_logical": 128,
+  "gpu": "NVIDIA A100-SXM4-80GB",
+  "gpu_count": 1,
+  "disk": {
+    "/": {
+      "total": "1887841120256",
+      "used": "64830443520"
+    }
+  },
+  "memory": {
+    "total": "2164340219904"
+  },
+  "cpu": {
+    "count": 128,
+    "countLogical": 128
+  },
+  "gpu_nvidia": [
+    {
+      "name": "NVIDIA A100-SXM4-80GB",
+      "memoryTotal": "85899345920",
+      "cudaCores": 6912,
+      "architecture": "Ampere"
+    }
+  ],
+  "slurm": {
+    "cluster_name": "superpod",
+    "conf": "/etc/slurm/slurm.conf",
+    "cpu_bind": "quiet,mask_cpu:0x00000000000000000000000100000000",
+    "cpu_bind_list": "0x00000000000000000000000100000000",
+    "cpu_bind_type": "mask_cpu:",
+    "cpu_bind_verbose": "quiet",
+    "cpus_on_node": "1",
+    "gpus": "1",
+    "gpus_on_node": "1",
+    "gtids": "0",
+    "job_account": "amoskalenko",
+    "job_cpus_per_node": "128",
+    "job_end_time": "1742559223",
+    "job_gid": "983400018",
+    "job_group": "pr39",
+    "job_id": "33984",
+    "job_name": "bash",
+    "job_nodelist": "cn2",
+    "job_num_nodes": "1",
+    "job_partition": "batch",
+    "job_qos": "amoskalenko",
+    "job_start_time": "1742469223",
+    "job_uid": "983400022",
+    "job_user": "amoskalenko",
+    "jobid": "33984",
+    "launch_node_ipaddr": "10.36.9.202",
+    "localid": "0",
+    "mpi_type": "pmix",
+    "nnodes": "1",
+    "nodeid": "0",
+    "nodelist": "cn2",
+    "nprocs": "1",
+    "ntasks": "1",
+    "pmix_mapping_serv": "(vector,(0,1,1))",
+    "pmixp_abort_agent_port": "34355",
+    "prio_process": "0",
+    "procid": "0",
+    "pty_port": "43411",
+    "pty_win_col": "80",
+    "pty_win_row": "23",
+    "srun_comm_host": "10.36.9.202",
+    "srun_comm_port": "39841",
+    "step_gpus": "0",
+    "step_id": "0",
+    "step_launcher_port": "39841",
+    "step_nodelist": "cn2",
+    "step_num_nodes": "1",
+    "step_num_tasks": "1",
+    "step_tasks_per_node": "1",
+    "stepid": "0",
+    "submit_dir": "/scratch/amoskalenko/users/28i_mel/Linearity",
+    "submit_host": "slurm-master01.sc.test",
+    "task_pid": "3316836",
+    "tasks_per_node": "1",
+    "topology_addr": "cn2",
+    "topology_addr_pattern": "node",
+    "umask": "0022",
+    "working_cluster": "superpod:slurm-master:6817:9984:109"
+  },
+  "cudaVersion": "12.4"
+}

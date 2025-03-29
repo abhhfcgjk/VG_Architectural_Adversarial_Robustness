@@ -90,7 +90,7 @@ def get_data_loader(
     test_pipe.build()
     test_loader = DALIGenericIterator(
         test_pipe,
-        output_map=['image'],
+        output_map=['data'],
         last_batch_padded=True,
         last_batch_policy=LastBatchPolicy.PARTIAL,
     )
@@ -100,19 +100,19 @@ def get_data_loader(
 
 if __name__ == '__main__':
     train_loader = get_data_loader(
-        directory='/home/maindev/28i_mel/mnt/NIPS_test',
+        directory='NIPS',
         rank=0,
         num_tasks=1,
-        batch_size=8,
+        batch_size=16,
         num_workers=4,
         seed=1,
     )
 
     num_samples = 0
     for step, data in enumerate(train_loader):
-        inputs = data[0]['image']
+        inputs = data[0]['data']
         print(inputs.shape)
         num_samples += inputs.shape[0]
-        # break
+        break
 
     print(num_samples)

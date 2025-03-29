@@ -46,14 +46,17 @@ def dump_scalar_metrics(
     phase: str,
     global_step: int = 0,
     dataset: str = "",
+    **kwargs
 ):
     prefix = phase + (f"_{dataset}" if dataset else "")
+    wandb = kwargs.get("wandb")
     for metric_name, metric_value in metrics.items():
         writer.add_scalar(
             f"{metric_name}/{prefix}",
             metric_value,
             global_step=global_step,
         )
+        wandb.log({f"{metric_name}/{prefix}": metric_value})
 
 
 def add_metrics_dict(metrics: dict, metrics_new: dict) -> dict:

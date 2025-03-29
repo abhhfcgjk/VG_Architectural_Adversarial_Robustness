@@ -18,10 +18,10 @@ import os
 from typing import Tuple, List, Any
 import copy
 
-
+import logging
 import inceptionresnetv2
 from PIL import Image
-import h5py
+# import h5py
 from tqdm import tqdm
 from icecream import ic
 
@@ -519,7 +519,7 @@ def displs_prune(model: nn.Module, amount, /,
     return prune_parameters
 
 def pls_prune(model: nn.Module, amount, /, 
-              width=332, height=249, images_count=100, kernel=None, 
+              width=512, height=384, images_count=100, kernel=None, 
               **kwargs) -> Tuple:
     print(model)
     resnet_model = nn.Sequential(*list(model.base.children())[:-1]).to(kwargs.get('device', 'cuda'))

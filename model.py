@@ -42,11 +42,16 @@ class KonCept512(nn.Module):
 
         if self.is_cayley1:
             # print(self)
-            self.cayley1 = CayleyBlockPool(in_channels=2080, intermed_channels=1040, 
-                                          stride=1, padding=0, kernel_size=3)
-            self.base = nn.Sequential(*list(self.base.children())[:-3],
-                                      self.cayley1,
-                                      *list(self.base.children())[-3:])
+            self.cayley2 = CayleyBlockPool(in_channels=2080, intermed_channels=1500, 
+                                stride=1, padding=0, kernel_size=3)
+            self.base = nn.Sequential(*list(self.base.children())[:-2],
+                                      self.cayley2,
+                                      *list(self.base.children())[-2:])
+            # self.cayley1 = CayleyBlockPool(in_channels=2080, intermed_channels=1040, 
+            #                               stride=1, padding=0, kernel_size=3)
+            # self.base = nn.Sequential(*list(self.base.children())[:-3],
+            #                           self.cayley1,
+            #                           *list(self.base.children())[-3:])
         elif self.is_cayley2:
             # print(self)
             self.cayley2 = CayleyBlockPool(in_channels=2080, intermed_channels=1040, 
@@ -73,16 +78,6 @@ class KonCept512(nn.Module):
             nn.Linear(256, num_classes),
         )
 
-        # if self.prune_amount > 0:
-        #     self.__load_pretrained()
-        #     self.prune(amount=kwargs['prune'], 
-        #                         prtype=kwargs['prune_type'],
-        #                         width=256,
-        #                         height=192,
-        #                         images_count=100,
-        #                         kernel=1)
-        #     self.print_sparcity()
-
     def load_pretrained(self, path):
         new_state_dict = {}
         self.db_model_dir = Path(self.db_model_dir)
@@ -96,7 +91,6 @@ class KonCept512(nn.Module):
     def prune(self, amount, prtype='l1', **kwargs):
         self.prune_parameters: tuple
         self.pruning_type = prtype
-
         if prtype == 'l1':
             self.prune_parameters = l1_prune(self, amount)
         elif prtype == 'pls':

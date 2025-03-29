@@ -4,35 +4,11 @@ attack:
     checkpoints: db_model/koncept-backbone|inceptionresnetv2-cayley2-activation|relu.pth
   test:
   - params:
-      alpha: 2.5
-      eps: 2.0
-      iters: 1
-      mode: zero
-    type: pgd
-  - params:
-      alpha: 5.0
-      eps: 4.0
-      iters: 1
-      mode: zero
-    type: pgd
-  - params:
-      alpha: 7.5
-      eps: 6.0
-      iters: 1
-      mode: zero
-    type: pgd
-  - params:
-      alpha: 10.0
-      eps: 8.0
-      iters: 1
-      mode: zero
-    type: pgd
-  - params:
       alpha: 12.5
       eps: 10.0
-      iters: 1
+      iters: 50
       mode: zero
-    type: pgd
+    type: korhonen
   train:
     type: none
 checkpoint_path: null
@@ -42,6 +18,7 @@ data:
   directory: KonIQ-10k/1024x768
 db_model: db_model
 eval_only: true
+results_csv: vgg16+cayley2+relu
 label_strategy: origin
 log:
   directory: checkpoints/koncept1024_at
