@@ -21,6 +21,9 @@ from torchvision import transforms
 
 from attacks.fgsm import FGSM
 from attacks.pgd import PGD, AutoPGD
+from attacks.uap import UAP
+from attacks.zhang import Zhang
+from attacks.korhonen import Korhonen
 from attacks.base import Attacker
 from lr_scheduler import SimpleLRScheduler
 from model import DBCNN, normalize_model
@@ -51,9 +54,9 @@ class AdversarialTrainer:
 
         self.is_gradnorm_regularization = self.config['train']['gr']
         self.h_gradnorm_regularization = 0.01
-        self.weight_gradnorm_regularization = 0.0005
+        self.weight_gradnorm_regularization = 0.001
         self.use_mask = True if (self.config['options']['prune'] > 0)and(not self.config['eval_only']) else False
-        self.is_adv = True if self.config['attack']['train'] != "none" else False
+        self.is_adv = True if self.config['attack']['train']['type'] != "none" else False
 
 
         self.world_size = torch.cuda.device_count()
@@ -159,11 +162,11 @@ class AdversarialTrainer:
             
             if os.path.exists(self.config['attack']['path']['checkpoints']):
                 print(f"db_model loaded {self.config['attack']['path']['checkpoints']}")
-                db_model = torch.load(self.config['attack']['path']['checkpoints'])
+                db_model = torch.load(self.config['attack']['path']['checkpoints'], weights_only=False)
                 self.model.load_state_dict(db_model['model'])
             return
         # fc_model = torch.load(self.fc_model_dir / f'{self.options_hash}.pkl')
-        fc_model = torch.load(self.fc_model_dir)
+        fc_model = torch.load(self.fc_model_dir, weights_only=False)
         self.model.load_state_dict(fc_model)
 
     def train(self) -> None:
@@ -241,22 +244,24 @@ class AdversarialTrainer:
                 gamma=self.config["lr_scheduler"]["gamma"]
             )
 
-
     def _init_attack(
         self,
         attack_config: dict[str, Any],
         phase: str,
         metric_range: Optional[Tuple[float, float]] = None,
+        *args, **kwargs
     ) -> Attacker:
         attack_name = attack_config["type"]
         if attack_name == "none":
             return None
+
         if self.is_adv:
             path = self.config['db_model'].replace('-adv', '')
             ckpt = torch.load(path)['model']
             self.model.load_state_dict(ckpt)
 
-        attackers = {"fgsm": FGSM, "pgd": PGD, "apgd": AutoPGD}
+        attackers = {"fgsm": FGSM, "pgd": PGD, "apgd": AutoPGD, 
+                     "uap": UAP, "korhonen": Korhonen, "zhang": Zhang}
         attacker_cls = attackers.get(attack_name)
 
         if attacker_cls is None:
@@ -277,6 +282,10 @@ class AdversarialTrainer:
             loss_computer=loss_computer,
             **attack_config["params"],
         )
+
+        if attack_name.upper() == 'UAP':
+            dataloader = kwargs.get('dataloader')
+            attacker.generate(dataloader)
 
         return attacker
 
@@ -369,7 +378,7 @@ class AdversarialTrainer:
         torch.save(checkpoint, self.log_dir / 'final_model.pth')
 
         # Update min and max metric scores for the best model
-        checkpoint = torch.load(self.log_dir / 'best_model.pth')
+        checkpoint = torch.load(self.log_dir / 'best_model.pth', weights_only=False)
         self.model.load_state_dict(checkpoint['model'])
         self.model.eval()
 
@@ -419,8 +428,8 @@ class AdversarialTrainer:
             label = label.squeeze(-1)
             label = label.cuda(self.gpu, non_blocking=True)
         else:
-            inputs = data[0]['image']
-            label = torch.zeros(len(data[0]['image']), 1).cuda(self.gpu, non_blocking=True)
+            inputs = data[0]['data']
+            label = torch.zeros(len(data[0]['data']), 1).cuda(self.gpu, non_blocking=True)
 
         if attack:
             inputs = attack.run(inputs, label)
@@ -447,8 +456,9 @@ class AdversarialTrainer:
         return loss
 
     def test(self) -> None:
-        checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
-        datasets = ['KonIQ-10k']
+        checkpoint = torch.load(self.config['attack']['path']['checkpoints'], weights_only=False)
+        # datasets = ['KonIQ-10k']
+        datasets = ['NIPS']
         self.model.load_state_dict(checkpoint['model'])
         # self.replace_activation(self.model, )
         self.metric_computer = IQAPerformance()
@@ -491,9 +501,11 @@ class AdversarialTrainer:
             orig_preds_scaled = (orig_preds - checkpoint['min']) / metric_range
             results['origin_preds'] = orig_preds
             results['orig_preds_scaled'] = orig_preds_scaled
-    
+
             for attack_args in self.config['attack']['test']:
-                attack = self._init_attack(attack_args, "test", metric_range=metric_range)
+                attack = self._init_attack(attack_args, "test", 
+                                           metric_range=metric_range,
+                                           dataloader=self.test_loader)
 
                 self.metric_computer.reset()
                 for step, data in enumerate(self.test_loader):
@@ -515,10 +527,93 @@ class AdversarialTrainer:
             
             if len(self.config['attack']['test']) > 0:
                 # form = f"{_dataset}_vgg16+{self.hash}-gr={self.config['train']['gr']}-adv={self.is_adv}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
+                output_file  = f'csv/{_dataset}_{self.results_csv}_'
+                output_file += f'{self.config["attack"]["test"][0]["type"]}='
+                output_file += f'{self.config["attack"]["test"][0]["params"]["iters"]}.csv'
                 pd.DataFrame.from_dict(results).to_csv(
-                    f'csv/{_dataset}_{self.results_csv}',
+                    output_file,
                     index=False
                 )
+        # checkpoint = torch.load(self.config['attack']['path']['checkpoints'],
+        #                         weights_only=False)
+        # # datasets = ['KonIQ-10k', 'NIPS']
+        # # datasets = ['NIPS']
+        # datasets = ['KonIQ-10k']
+        # self.model.load_state_dict(checkpoint['model'])
+        # self.replace_backward_activations(self.config['options']['activation'])
+        # self.metric_computer = IQAPerformance()
+        # metric_range = checkpoint['max'] - checkpoint['min']
+        # self.hash = self.__get_options_hash(self.config['options'])
+        
+        # print(checkpoint['min'], checkpoint['max'])
+        # print(f'Metric range: {metric_range}')
+        # print('SROCC: ', checkpoint['SROCC'])
+        # print('PLCC: ', checkpoint['PLCC'])
+
+        # for _dataset in datasets:
+        #     if _dataset=="NIPS":
+        #         self.test_loader = get_data_loader(
+        #                     directory=self.config['test_data']['NIPS']['directory'],
+        #                     rank=self.gpu,
+        #                     num_tasks=self.world_size,
+        #                     batch_size=self.config['train']['batch_size'],
+        #                     num_workers=self.config['train']['num_workers'],
+        #                     seed=self.config['seed']
+        #                 )
+        #     elif _dataset=="KonIQ-10k":
+        #         self.test_loader = get_data_loaders(
+        #                     rank=self.gpu,
+        #                     num_tasks=self.world_size,
+        #                     args=self.config['test_data']['KonIQ-10k'],
+        #                     batch_size=self.config['train']['batch_size'],
+        #                     num_workers=self.config['train']['num_workers'],
+        #                     seed=self.config['seed'],
+        #                     phase="test",
+        #                 )
+        #     # self.test_loader = self.load_dataset(_dataset)
+        #     # print("LOADER: ", self.test_loader)
+        #     results = {}
+        #     self.model.eval()
+
+        #     self.metric_computer.reset()
+        #     for step, data in enumerate(self.test_loader):
+        #         self._val_step(data)
+
+        #     orig_preds = self.metric_computer.preds.copy()
+        #     orig_preds = np.array(orig_preds)
+        #     orig_preds_scaled = (orig_preds - checkpoint['min']) / metric_range
+        #     results['origin_preds'] = orig_preds
+        #     results['orig_preds_scaled'] = orig_preds_scaled
+    
+        #     for attack_args in self.config['attack']['test']:
+        #         attack = self._init_attack(attack_args, "test", 
+        #                                    metric_range=metric_range, 
+        #                                    dataloader=self.test_loader)
+
+        #         self.metric_computer.reset()
+        #         for step, data in tqdm(enumerate(self.test_loader)):
+        #             self._val_step(data, attack)
+
+        #         att_preds = np.array(self.metric_computer.preds)
+        #         att_preds_scaled = (att_preds - checkpoint['min']) / metric_range
+        #         results[f'preds_eps={attack_args["params"]["eps"]}'] = att_preds
+        #         results[f'preds_scaled={attack_args["params"]["eps"]}'] = att_preds_scaled
+
+        #         abs_gain = np.mean(att_preds - orig_preds)
+        #         print(f'Abs gain for eps={attack_args["params"]["eps"]}: {abs_gain}')
+
+        #         abs_gain = np.mean(att_preds_scaled - orig_preds_scaled)
+        #         print(f'Abs gain for eps={attack_args["params"]["eps"]}: {abs_gain}')
+
+        #         rel_gain = np.mean((att_preds_scaled - orig_preds_scaled) / (orig_preds_scaled + 1))
+        #         print(f'Relative gain for eps={attack_args["params"]["eps"]}: {rel_gain}')
+            
+        #     if len(self.config['attack']['test']) > 0:
+        #         # form = f"{_dataset}_vgg16+{self.hash}-gr={self.config['train']['gr']}-adv={self.is_adv}_{self.config['attack']['test'][0]['type']}={self.config['attack']['test'][0]['params']['iters']}.csv"
+        #         pd.DataFrame.from_dict(results).to_csv(
+        #             f'csv/{_dataset}_{self.results_csv}_{self.config["attack"]["test"][0]["type"]}={self.config["attack"]["test"][0]["params"]["iters"]}.csv',
+        #             index=False
+        #         )
 
     def eval(self) -> None:
 
@@ -526,7 +621,7 @@ class AdversarialTrainer:
             return
             # checkpoint = torch.load(self.fc_model_dir / f'{hash(frozenset(self.options))}.pkl')
         elif self.options['fc'] == False:
-            checkpoint = torch.load(self.log_dir / 'best_model.pth')
+            checkpoint = torch.load(self.log_dir / 'best_model.pth', weights_only=False)
         results = {}
         self.model.load_state_dict(checkpoint['model'])
         self.metric_computer = IQAPerformance()

@@ -90,7 +90,7 @@ def get_data_loader(
     test_pipe.build()
     test_loader = DALIGenericIterator(
         test_pipe,
-        output_map=['image'],
+        output_map=['data'],
         last_batch_padded=True,
         last_batch_policy=LastBatchPolicy.PARTIAL,
     )
@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
     num_samples = 0
     for step, data in enumerate(train_loader):
-        inputs = data[0]['image']
+        inputs = data[0]['data']
         print(inputs.shape)
         num_samples += inputs.shape[0]
         # break

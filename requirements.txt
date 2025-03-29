@@ -1,4 +1,4 @@
-torch
+torch==2.5.
 torchvision
 numpy==1.26.4
 pandas==2.2.3
@@ -8,3 +8,4 @@ git+https://github.com/RobustBench/robustbench.git
 tqdm==4.66.6
 nvidia-dali-cuda110==1.43.0
 scipy==1.13.1
+pytorch-msssim==1.0.0
