@@ -66,6 +66,7 @@ class ExternalSourcePipeline(Pipeline):
             mean=[0.0, 0.0, 0.0],
             std=[255, 255, 255],
         )
+        images = fn.resize(images, size=(224, 224))
 
         return images
 

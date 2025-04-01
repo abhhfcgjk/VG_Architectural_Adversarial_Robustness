@@ -6,7 +6,7 @@ from torch import Tensor
 import torch.nn as nn
 
 from .base import Attacker
-
+import logging
 
 def linearity_loss(y_pred, y, beta=[0.1, 0.1, 1.0]):
     y = y[0].view(-1, 1)

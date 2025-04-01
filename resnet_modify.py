@@ -5,7 +5,7 @@ from torch import Tensor
 import torch.nn as nn
 
 from typing import Type, Any, Callable, Union, List, Optional
-
+from Cayley import CayleyBlockPool as CayleyBlock
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152', 'resnext50_32x4d', 'resnext101_32x8d',
@@ -173,12 +173,15 @@ class ResNet(nn.Module):
         groups: int = 1,
         width_per_group: int = 64,
         replace_stride_with_dilation: Optional[List[bool]] = None,
-        norm_layer: Optional[Callable[..., nn.Module]] = None
+        norm_layer: Optional[Callable[..., nn.Module]] = None,
+        **kwargs
     ) -> None:
         super(ResNet, self).__init__()
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
+
+        self.is_cayley = kwargs.get('cayley', False)
 
         self.inplanes = 64
         self.dilation = 1
@@ -205,6 +208,8 @@ class ResNet(nn.Module):
                                        dilate=replace_stride_with_dilation[1])
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
+        if self.is_cayley:
+            self.cayley = CayleyBlock(in_channels=256, intermed_channels=128)
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
@@ -262,6 +267,8 @@ class ResNet(nn.Module):
         x = self.layer2(x)
         l2 = x
         x = self.layer3(x)
+        if self.is_cayley:
+            x = self.cayley(x)
         l3 = x
         x = self.layer4(x)
         l4 = x

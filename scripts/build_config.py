@@ -16,8 +16,7 @@ def run(args):
     config['options']['prune_lr'] = args.prune_lr
     config['options']['prune_epochs'] = args.prune_epochs
     config['options']['prune_type'] = args.prune_type
-    config['options']['cayley1'] = args.cayley1
-    config['options']['cayley2'] = args.cayley2
+    config['options']['cayley'] = args.cayley
     config['eval_only'] = args.test
     config['train']['gr'] = args.gr
     config['train']['epochs'] = args.epochs
@@ -42,8 +41,7 @@ def run(args):
     prune_status = f'-prune={args.prune}{args.prune_type}' if args.prune > 0.0 else ''
     gr_status = f'-gr' if args.gr else ''
     adv_status = f'-adv' if args.adv else ''
-    cayley1_status = '-cayley1' if args.cayley1 else ''
-    cayley2_status = '-cayley2' if args.cayley2 else ''
+    cayley1_status = '-cayley' if args.cayley else ''
     test_status = 'test' if args.test else ''
 
     # config['attack']['path']['checkpoints'] = 'db_model/koncept{}{}{}{}{}{}{}.pth'.format(
@@ -54,27 +52,24 @@ def run(args):
     #                                                                     gr_status, prune_status,
     #                                                                     activation_status,
     #                                                                     )
-    config['db_model'] = 'db_model/tres{}{}{}{}{}{}.pth'.format(
+    config['db_model'] = 'db_model/tres{}{}{}{}{}.pth'.format(
                                                             backbone_satatus, 
                                                             cayley1_status,
-                                                            cayley2_status,
                                                             adv_status,
                                                             gr_status,
                                                             activation_status,
                                                         )
-    config['attack']['path']['csv_name'] = '{}{}{}{}{}{}'.format(
+    config['attack']['path']['csv_name'] = '{}{}{}{}{}'.format(
                                                             args.backbone,
                                                             cayley1_status.replace('-', '+'),
-                                                            cayley2_status.replace('-', '+'),
                                                             adv_status.replace('-', '+'),
                                                             gr_status.replace('-', '+'),
                                                             '+' + args.activation
                                                         )
-    form = '{}config{}{}{}{}{}{}{}_{}={}.yaml'.format(
+    form = '{}config{}{}{}{}{}{}_{}={}.yaml'.format(
                                                test_status,
                                                backbone_satatus, 
                                                cayley1_status,
-                                               cayley2_status,
                                                gr_status, 
                                                adv_status, 
                                                prune_status,
@@ -93,10 +88,7 @@ if __name__=='__main__':
     # parser.add_argument('--config_file', type=str, default='default_train.yaml')
     parser.add_argument('--activation', type=str, default='relu')
     parser.add_argument('--backbone', type=str, default='resnet50')
-    parser.add_argument('--cayley1', action='store_true')
-    parser.add_argument('--cayley2', action='store_true')
-    parser.add_argument('--cayley3', action='store_true')
-    parser.add_argument('--cayley4', action='store_true')
+    parser.add_argument('--cayley', action='store_true')
     parser.add_argument('--epochs', type=int, default=5)
     parser.add_argument('--prune', type=float, default=0.0)
     parser.add_argument('--prune_lr', type=float, default=0.0001)

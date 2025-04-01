@@ -17,7 +17,7 @@ from pruning.pruning import l1_prune, ln_prune, pls_prune, displs_prune, hsic_pr
 from resnet_modify  import resnet50 as resnet_modifyresnet
 from transformers import Transformer
 from posencode import PositionEmbeddingSine
-from Cayley import CayleyBlockPool
+from Cayley import CayleyBlockPool as CayleyBlock
 
 class L2pooling(nn.Module):
 	def __init__(self, filter_size=5, stride=1, channels=None, pad_off=0):
@@ -51,9 +51,10 @@ class TReS(nn.Module):
 
         self.Activ = None
         self.db_model_dir = kwargs.get('db_model')
-        self.is_cayley1 = kwargs.get('cayley1', False)
-        self.is_cayley2 = kwargs.get('cayley2', False)
+        self.is_cayley = kwargs.get('cayley', False)
         self.prune_amount = kwargs.get('prune', 0.0)
+        self.is_reg_token_before_norm = kwargs.get('reg_token_before_norm', False)
+        self.is_reg_token = kwargs.get('reg_token', False)
         self.device = 'cuda:0'
         
         self.L2pooling_l1 = L2pooling(channels=256)
@@ -61,32 +62,28 @@ class TReS(nn.Module):
         self.L2pooling_l3 = L2pooling(channels=1024)
         self.L2pooling_l4 = L2pooling(channels=2048)
 
-        dim_modelt = 3840
+        if self.is_reg_token_before_norm:
+            embed_dim = 512
+        else:
+            embed_dim = 0
+        dim_modelt = 3840 + embed_dim
         modelpretrain = models.resnet50(pretrained=True)
         torch.save(modelpretrain.state_dict(), 'modelpretrain')
-        self.base = resnet_modifyresnet()
+        self.base = resnet_modifyresnet(is_cayley=self.is_cayley)
         self.base.load_state_dict(torch.load('modelpretrain'), strict=True)
         self.dim_modelt = dim_modelt
         os.remove("modelpretrain")
-        # self.n_regtokens = 4
-        # self.regtokens = torch.nn.Parameter(
-        #         1e-2 * torch.randn(1, self.n_regtokens, self.dim_modelt)
-        #     )
-
-        if self.is_cayley1:
-            # print(self)
-            self.cayley1 = CayleyBlockPool(in_channels=2080, intermed_channels=1040, 
-                                          stride=1, padding=0, kernel_size=3)
-            # self.base = nn.Sequential(*list(self.base.children())[:-3],
-            #                           self.cayley1,
-            #                           *list(self.base.children())[-3:])
-        elif self.is_cayley2:
-            # print(self)
-            self.cayley2 = CayleyBlockPool(in_channels=2080, intermed_channels=1040, 
-                                          stride=1, padding=0, kernel_size=3)
-            # self.base = nn.Sequential(*list(self.base.children())[:-2],
-            #                           self.cayley2,
-            #                           *list(self.base.children())[-2:])
+        if self.is_reg_token_before_norm:
+            self.reg_token = nn.Parameter(torch.zeros(1, embed_dim, 7, 7))
+        elif self.is_reg_token:
+            self.reg_token = nn.Parameter(torch.zeros(1, dim_modelt, 7, 7))
+        else:
+            self.reg = None
+        if kwargs.get('rob_token'):
+            n_rtokens = 1
+            self.rob_token = nn.Parameter(
+                1e-2 * torch.randn(1, n_rtokens, 512) # embed_dim
+            )
 
         self.__set_activation(activation=kwargs.get('activation'))
 
@@ -110,6 +107,7 @@ class TReS(nn.Module):
         self.avg2 = nn.AvgPool2d((2, 2))
         self.drop2d = nn.Dropout(p=0.1)
         self.consistency = nn.L1Loss()
+        self._init_weights()
 
     def load_pretrained(self, path):
         new_state_dict = {}
@@ -155,33 +153,59 @@ class TReS(nn.Module):
             self.Activ = ReLU
         print(f"Activation: {activation}")
 
+    def _init_weights(self):
+        if self.is_reg_token_before_norm:
+            nn.init.normal_(self.reg_token, std=1e-6)
+
+    @property
+    def prune_features(self):
+        def __get_features_list(model):
+            prune_params_list = []
+            for name, module in model.named_children():
+                if isinstance(module, (nn.Conv2d)):
+                    prune_params_list.append((module, 'weight'))
+                else:
+                    prune_params_list += __get_features_list(module)
+            return prune_params_list
+        return tuple(__get_features_list(self))
 
     def forward(self, x):
         self.pos_enc_1 = self.position_embedding(torch.ones(1, self.dim_modelt, 7, 7).to(self.device))
-        self.pos_enc = self.pos_enc_1.repeat(x.shape[0],1,1,1).contiguous()
+        self.pos_enc = self.pos_enc_1.repeat(x.shape[0], 1, 1, 1).contiguous()
+        if self.is_reg_token:
+            self.reg = self.reg_token.repeat(x.shape[0], 1, 1, 1).contiguous()
         out,layer1,layer2,layer3,layer4 = self.base(x) 
 
         layer1_t = self.avg8(self.drop2d(self.L2pooling_l1(F.normalize(layer1,dim=1, p=2))))
         layer2_t = self.avg4(self.drop2d(self.L2pooling_l2(F.normalize(layer2,dim=1, p=2))))
         layer3_t = self.avg2(self.drop2d(self.L2pooling_l3(F.normalize(layer3,dim=1, p=2))))
         layer4_t =           self.drop2d(self.L2pooling_l4(F.normalize(layer4,dim=1, p=2)))
-        layers = torch.cat((layer1_t,layer2_t,layer3_t,layer4_t),dim=1)
 
-        out_t_c = self.model(layers,self.pos_enc)
+        if self.is_reg_token_before_norm:
+            self.reg = self.reg_token.repeat(x.shape[0],1,1,1)
+            layers = torch.cat((self.reg,layer1_t,layer2_t,layer3_t,layer4_t), dim=1)
+        else:
+            layers = torch.cat((layer1_t,layer2_t,layer3_t,layer4_t),dim=1)
+
+        out_t_c = self.model(layers, self.pos_enc, self.reg)
         out_t_o = torch.flatten(self.avg7(out_t_c),start_dim=1)
         out_t_o = self.fc2(out_t_o)
         layer4_o = self.avg7(layer4)
-        layer4_o = torch.flatten(layer4_o,start_dim=1)
-        predictionQA = self.fc(torch.flatten(torch.cat((out_t_o,layer4_o),dim=1),start_dim=1))
+        layer4_o = torch.flatten(layer4_o, start_dim=1)
+        predictionQA = self.fc(torch.flatten(torch.cat((out_t_o, layer4_o),dim=1),start_dim=1))
 
         fout,flayer1,flayer2,flayer3,flayer4 = self.base(torch.flip(x, [3])) 
         flayer1_t = self.avg8( self.L2pooling_l1(F.normalize(flayer1,dim=1, p=2)))
         flayer2_t = self.avg4( self.L2pooling_l2(F.normalize(flayer2,dim=1, p=2)))
         flayer3_t = self.avg2( self.L2pooling_l3(F.normalize(flayer3,dim=1, p=2)))
         flayer4_t =            self.L2pooling_l4(F.normalize(flayer4,dim=1, p=2))
-        flayers = torch.cat((flayer1_t,flayer2_t,flayer3_t,flayer4_t),dim=1)
 
-        fout_t_c = self.model(flayers,self.pos_enc)
+        if self.is_reg_token_before_norm:
+            flayers = torch.cat((self.reg,flayer1_t,flayer2_t,flayer3_t,flayer4_t),dim=1)
+        else:
+            flayers = torch.cat((flayer1_t,flayer2_t,flayer3_t,flayer4_t),dim=1)
+
+        fout_t_c = self.model(flayers,self.pos_enc, self.reg)
         fout_t_o = torch.flatten(self.avg7(fout_t_c),start_dim=1)
         fout_t_o = (self.fc2(fout_t_o))
         flayer4_o = self.avg7(flayer4)

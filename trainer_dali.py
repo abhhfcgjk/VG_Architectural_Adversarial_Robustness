@@ -36,6 +36,7 @@ from datasets.koniq10k_dali import get_data_loaders
 from datasets.nips_dali import get_data_loader
 from metrics import IQAPerformance, dump_scalar_metrics
 from utils import load_config
+import logging
 
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore")
@@ -60,6 +61,8 @@ class AdversarialTrainer:
         self.h_gradnorm_regularization = 0.01
         self.weight_gradnorm_regularization = 0.001
         self.is_adv = True if self.config['attack']['train']['type'] != "none" else False
+        self.is_reg_token = self.config['options']['reg_token']
+        self.is_reg_token_before_norm = self.config['options']['reg_token_before_norm']
 
         self.nhead = self.config['train']['nhead']
         self.num_encoder_layers = self.config['train']['num_encoder_layers']
@@ -187,7 +190,7 @@ class AdversarialTrainer:
 
         if metric_range:
             def loss_computer(y, target):
-                return -torch.sum(1 - y / metric_range)
+                return -torch.sum(1 - y[0] / metric_range)
         else:
             def loss_computer(y, target):
                 return self.loss(y, target.unsqueeze(1))
@@ -307,13 +310,12 @@ class AdversarialTrainer:
         # with autocast(enabled=True):
         if self.train_attack:
             inputs = self.train_attack.run(inputs, label)
-        # print(len(inputs))
-        # print(label)
 
 #====================================================================
         self.model.zero_grad()
         pred, closs = self.model(inputs)
-        pred2, closs2 = self.model(torch.flip(inputs, [3])) 
+        pred2, closs2 = self.model(torch.flip(inputs, [3]))
+        
 
         self.pred_scores = self.pred_scores + pred.flatten().cpu().tolist()
         self.gt_scores = self.gt_scores + label.cpu().tolist()
@@ -360,16 +362,11 @@ class AdversarialTrainer:
                 0.05*(tripletlosses+ftripletlosses)
 #====================================================================
 
-        # model_out = self.model(inputs)
-        # loss = self.loss(model_out, label.unsqueeze(1))
         if self.is_gradnorm_regularization:
             loss += self.weight_gradnorm_regularization*self._gradnorm_regularization(inputs)
 
         loss.backward()
         self.optimizer.step()
-        # self.scaler.scale(loss).backward()
-        # self.scaler.step(self.optimizer)
-        # self.scaler.update()
 
         metrics["total_loss"] = loss.cpu().detach().numpy()
         metrics["total_time"] = time.time() - start_time
@@ -416,7 +413,6 @@ class AdversarialTrainer:
         print(self.model.model)
         if self.config['options']['prune'] <= 0. or self.eval_only:
             return
-
         self.model.model.load_pretrained(self.db_model_path)
         self.model.model.prune(amount=self.config['options']['prune'], 
                             prtype=self.config['options']['prune_type'],
@@ -433,21 +429,22 @@ class AdversarialTrainer:
     def test(self) -> None:
         checkpoint = torch.load(self.db_model_path)
         datasets = ['KonIQ-10k', 'NIPS']
-        # datasets = ['NIPS']
+        datasets = ['NIPS']
+        # datasets = ['KonIQ-10k']
         for _dataset in datasets:
             self.model.load_state_dict(checkpoint['model'])
+            self.pred_scores = []
+            self.gt_scores = []
             # self.replace_backward_activations(self.config['options']['activation'])
             self.metric_computer = IQAPerformance(self.num_patches)
-            metric_range = checkpoint['max'] - checkpoint['min']
+            metric_range = int(checkpoint['max'] - checkpoint['min'])
             self.hash = self.__get_options_hash(self.config['options'])
-            
             print(checkpoint['min'], checkpoint['max'])
             print(f'Metric range: {metric_range}')
             print('SROCC: ', checkpoint['SROCC'])
             print('PLCC: ', checkpoint['PLCC'])
             print('Test Dataset:', _dataset)
 
-        
             if _dataset=="NIPS":
                 self.test_loader = get_data_loader(
                             directory=self.config['test_data']['NIPS']['directory'],
@@ -463,15 +460,14 @@ class AdversarialTrainer:
                             num_tasks=self.world_size,
                             args=self.config['test_data']['KonIQ-10k'],
                             batch_size=self.config['train']['batch_size'],
+                            num_patches=None, 
+                            patch_size=None,
                             num_workers=self.config['train']['num_workers'],
                             seed=self.config['seed'],
-                            phase="test",
+                            phase='inference'
                         )
-            # self.test_loader = self.load_dataset(_dataset)
-            # print("LOADER: ", self.test_loader)
             results = {}
             self.model.eval()
-
             self.metric_computer.reset()
             for step, data in enumerate(self.test_loader):
                 self._val_step(data)
@@ -481,7 +477,6 @@ class AdversarialTrainer:
             orig_preds_scaled = (orig_preds - checkpoint['min']) / metric_range
             results['origin_preds'] = orig_preds
             results['orig_preds_scaled'] = orig_preds_scaled
-    
             for attack_args in self.config['attack']['test']:
                 attack = self._init_attack(attack_args, "test", 
                                            metric_range=metric_range, 
@@ -510,6 +505,7 @@ class AdversarialTrainer:
                 )
 
     def eval(self) -> None:
+        self.use_mask = False
         checkpoint = torch.load(self.db_model_path)
         self.model.load_state_dict(checkpoint['model'])
         self.metric_computer = IQAPerformance(self.num_patches)

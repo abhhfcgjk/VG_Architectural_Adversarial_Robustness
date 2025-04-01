@@ -79,8 +79,3 @@ class UAP(Attacker):
         attacked_inputs = inputs + self.perturbation
         attacked_inputs.clamp_(0.0, 1.0)
         return attacked_inputs
-    
-    # """Linearity"""
-    # def loss_fn(self, output):
-    #     loss = 1 - (output[-1] * self.k[0] + self.b[0]) / self.metric_range
-    #     return torch.mean(loss)

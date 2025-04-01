@@ -1,17 +1,29 @@
-# Default parameters for training TReS
+# Default parameters for testing TReS
 label_strategy: origin
 perc: no
-eval_only: no
+eval_only: yes
 seed: 5102023
 checkpoint_path: null
-db_model: db_model/tres-backbone|resnet50-cayley2-activation|relu.pth
+activation: relu
+results_path: csv
+db_model: db_model
+
+test_data:
+  NIPS: 
+    directory: NIPS
+  KonIQ-10k:
+    data_info: KonIQ-10k/koniq10k_distributions_sets.csv
+    directory: KonIQ-10k/1024x768
+    patch_dir: KonIQ-10k/patch
+    patch_info: KonIQ-10k/patch_info.csv
 
 data:
   dataset: KonIQ-10k
   data_info: KonIQ-10k/koniq10k_distributions_sets.csv
   directory: KonIQ-10k/1024x768
-  patch_dir: KonIQ-10k/patch
-  patch_info: KonIQ-10k/patch_info.csv
+
+log:
+  directory: checkpoints/koncept1024_at
 
 options:
   reg_token: false
@@ -83,25 +95,4 @@ attack:
         eps: 10.0
         alpha: 12.5
         iters: 1
-        mode: zero
-    -
-      type: korhonen
-      params:
-        eps: 10.0
-        alpha: 12.5
-        iters: 50
-        mode: zero
-    -      
-      type: zhang
-      params:
-        eps: 10.0
-        alpha: 12.5
-        iters: 10
-        mode: zero
-    -
-      type: uap
-      params:
-        eps: 10.0
-        alpha: 12.5
-        iters: 10
         mode: zero

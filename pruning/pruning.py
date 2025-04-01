@@ -555,7 +555,7 @@ def get_prune_features(model: nn.Module) -> List:
 
 
 def l1_prune(model: nn.Module, amount: float, **kwargs) -> Tuple:
-    prune_params = tuple(get_prune_features(model))
+    prune_params = model.prune_features
     prune.global_unstructured(
         parameters=prune_params,
         pruning_method=prune.L1Unstructured,
@@ -569,7 +569,7 @@ def l1_prune(model: nn.Module, amount: float, **kwargs) -> Tuple:
 
 
 def ln_prune(model: nn.Module, amount: float, n: int, **kwargs) -> Tuple:
-    prune_params = tuple(get_prune_features(model))
+    prune_params = tuple(model.prune_features)
     for module, name in prune_params:
         prune.ln_structured(module, name, amount=amount, n=n, dim=0)
 

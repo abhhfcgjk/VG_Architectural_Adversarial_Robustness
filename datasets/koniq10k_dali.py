@@ -23,25 +23,34 @@ class ExternalInputIterator(object):
         self.patch_dir.mkdir(parents=True, exist_ok=True)
 
         self.data_info = pd.read_csv(data_info)
-        self.data_info = self.data_info[self.data_info["set"] == phase]
+        if phase=="inference":
+            self.data_info = self.data_info[self.data_info["set"] == "test"]
+        else:
+            self.data_info = self.data_info[self.data_info["set"] == phase]
         self.data_info["MOS"] = self.data_info["MOS"].astype("float32")
 
         self.shuffle = (phase == 'train')
         print(phase)
+        self.phase = phase
 
         self.patch_size = patch_size
         self.num_patches = num_patches
-        # self.patch_info = patch_info
-        # if not os.path.exists(patch_info):
         if prepair_patches:
             self._prepare_patches(patch_info)
-        # else:
-        #     print(f"{patch_info} already exists")
 
         self.patch_info = pd.read_csv(patch_info)
         self.patch_files = list(self.patch_info["patch_name"])
-        self.n = len(self.patch_files)
+        self.n = len(self.patch_files) if (phase=="train") else len(self.data_info)
         print(self.n)
+
+        if self.phase == "train":
+            self.info_loader = self.patch_info
+            self.info_dir = self.patch_dir
+            self.name = "patch_name"
+        elif self.phase == "inference":
+            self.info_loader = self.data_info
+            self.info_dir = self.images_dir
+            self.name = "image_name"
 
     def _prepare_patches(self, patch_info):
         """ Generate patches from images and save them if not already present. """
@@ -80,11 +89,17 @@ class ExternalInputIterator(object):
             patch_df = pd.DataFrame(patch_records)
         patch_df.to_csv(patch_info, index=False)
         print(f'Patch info saved to {patch_info}')
+        if self.shuffle:
+            self.patch_info.sample()
 
     def __iter__(self):
         self.i = 0
-        if self.shuffle:
-            self.patch_info.sample()
+        if self.phase == "train":
+            if self.shuffle:
+                self.patch_info = self.patch_info.sample(frac=1).reset_index(drop=True)
+        elif self.phase == "inference":
+            # self.data_info.sample()
+            pass
         return self
 
     def __next__(self):
@@ -96,15 +111,14 @@ class ExternalInputIterator(object):
             raise StopIteration
 
         for _ in range(self.batch_size):
-            # if self.i == self.n:
-            #     break
-            jpeg_filename = self.patch_info.iloc[self.i % self.n]['patch_name']
-            label = self.patch_info.iloc[self.i % self.n]['MOS']
-            b = np.fromfile(self.patch_dir / jpeg_filename, dtype=np.uint8)
+            if self.i == self.n:
+                break
+            jpeg_filename = self.info_loader.iloc[self.i % self.n][self.name]
+            label = self.info_loader.iloc[self.i % self.n]['MOS']
+            b = np.fromfile(self.info_dir / jpeg_filename, dtype=np.uint8)
             batch.append(b) 
             labels.append(np.float32([label]))
             self.i += 1
-        # assert len(batch)==self.batch_size
         return (batch, labels)
 
     def __len__(self):
@@ -137,6 +151,9 @@ def ExternalSourcePipeline(batch_size, num_threads,
             std=[255, 255, 255],
             mirror=mirror
         )
+        if phase == "inference":
+            images = fn.resize(images, size=(224, 224))
+
         labels.gpu()
         pipe.set_outputs(images, labels)
     return pipe
@@ -158,6 +175,29 @@ def get_data_loaders(
     :param args: related arguments
     :return: train_loader, val_loader, test_loader
     """
+    if phase == "inference":
+        eii = ExternalInputIterator(
+            batch_size, 0, 1,
+            patch_size, num_patches,
+            img_dir=args['directory'],
+            patch_dir=args['patch_dir'],
+            data_info=args['data_info'],
+            patch_info=args['patch_info'],
+            phase='inference')
+        test_pipe = ExternalSourcePipeline(
+            batch_size=batch_size,
+            num_threads=num_workers,
+            device_id=rank,
+            external_data=eii,
+            seed=seed,
+            phase='inference')
+        test_pipe.build()
+        test_loader = DALIClassificationIterator(
+            test_pipe,
+            last_batch_padded=True,
+            last_batch_policy=LastBatchPolicy.PARTIAL)
+        return test_loader
+
     if phase == "train":
         eii = ExternalInputIterator(
             batch_size, 0, 1,
