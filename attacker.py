@@ -9,7 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 from torchvision.transforms.functional import resize, to_tensor, normalize, crop
 from torchvision import models
-from attacks import iterative, uap, korhonen, zhang
+from attacks import iterative, uap, korhonen, zhang, apgd
 from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
 from models_train.activ import swap_all_activations, ReLU_ELU
@@ -243,6 +243,14 @@ class Attack:
                         img_, self.model, self.k, self.b, 
                         metric_range=self.metric_range_test,
                         device=self.device, iters=iterations
+                    )
+                elif attack_type == "APGD":
+                    img_attacked_ = apgd.apgd(
+                        img_, self.model, self.k, self.b, 
+                        attack_type=attack_type, 
+                        metric_range=self.metric_range_test,
+                        device=self.device,
+                        iters=iterations, eps=int(eps*255), delta=10/255
                     )
                 
                 with torch.no_grad():
