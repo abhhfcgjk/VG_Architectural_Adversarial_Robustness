@@ -248,7 +248,7 @@ class Attack:
                     img_attacked_ = apgd.apgd(
                         img_, self.model, self.k, self.b, 
                         attack_type=attack_type, 
-                        metric_range=self.metric_range_test,
+                        metric_range=self.metric_range_train,
                         device=self.device,
                         iters=iterations, eps=int(eps*255), delta=10/255
                     )

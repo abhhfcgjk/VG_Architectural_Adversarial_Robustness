@@ -60,12 +60,14 @@ def apgd(
 
     # 1 step of the classic PGD
     x_adv.requires_grad_()
+    grad_adv_input = normalize(x_adv, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    grad_adv_input.requires_grad_()
 
-    logits = model(x_adv)
+    logits = model(grad_adv_input)
     loss_indiv = loss_fn(logits, metric_range, k_, b) #loss_computer(logits)
     loss = loss_indiv.sum()
 
-    grad = torch.autograd.grad(loss, [x_adv])[0].detach()
+    grad = torch.autograd.grad(loss, [grad_adv_input])[0].detach()
     grad_best = grad.clone()
     x_adv.detach_()
     loss_indiv.detach_()
@@ -79,7 +81,7 @@ def apgd(
 
     x_adv_old = x_adv.clone().detach()
 
-    for i in range(n_iter):
+    for i in range(iters):
         x_adv = x_adv.detach()
         grad2 = x_adv - x_adv_old
         x_adv_old = x_adv.clone()
@@ -103,14 +105,15 @@ def apgd(
 
         if i < n_iter - 1:
             x_adv.requires_grad_()
-
-        logits = model(x_adv)
+        grad_adv_input = normalize(x_adv, [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        grad_adv_input.requires_grad_()
+        logits = model(grad_adv_input)
         loss_indiv = loss_fn(logits, metric_range, k_, b) #self.loss_computer(logits, target)
 
         loss = loss_indiv.sum()
 
         if i < n_iter - 1:
-            grad = torch.autograd.grad(loss, [x_adv])[0].detach()
+            grad = torch.autograd.grad(loss, [grad_adv_input])[0].detach()
 
         x_adv.detach_()
         loss_indiv.detach_()
@@ -148,4 +151,4 @@ def apgd(
             k = max(k - size_decr, n_iter_min)
 
         # print(self.k)
-        return x_best
+    return x_best
