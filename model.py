@@ -10,12 +10,13 @@ from unittest.mock import seal
 
 import timm
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
-from timm.models.vision_transformer import Block
+from timm.models.vision_transformer import Block, Attention
 
 from activ import swap_all_activations, ReLU_ELU, ReLU_SiLU
 from pruning.pruning import l1_prune, ln_prune, pls_prune, displs_prune, hsic_prune
 from Cayley import CayleyBlockPool
 from swin import SwinTransformer
+from KDE import RBFAttention
 
 class TABlock(nn.Module):
     def __init__(self, dim, drop=0.1):
@@ -68,6 +69,8 @@ class MANIQA(nn.Module):
                     depths=(2, 2), window_size=4, dim_mlp=768, num_heads=(4, 4),
                     img_size=224, num_tab=2, scale=0.8, **kwargs):
         super().__init__()
+        self.is_rtoken = kwargs.get("rtoken", False)
+        self.is_kde = kwargs.get("kde", False)
         self.img_size = img_size
         self.patch_size = patch_size
         self.input_size = img_size // patch_size
@@ -80,6 +83,17 @@ class MANIQA(nn.Module):
             if isinstance(layer, Block):
                 handle = layer.register_forward_hook(self.save_output)
                 hook_handles.append(handle)
+        
+        if self.is_rtoken:
+            n_tokens = 2
+            self.input_size += n_tokens
+            # print(self.patches_resolution)
+            self.patches_resolution = (self.input_size, self.input_size)
+            dim_mlp += 58*n_tokens
+            window_size = 5
+            self.rtoken = torch.nn.Parameter(
+                1e-2 * torch.randn(1, 58*n_tokens, embed_dim*4)
+            )
 
         self.tablock1 = nn.ModuleList()
         for i in range(num_tab):
@@ -128,6 +142,9 @@ class MANIQA(nn.Module):
             nn.Sigmoid()
         )
 
+        if self.is_kde:
+            self.swap_attention()
+
     def remove_hooks(self):
         for handle in self.hook_handles:
             handle.remove()
@@ -141,10 +158,39 @@ class MANIQA(nn.Module):
         x = torch.cat((x6, x7, x8, x9), dim=2)
         return x
 
+    def swap_attention(self):
+        def __help(module):
+            for name, layer in module.named_children():
+                if isinstance(layer, Attention):
+                    n_head = layer.num_heads
+                    d_model = layer.qkv.in_features
+                    d_head = layer.qkv.in_features 
+                    dropatt = layer.attn_drop.p
+                    dropout = layer.proj_drop.p
+                    setattr(module, name, RBFAttention(n_head, 
+                                                       d_model, 
+                                                       d_head, 
+                                                       dropout=dropout, 
+                                                       dropatt=dropatt))
+                else:
+                    __help(layer)
+        __help(self)
+        print(f"All {Attention} objects swaped to {RBFAttention}")
+
     def forward(self, x):
+        import logging
+        
+        # logging.debug(x.shape)
+        b, _, _, _ = x.shape
+
         _x = self.vit(x)
         x = self.extract_feature(self.save_output)
         self.save_output.clear()
+
+        if self.is_rtoken:
+            logging.debug(x.shape)
+            logging.debug(self.rtoken.repeat(b, 1, 1).shape)
+            x = torch.cat([x, self.rtoken.repeat(b, 1, 1)], dim=1)
 
         # stage 1
         x = rearrange(x, 'b (h w) c -> b c (h w)', h=self.input_size, w=self.input_size)
@@ -152,6 +198,7 @@ class MANIQA(nn.Module):
             x = tab(x)
         x = rearrange(x, 'b c (h w) -> b c h w', h=self.input_size, w=self.input_size)
         x = self.conv1(x)
+        logging.debug(x.shape)
         x = self.swintransformer1(x)
 
         # stage2

@@ -18,6 +18,7 @@ graph_data
 runs/
 *.log
 /KonIQ-10k
+!KonIQ-10k/*.csv
 /models_train/adversarial_trained
 /checkpoints
 /weights/*

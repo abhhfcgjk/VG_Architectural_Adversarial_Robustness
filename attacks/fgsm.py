@@ -58,9 +58,8 @@ class FGSM(Attacker):
         noisy_inputs.requires_grad_()
 
         noisy_inputs = torch.clamp(noisy_inputs, 0.0, 1.0)
-        noisy_outputs = self.model(noisy_inputs)
+        noisy_outputs = torch.squeeze(self.model(noisy_inputs))
         loss = self.loss_computer(noisy_outputs, target)
-
         grad = torch.autograd.grad(loss, [noisy_inputs])[0].detach()
         if return_grad:
             return noisy_inputs, torch.sign(grad)

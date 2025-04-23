@@ -19,6 +19,7 @@ from torch.optim import Adam, lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 from torchvision import transforms
 from torch.nn.utils import prune
+import torch.nn.functional as F
 from torch.nn import ReLU, SiLU, ELU, GELU
 from tqdm import tqdm
 import wandb
@@ -43,7 +44,8 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 os.environ["KMP_WARNINGS"] = "off"
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-
+import logging
+logging.getLogger().setLevel(logging.INFO)
 
 class AdversarialTrainer:
     def __init__(self, gpu: int, config_path: Path):
@@ -61,6 +63,7 @@ class AdversarialTrainer:
         self.h_gradnorm_regularization = 0.01
         self.weight_gradnorm_regularization = 0.001
         self.is_adv = True if self.config['attack']['train']['type'] != "none" else False
+        self.is_rtoken = self.config['options']['rtoken']
 
         self.embed_dim = self.config['train']['embed_dim']
         self.img_size = self.config['train']['img_size']
@@ -83,7 +86,7 @@ class AdversarialTrainer:
             MANIQA(embed_dim=self.embed_dim, num_outputs=self.num_outputs,
                    patch_size=self.patch_size, drpths=self.depths, window_size=self.window_size,
                    dim_mlp=self.dim_mlp, num_heads=self.num_heads,
-                   img_size=self.img_size),
+                   img_size=self.img_size, **self.config['options']),
             mean=[0.5, 0.5, 0.5],
             std=[0.5, 0.5, 0.5],
         )
@@ -108,6 +111,7 @@ class AdversarialTrainer:
         self.current_epoch = 0
         self.end_epoch = self.config["train"]["epochs"]
         self.lr = float(self.config["train"]["lr"])
+        # self._prepair_rtoken()
         self._prepair_prune()
         (
             self.train_loader,
@@ -131,7 +135,11 @@ class AdversarialTrainer:
         self.scaler = GradScaler()
 
         self._init_lr_scheduler()
-        self.loss = nn.MSELoss()
+        if self.is_rtoken:
+            # self.loss = nn.CosineSimilarity()
+            self.loss = nn.MSELoss()
+        else:
+            self.loss = nn.MSELoss()
         self.train_attack = self._init_attack(
             self.config["attack"]["train"], "train"
         )
@@ -198,7 +206,7 @@ class AdversarialTrainer:
                 return -torch.sum(1 - y / metric_range)
         else:
             def loss_computer(y, target):
-                return self.loss(y, target.unsqueeze(1))
+                return self.loss(y.unsqueeze(1), target.unsqueeze(1)).mean()
 
         attacker = attacker_cls(
             model=self.model,
@@ -214,6 +222,7 @@ class AdversarialTrainer:
     def _train_loop(self) -> None:
         train_data_len = len(self.train_loader)
         while self.current_epoch < self.end_epoch:
+            epoch_time = time.time()
             self.model.train()
             if self.config['lr_scheduler']['type'] == 'simple':
                 self.lr_scheduler.adjust_learning_rate(self.current_epoch)
@@ -262,6 +271,7 @@ class AdversarialTrainer:
                     f'Model is not updated @val_criterion ({self.val_criterion}):\
                             {val_criterion:.3f} @epoch: {self.current_epoch}'
                 )
+            print("Epoch time:", time.time() - epoch_time)
 
         if self.gpu:
             return
@@ -306,14 +316,22 @@ class AdversarialTrainer:
         metrics["data_time"] = time.time() - start_time
         self.optimizer.zero_grad()
         if self.train_attack:
-            inputs = self.train_attack.run(inputs, label)
+            inputs_adv = self.train_attack.run(inputs, label)
         
         pred_d = torch.squeeze(self.model(inputs))
         # print(pred_d)
-        loss = self.loss(pred_d, label)
-        if self.is_gradnorm_regularization:
-            loss += self.weight_gradnorm_regularization*self._gradnorm_regularization(inputs)
-
+        if self.is_rtoken:
+            # pred_adv = torch.squeeze(self.model(inputs_adv))
+            # loss = (self.loss(pred_d.unsqueeze(1), label.unsqueeze(1)) + \
+            #         self.loss(pred_adv.unsqueeze(1), label.unsqueeze(1))
+            #         ).mean()
+            loss = self.loss(pred_d, label)
+        elif self.is_gradnorm_regularization:
+            loss = self.loss(pred_d, label) + \
+                   self.weight_gradnorm_regularization * \
+                   self._gradnorm_regularization(inputs)
+        else:
+            loss = self.loss(pred_d, label)
         loss.backward()
         self.optimizer.step()
 
@@ -375,6 +393,10 @@ class AdversarialTrainer:
         self.config['lr_scheduler']['type'] = 'simple'
         self.config['lr_scheduler']['points'][0] = self.config['options']['prune_lr']
         self.config['lr_scheduler']['points'][self.end_epoch] = self.config['options']['prune_lr']
+
+    def _prepair_rtoken(self):
+        ckpt = torch.load(self.config['db_model'].replace('-rtoken', ''))
+        self.model.load_state_dict(ckpt['model'])
 
     def test(self) -> None:
         checkpoint = torch.load(self.db_model_path)
