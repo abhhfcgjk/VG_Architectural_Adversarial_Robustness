@@ -18,6 +18,7 @@ from resnet_modify  import resnet50 as resnet_modifyresnet
 from transformers import Transformer
 from posencode import PositionEmbeddingSine
 from Cayley import CayleyBlockPool as CayleyBlock
+from orthogonium import BcopRkoConv2d
 
 class L2pooling(nn.Module):
 	def __init__(self, filter_size=5, stride=1, channels=None, pad_off=0):

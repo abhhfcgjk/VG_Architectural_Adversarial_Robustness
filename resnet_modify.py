@@ -181,7 +181,7 @@ class ResNet(nn.Module):
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
-        self.is_cayley = kwargs.get('cayley', False)
+        self.is_cayley = kwargs.get('is_cayley', False)
 
         self.inplanes = 64
         self.dilation = 1

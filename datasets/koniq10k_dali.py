@@ -40,17 +40,17 @@ class ExternalInputIterator(object):
 
         self.patch_info = pd.read_csv(patch_info)
         self.patch_files = list(self.patch_info["patch_name"])
-        self.n = len(self.patch_files) if (phase=="train") else len(self.data_info)
-        print(self.n)
 
-        if self.phase == "train":
-            self.info_loader = self.patch_info
-            self.info_dir = self.patch_dir
-            self.name = "patch_name"
-        elif self.phase == "inference":
+        if self.phase == "inference":
             self.info_loader = self.data_info
             self.info_dir = self.images_dir
             self.name = "image_name"
+        else:
+            self.info_loader = self.patch_info[self.patch_info["set"] == phase]
+            self.info_dir = self.patch_dir
+            self.name = "patch_name"
+        self.n = len(self.info_loader)
+        print(self.n)
 
     def _prepare_patches(self, patch_info):
         """ Generate patches from images and save them if not already present. """

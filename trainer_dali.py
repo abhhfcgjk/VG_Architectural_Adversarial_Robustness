@@ -116,7 +116,7 @@ class AdversarialTrainer:
             args=self.config["data"],
             batch_size=self.config["train"]["batch_size"],
             num_patches=self.config["train"]["num_patches"],
-            patch_size=(self.config["train"]["patch_size"],self.config["train"]["patch_size"]),
+            patch_size=(self.config["train"]["patch_size"], self.config["train"]["patch_size"]),
             num_workers=self.config["train"]["num_workers"],
             seed=self.config["seed"],
         )
@@ -209,6 +209,7 @@ class AdversarialTrainer:
     def _train_loop(self) -> None:
         train_data_len = len(self.train_loader)
         while self.current_epoch < self.end_epoch:
+            e_time = time.time()
             self.pred_scores = []
             self.gt_scores = []
             self.model.train()
@@ -260,7 +261,7 @@ class AdversarialTrainer:
                     f'Model is not updated @val_criterion ({self.val_criterion}):\
                             {val_criterion:.3f} @epoch: {self.current_epoch}'
                 )
-
+            print(time.time() - e_time)
         if self.gpu:
             return
 
@@ -305,6 +306,7 @@ class AdversarialTrainer:
         label = label.squeeze(-1)
         label = label.cuda(self.gpu, non_blocking=True)
 
+        logging.debug(label)
         metrics["data_time"] = time.time() - start_time
         self.optimizer.zero_grad()
         # with autocast(enabled=True):
@@ -347,8 +349,8 @@ class AdversarialTrainer:
         fnegative2_1 = torch.unsqueeze(pred2[indexlabel[0],...].contiguous(),dim=0)
 
         # consistency = nn.L1Loss()
-        assert (label[indexlabel[-1]]-label[indexlabel[1]])>=0
-        assert (label[indexlabel[-2]]-label[indexlabel[0]])>=0
+        assert (label[indexlabel[-1]]-label[indexlabel[1]])>0, (label, )
+        assert (label[indexlabel[-2]]-label[indexlabel[0]])>0, (label, )
         triplet_loss1 = nn.TripletMarginLoss(margin=(label[indexlabel[-1]]-label[indexlabel[1]]), p=1)
         triplet_loss2 = nn.TripletMarginLoss(margin=(label[indexlabel[-2]]-label[indexlabel[0]]), p=1)
         tripletlosses = triplet_loss1(anchor1, positive1, negative1_1) + \
@@ -429,7 +431,7 @@ class AdversarialTrainer:
     def test(self) -> None:
         checkpoint = torch.load(self.db_model_path)
         datasets = ['KonIQ-10k', 'NIPS']
-        datasets = ['NIPS']
+        # datasets = ['NIPS']
         # datasets = ['KonIQ-10k']
         for _dataset in datasets:
             self.model.load_state_dict(checkpoint['model'])
