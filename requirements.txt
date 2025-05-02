@@ -1,4 +1,4 @@
-torch==2.5.
+torch==2.5.0
 torchvision
 numpy==1.26.4
 pandas==2.2.3
@@ -8,5 +8,6 @@ nvidia-dali-cuda110==1.43.0
 scipy==1.13.1
 pytorch-msssim==1.0.0
 wandb
+icecream
 # git+https://github.com/fra31/auto-attack
 # git+https://github.com/RobustBench/robustbench.git

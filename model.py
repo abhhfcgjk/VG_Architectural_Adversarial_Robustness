@@ -15,6 +15,7 @@ from inceptionresnetv2 import inceptionresnetv2
 
 from activ import swap_all_activations, ReLU_ELU, ReLU_SiLU
 from pruning.pruning import l1_prune, ln_prune, pls_prune, displs_prune, hsic_prune
+from orthogonium import BcopRkoConv2d
 
 
 class KonCept512(nn.Module):
@@ -35,6 +36,7 @@ class KonCept512(nn.Module):
         self.db_model_dir = kwargs.get('db_model')
         self.is_cayley1 = kwargs.get('cayley1', False)
         self.is_cayley2 = kwargs.get('cayley2', False)
+        self.is_aoc = kwargs.get('aoc', False)
         self.prune_amount = kwargs.get('prune', 0.0)
 
         base_model = inceptionresnetv2(num_classes=1000, pretrained="imagenet")
@@ -58,6 +60,11 @@ class KonCept512(nn.Module):
                                           stride=1, padding=0, kernel_size=3)
             self.base = nn.Sequential(*list(self.base.children())[:-2],
                                       self.cayley2,
+                                      *list(self.base.children())[-2:])
+        elif self.is_aoc:
+            self.aoc = BcopRkoConv2d(2080, 2080, kernel_size=3, stride=1, padding=0)
+            self.base = nn.Sequential(*list(self.base.children())[:-2],
+                                      self.aoc,
                                       *list(self.base.children())[-2:])
 
         self.__set_activation(activation=kwargs.get('activation'))

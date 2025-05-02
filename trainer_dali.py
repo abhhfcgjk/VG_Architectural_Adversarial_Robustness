@@ -23,6 +23,8 @@ from torch.nn import ReLU, SiLU, ELU, GELU
 
 from attacks.fgsm import FGSM
 from attacks.pgd import PGD, AutoPGD
+from attacks.color import Color
+from attacks.stadv import stAdv
 from attacks.base import Attacker
 from attacks.uap import UAP
 from attacks.korhonen import Korhonen
@@ -116,14 +118,15 @@ class AdversarialTrainer:
                 threat = self.config["attack"]["train"]["params"]["eps"]
             exp = f'ep={self.config["train"]["epochs"]}_eps={threat}'
 
-            self.log_dir = (
-                Path(self.config["log"]["directory"]) / '1024'
-                / train_method
-                / f"{self.config['label_strategy']}{('_' + self.config['penalty']) if 'penalty' in self.config else ''}"
-                / f'{str(datetime.now())[:-4]}_{exp}_{self.config["lr_scheduler"]["type"]}'
-            )
+            # self.log_dir = (
+            #     Path(self.config["log"]["directory"]) / '1024'
+            #     / train_method
+            #     / f"{self.config['label_strategy']}{('_' + self.config['penalty']) if 'penalty' in self.config else ''}"
+            #     / f'{str(datetime.now())[:-4]}_{exp}_{self.config["lr_scheduler"]["type"]}'
+            # )
             
-            self.log_dir.mkdir(parents=True, exist_ok=True)
+            # self.log_dir.mkdir(parents=True, exist_ok=True)
+            self.log_dir = Path('/')
             
             if self.eval_only:
                 self.results_csv = Path(self.config['results_path'])
@@ -233,32 +236,33 @@ class AdversarialTrainer:
             self.model.load_state_dict(ckpt)
 
         attackers = {"fgsm": FGSM, "pgd": PGD, "apgd": AutoPGD, 
-                     "uap": UAP, "korhonen": Korhonen, "zhang": Zhang}
+                     "uap": UAP, "korhonen": Korhonen, "zhang": Zhang,
+                     "color": Color, "stadv": stAdv}
         attacker_cls = attackers.get(attack_name)
 
         if attacker_cls is None:
             raise RuntimeError(f"Unknown attack `{attack_name}`")
 
-        if metric_range:
-
+        if attack_name == "apgd":
+            def loss_computer(y, target):
+                return -(1 - y / metric_range)
+        elif metric_range:
             def loss_computer(y, target):
                 return -torch.sum(1 - y / metric_range)
-
         else:
-
             def loss_computer(y, target):
                 return self.loss(y, target.unsqueeze(1))
 
         attacker = attacker_cls(
             model=self.model,
             loss_computer=loss_computer,
+            metric_range=metric_range,
             **attack_config["params"],
         )
 
         if attack_name.upper() == 'UAP':
             dataloader = kwargs.get('dataloader')
             attacker.generate(dataloader)
-
         return attacker
 
     def _train_loop(self) -> None:
@@ -302,7 +306,7 @@ class AdversarialTrainer:
                     'optimizer': self.optimizer.state_dict(),
                     'epoch': self.current_epoch,
                 }
-                torch.save(checkpoint, self.log_dir / 'best_model.pth')
+                torch.save(checkpoint,  self.log_dir/ 'best_model.pth')
 
                 self.best_val_criterion = val_criterion
                 self.best_epoch = self.current_epoch
@@ -352,7 +356,7 @@ class AdversarialTrainer:
         # torch.save(checkpoint, self.config['attack']['path']['checkpoints'])
         self.save_checkpoints(checkpoint, self.config['attack']['path']['checkpoints'],
                               model=self.model, use_mask=False)
-        torch.save(checkpoint, self.log_dir / 'best_model.pth')
+        torch.save(checkpoint, self.log_dir / 'best_model.pt')
 
     def _train_step(self, data, step: int, start_time: float) -> Dict[str, float]:
         metrics = {}
@@ -664,7 +668,8 @@ class AdversarialTrainer:
             for module, name in model.model.prune_parameters:
                 try:
                     print(name, module,[ m[0] for m in list(module.named_buffers())])
-                    prune.remove(module, name)
+                    if hasattr(module, name):
+                        prune.remove(module, name)
                     print('REMOVE ', name, module,[ m[0] for m in list(module.named_buffers())])
                 except Exception as ex:
                     print(ex)
