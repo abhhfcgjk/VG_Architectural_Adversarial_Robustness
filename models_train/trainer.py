@@ -63,6 +63,7 @@ class Trainer:
         self.cayley2 = args.cayley2
         self.cayley3 = args.cayley3
         self.cayley4 = args.cayley4
+        self.aoc     = args.aoc
 
         self.pruning = args.pruning
         self.prune_iters = args.prune_iters
@@ -93,7 +94,8 @@ class Trainer:
                               cayley=self.cayley, cayley_pool=self.cayley_pool, 
                               cayley_pair=self.cayley_pair, quantize=False,
                               cayley1=self.cayley1, cayley2=self.cayley2,
-                              cayley3=self.cayley3, cayley4=self.cayley4).to(self.device)
+                              cayley3=self.cayley3, cayley4=self.cayley4,
+                              aoc=self.aoc).to(self.device)
 
         print(self.model)
         # self.scaler = GradScaler()
@@ -270,7 +272,7 @@ class Trainer:
             )
             val_criterion = abs(metrics[self.args.val_criterion])
             # print(val_criterion, self.best_val_criterion)
-            if (val_criterion > self.best_val_criterion) and (self.current_epoch > 10): # for adv epochs>10
+            if (val_criterion > self.best_val_criterion) and (self.current_epoch > 0): # for adv epochs>10
                 # if self.args.debug:
                 # print('max:', 'max_pred', 'min:', 'min_pred')
                 checkpoint = {
@@ -417,7 +419,7 @@ class Trainer:
             self._prepair(train=False, val=True, test=True)
 
         print(self.args.trained_model_file)
-        checkpoint = torch.load(self.args.trained_model_file, weights_only=True)
+        checkpoint = torch.load(self.args.trained_model_file, weights_only=False)
         # results = {}
         # print(checkpoint['model'])
         if not loaded:
@@ -533,6 +535,7 @@ class Trainer:
 
     @staticmethod
     def save_checkpoints(checkpoint, trained_model_file, model=None, use_mask=False):
+        print(trained_model_file)
         if use_mask:
             # model_copy = copy.deepcopy(model)
             for module, name in model.prune_parameters:

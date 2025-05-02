@@ -20,6 +20,7 @@ from models_train.pruning import PLSPrune, l1_prune, pls_prune, ln_prune, displs
 
 from models_train.baseIQAmodel import IQA
 from models_train import swap_convs
+from orthogonium import BcopRkoConv2d
 
 from icecream import ic
 
@@ -92,6 +93,7 @@ class Linearity(IQA):
         # self.pls_images = kwargs.get('pls_images')
         # self.kernel_prune = kwargs.get('kernel_prune')
 
+        self.aoc = kwargs.get('aoc', False)
         self.gabor = kwargs.get('gabor', False)
         self.cayley = kwargs.get('cayley', False)
         self.cayley_pool = kwargs.get('cayley_pool', False)
@@ -130,6 +132,7 @@ class Linearity(IQA):
             self.cayley_block3 = CayleyBlockPool(256, 256, stride=1, padding=0, kernel_size=3)
         if self.cayley4:
             self.cayley_block4 = CayleyBlockPool(512, 128, stride=1, padding=0, kernel_size=3)
+        
         self.id_cl1 = 0
         self.id_cl2 = 4
         self.id_cl3 = 5
@@ -139,6 +142,12 @@ class Linearity(IQA):
             self.cayley_block6 = CayleyBlockPool(512, 200, stride=1, padding=0, kernel_size=3)
         if self.cayley_pool:
             self.cayley_block6 = CayleyBlockPool(1024, 200, stride=1, padding=0, kernel_size=3)
+        if self.aoc:
+            self.aoc_block = nn.Sequential(
+                nn.Conv2d(1024, 512, kernel_size=3, stride=1, padding=0),
+                BcopRkoConv2d(512, 1024, kernel_size=3, stride=1, padding=0)
+                )
+        
         if self.cayley_pair:
             self.cayley_conv4 = CayleyBlockPool(1024, 200, stride=1, padding=0, kernel_size=3)
             self.cayley_conv5 = CayleyBlockPool(2048, 200, stride=1, padding=0, kernel_size=3)
@@ -255,6 +264,8 @@ class Linearity(IQA):
                 if self.cayley_pool:
                     # print('cayley_pool:', x.shape)
                     x = self.cayley_block6(x)
+                if self.aoc:
+                    x = self.aoc_block(x)
                 x6 = x
                 if self.cayley_pair:
                     print('cayley_pair:', x.shape)

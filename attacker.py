@@ -9,7 +9,7 @@ from pathlib import Path
 from tqdm import tqdm
 from torchvision.transforms.functional import resize, to_tensor, normalize, crop
 from torchvision import models
-from attacks import iterative, uap, korhonen, zhang, apgd
+from attacks import iterative, uap, korhonen, zhang, apgd, color, stadv
 from models_train.IQAmodel import IQAModel
 from models_train.Linearity import Linearity
 from models_train.activ import swap_all_activations, ReLU_ELU
@@ -28,10 +28,11 @@ from icecream import ic
 class Attack:
     epsilons = np.array([2, 4, 6, 8, 10]) / 255.0
 
-    def __init__(self, model, arch, pool, use_bn_end, P6, P7, pruning,t_prune, activation, device='cpu',
+    def __init__(self, model, arch, pool, use_bn_end, 
+                 P6, P7, pruning,t_prune, activation, device='cpu',
                  gabor=False, gradnorm_regularization=False, adv=False, cayley=False, 
                  cayley_pool=False, cayley_pair=False, quantize=False, cayley1=False,
-                 cayley2=False, cayley3=False, cayley4=False) -> None:
+                 cayley2=False, cayley3=False, cayley4=False, aoc=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -50,15 +51,20 @@ class Attack:
         self.cayley4 = cayley4
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
+        self.aoc = aoc
         self.adv = adv
         self.quantize = quantize
         self.to_save_images = 700
         # self.prune 
-        self.model = Linearity(arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, pool=pool,
-                           use_bn_end=use_bn_end,
-                           P6=P6, P7=P7, activation=activation, pruning=None, gabor=gabor, 
-                           cayley=cayley, cayley_pool=cayley_pool, cayley_pair=cayley_pair, quantize=quantize,
-                           cayley1=cayley1, cayley2=cayley2, cayley3=cayley3, cayley4=cayley4).to(self.device)
+        self.model = Linearity(arch='resnext101_32x8d' if arch=='apgd_ssim'or arch=='apgd_ssim_eps2' or arch=='free_ssim_eps2' else arch, 
+                               pool=pool,
+                               use_bn_end=use_bn_end,
+                               P6=P6, P7=P7, activation=activation, 
+                               pruning=None, gabor=gabor, 
+                               cayley=cayley, cayley_pool=cayley_pool, 
+                               cayley_pair=cayley_pair, quantize=quantize,
+                               cayley1=cayley1, cayley2=cayley2, cayley3=cayley3, 
+                               cayley4=cayley4, aoc=aoc).to(self.device)
         ic(self.model)
         # self.model.eval()
 
@@ -252,6 +258,20 @@ class Attack:
                         device=self.device,
                         iters=iterations, eps=int(eps*255), delta=10/255
                     )
+                elif attack_type == "Color":
+                    img_attacked_ = color.attack(
+                        img_, None, self.model,
+                        self.k, self.b,
+                        metric_range=self.metric_range_test,
+                        device='cuda'
+                    )
+                elif attack_type == "stAdv":
+                    img_attacked_ = stadv.attack(
+                        img_, self.model,
+                        self.k, self.b,
+                        metric_range=self.metric_range_test,
+                        device='cuda'
+                    )
                 
                 with torch.no_grad():
                     # save_image(img_, f'debug_img/clear{image_num}.png')
@@ -328,12 +348,13 @@ class Attack:
         clp = f'+cayley_pool' if self.cayley_pool else ''
         cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
+        aoc = f'+aoc' if self.aoc else ''
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
         prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
         quant = f"+quantize" if self.quantize else ''
         adv = f"+adv" if self.adv else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{cl1}{cl2}{cl3}{cl4}{gr}{adv}{prune}{quant}+{activation}'
+        arch_status = f'{self.arch}{cl}{clp}{cp}{cl1}{cl2}{cl3}{cl4}{aoc}{gr}{adv}{prune}{quant}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
                                             self.dataset,
                                             arch_status,
@@ -367,7 +388,8 @@ class Attack:
         clp = f'+cayley_pool' if self.cayley_pool else ''
         cp = f'+cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
-        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + clp + cp,
+        aoc = f'+aoc' if self.aoc else ''
+        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + clp + cp + aoc,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations}

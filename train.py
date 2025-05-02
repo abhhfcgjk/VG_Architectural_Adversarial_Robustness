@@ -40,6 +40,8 @@ def get_format_string(args) -> str:
         format_str += f'-cayley4={args.cayley4}'
     if args.cayley_pair:
         format_str += f'-cp={args.cayley_pair}'
+    if args.aoc:
+        format_str += f'-aoc=True'
     if args.gabor:
         format_str += f'-gabor=True'
     if args.noise:
@@ -184,7 +186,8 @@ if __name__ == "__main__":
     parser.add_argument('-clp', '--cayley_pool', action='store_true', help="After conv4 and before conv5")
     parser.add_argument('-cp', '--cayley_pair', action='store_true', 
                         help="Use cayley block after conv4, conv5 (two CayleyBlock)")
-
+    parser.add_argument('--aoc', action='store_true', help="Use orthogonium")
+    
     parser.add_argument('--wpath', default=None, type=str, help="Weight path")
 
     parser.add_argument('--adversarial', '-adv', dest='adv', action='store_true')
@@ -235,7 +238,6 @@ if __name__ == "__main__":
 
     torch.utils.backcompat.broadcast_warning.enabled = True
 
-
     if args.wpath:
         args.format_str = args.wpath
     else:
@@ -243,7 +245,7 @@ if __name__ == "__main__":
 
 
     checkpints_path = yaml_file['save']['ckpt'] # "Linearity-ckpt"
-    args.trained_model_file = os.path.join(checkpints_path, args.format_str)
+    args.trained_model_file = os.path.join(checkpints_path, args.format_str) #"ckpt/model.pth" #
     if not os.path.exists('results'):
         os.makedirs('results')
     args.save_result_file = 'results/' + args.format_str

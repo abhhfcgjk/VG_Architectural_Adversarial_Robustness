@@ -43,6 +43,8 @@ def get_format_string(args):
         format_str += f'-cayley4={args.cayley4}'
     if args.cayley_pair:
         format_str += f'-cp={args.cayley_pair}'
+    if args.aoc:
+        format_str += f'-aoc={args.aoc}'
     if args.gabor:
         format_str += f'-gabor=True'
     if args.noise:
@@ -64,7 +66,8 @@ def run(args):
                            cayley=args.cayley, cayley_pool=args.cayley_pool, cayley_pair=args.cayley_pair,
                            cayley4=args.cayley4,
                            quantize=args.quantize, 
-                           cayley1=args.cayley1, cayley2=args.cayley2, cayley3=args.cayley3
+                           cayley1=args.cayley1, cayley2=args.cayley2, cayley3=args.cayley3,
+                           aoc=args.aoc
                            )
 
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
@@ -170,6 +173,7 @@ if __name__ == "__main__":
     parser.add_argument('-cp', '--cayley_pair', action='store_true', help="Use cayley block after conv4, conv5")
     parser.add_argument('--crop', action='store_true', help='Use crop for image')
 
+    parser.add_argument('--aoc', action='store_true', help="Use orthogonium")
     parser.add_argument('--adversarial', '-adv', dest='adv', action='store_true')
     args = parser.parse_args()
     # task.connect(vars(args))
