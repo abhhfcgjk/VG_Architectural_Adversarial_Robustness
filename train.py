@@ -243,9 +243,8 @@ if __name__ == "__main__":
     else:
         args.format_str = get_format_string(args)
 
-
     checkpints_path = yaml_file['save']['ckpt'] # "Linearity-ckpt"
-    args.trained_model_file = os.path.join(checkpints_path, args.format_str) #"ckpt/model.pth" #
+    args.trained_model_file = os.path.join(checkpints_path, args.format_str)
     if not os.path.exists('results'):
         os.makedirs('results')
     args.save_result_file = 'results/' + args.format_str
