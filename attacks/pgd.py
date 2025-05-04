@@ -139,31 +139,26 @@ class AutoPGD(Attacker):
         self,
         model: nn.Module,
         loss_computer: Callable[..., Tensor],
-        n_iter: int = 2,
+        iters: int = 2,
         eps: float = 4.0,
         alpha: float = 1.0,
         thr_decr: float = 0.75,
+        *args, **kwargs
     ):
         super().__init__(model)
 
-        self.n_iter = n_iter
-        self.n_iter_min = max(int(0.06 * n_iter), 1)
-        self.size_decr = max(int(0.03 * n_iter), 1)
-        self.k = max(int(0.22 * n_iter), 1)
+        self.n_iter = iters
+        self.n_iter_min = max(int(0.06 * iters), 1)
+        self.size_decr = max(int(0.03 * iters), 1)
+        self.k = max(int(0.22 * iters), 1)
 
         self.eps = eps / 255
         self.alpha = alpha
         self.thr_decr = thr_decr
-
-        self.loss = nn.MSELoss(reduction='none')
-
-    def loss_computer(self, y, target):
-        return self.loss(y, target.unsqueeze(1))
+        self.loss_computer = loss_computer
 
     def check_oscillation(self, loss_steps, cur_step):
-        t = torch.zeros(
-            loss_steps.shape[1], device=loss_steps.device, dtype=loss_steps.dtype
-        )
+        t = torch.zeros(loss_steps.shape[1], device=loss_steps.device, dtype=loss_steps.dtype)
         for i in range(self.k):
             t += (loss_steps[cur_step - i] > loss_steps[cur_step - i - 1]).float()
 
@@ -182,9 +177,7 @@ class AutoPGD(Attacker):
             self.alpha
             * self.eps
             * torch.ones(
-                [inputs.shape[0], *[1] * (len(inputs.shape) - 1)],
-                device=device,
-                dtype=inputs.dtype,
+                [inputs.shape[0], *[1] * (len(inputs.shape) - 1)], device=device, dtype=inputs.dtype
             )
         )
 
@@ -220,16 +213,11 @@ class AutoPGD(Attacker):
 
             x_adv_1 = x_adv + step_size * torch.sign(grad)
             x_adv_1 = torch.clamp(
-                torch.min(torch.max(x_adv_1, inputs - self.eps), inputs + self.eps),
-                0.0,
-                1.0,
+                torch.min(torch.max(x_adv_1, inputs - self.eps), inputs + self.eps), 0.0, 1.0
             )
             x_adv_1 = torch.clamp(
                 torch.min(
-                    torch.max(
-                        x_adv + (x_adv_1 - x_adv) * a + grad2 * (1 - a),
-                        inputs - self.eps,
-                    ),
+                    torch.max(x_adv + (x_adv_1 - x_adv) * a + grad2 * (1 - a), inputs - self.eps),
                     inputs + self.eps,
                 ),
                 0.0,
@@ -284,5 +272,5 @@ class AutoPGD(Attacker):
                 counter3 = 0
                 self.k = max(self.k - self.size_decr, self.n_iter_min)
 
-        print(self.k)
+        # print(self.k)
         return x_best

@@ -21,6 +21,8 @@ from torchvision import transforms
 
 from attacks.fgsm import FGSM
 from attacks.pgd import PGD, AutoPGD
+from attacks.color import Color
+from attacks.stadv import stAdv
 from attacks.uap import UAP
 from attacks.zhang import Zhang
 from attacks.korhonen import Korhonen
@@ -261,25 +263,29 @@ class AdversarialTrainer:
             self.model.load_state_dict(ckpt)
 
         attackers = {"fgsm": FGSM, "pgd": PGD, "apgd": AutoPGD, 
-                     "uap": UAP, "korhonen": Korhonen, "zhang": Zhang}
+                     "uap": UAP, "korhonen": Korhonen, 
+                     "zhang": Zhang, "color": Color,
+                     "stadv": stAdv}
         attacker_cls = attackers.get(attack_name)
 
         if attacker_cls is None:
             raise RuntimeError(f"Unknown attack `{attack_name}`")
 
-        if metric_range:
-
+        
+        if attack_name == "apgd":
+            def loss_computer(y, target):
+                return -(1 - y / metric_range)
+        elif metric_range:
             def loss_computer(y, target):
                 return -torch.sum(1 - y / metric_range)
-
         else:
-
             def loss_computer(y, target):
                 return self.loss(y, target.unsqueeze(1))
-
+        print(attack_name.upper())
         attacker = attacker_cls(
             model=self.model,
             loss_computer=loss_computer,
+            metric_range=metric_range,
             **attack_config["params"],
         )
 
@@ -457,10 +463,10 @@ class AdversarialTrainer:
 
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'], weights_only=False)
+        # datasets = ['NIPS', 'KonIQ-10k']
         # datasets = ['KonIQ-10k']
         datasets = ['NIPS']
-        self.model.load_state_dict(checkpoint['model'])
-        # self.replace_activation(self.model, )
+
         self.metric_computer = IQAPerformance()
         metric_range = checkpoint['max'] - checkpoint['min']
         self.hash = self.__get_options_hash(self.config['options'])
@@ -472,6 +478,7 @@ class AdversarialTrainer:
 
         for _dataset in datasets:
             if _dataset=="NIPS":
+                self.model.load_state_dict(checkpoint['model'])
                 self.test_loader = get_data_loader(
                             directory=self.config['test_data']['NIPS']['directory'],
                             rank=self.gpu,
@@ -481,6 +488,7 @@ class AdversarialTrainer:
                             seed=self.config['seed']
                         )
             elif _dataset=="KonIQ-10k":
+                self.model.load_state_dict(checkpoint['model'])
                 self.test_loader = get_data_loaders(
                             rank=self.gpu,
                             num_tasks=self.world_size,
