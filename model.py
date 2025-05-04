@@ -71,12 +71,16 @@ class MANIQA(nn.Module):
         super().__init__()
         self.is_rtoken = kwargs.get("rtoken", False)
         self.is_kde = kwargs.get("kde", False)
+        self.is_regtoken = kwargs.get("regtoken", False)
         self.img_size = img_size
         self.patch_size = patch_size
         self.input_size = img_size // patch_size
         self.patches_resolution = (img_size // patch_size, img_size // patch_size)
         
-        self.vit = timm.create_model('vit_base_patch8_224', pretrained=True)
+        if self.is_regtoken:
+            self.vit = timm.create_model('vit_base_patch8_224.augreg2_in21k_ft_in1k', pretrained=True)
+        else:
+            self.vit = timm.create_model('vit_base_patch8_224', pretrained=True)
         self.save_output = SaveOutput()
         hook_handles = []
         for layer in self.vit.modules():
