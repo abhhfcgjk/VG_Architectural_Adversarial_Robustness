@@ -34,22 +34,29 @@ class DataLoader(object):
 													 std=(0.229, 0.224, 0.225))
 				])
 		elif dataset == 'koniq':
-			if istrain:
-				transforms = torchvision.transforms.Compose([
-					torchvision.transforms.RandomHorizontalFlip(),
-					torchvision.transforms.RandomVerticalFlip(),
-					torchvision.transforms.Resize((512, 384)),
-					torchvision.transforms.RandomCrop(size=patch_size),
-					torchvision.transforms.ToTensor(),
-					torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
-													 std=(0.229, 0.224, 0.225))])
-			else:
-				transforms = torchvision.transforms.Compose([
-					torchvision.transforms.Resize((512, 384)),
-					torchvision.transforms.RandomCrop(size=patch_size),
-					torchvision.transforms.ToTensor(),
-					torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
-													 std=(0.229, 0.224, 0.225))])
+			# if istrain:
+			# 	transforms = torchvision.transforms.Compose([
+			# 		torchvision.transforms.RandomHorizontalFlip(),
+			# 		torchvision.transforms.RandomVerticalFlip(),
+			# 		torchvision.transforms.Resize((512, 384)),
+			# 		torchvision.transforms.RandomCrop(size=patch_size),
+			# 		torchvision.transforms.ToTensor(),
+			# 		torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
+			# 										 std=(0.229, 0.224, 0.225))])
+			# else:
+			transforms = torchvision.transforms.Compose([
+				# torchvision.transforms.Resize((512, 384)),
+				torchvision.transforms.Resize((224, 224)),
+				# torchvision.transforms.RandomCrop(size=patch_size),
+				torchvision.transforms.ToTensor(),
+				# torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
+				# 								 std=(0.229, 0.224, 0.225))
+													])
+		elif dataset == 'nips':
+			transforms = torchvision.transforms.Compose([
+					torchvision.transforms.Resize((224, 224)),
+					torchvision.transforms.ToTensor()
+													 ])
 		elif dataset == 'fblive':
 			if istrain:
 				transforms = torchvision.transforms.Compose([
@@ -79,6 +86,9 @@ class DataLoader(object):
 				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
 		elif dataset == 'koniq':
 			self.data = folders.Koniq_10kFolder(
+				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
+		elif dataset == 'nips':
+			self.data = folders.NIPSFolder(
 				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
 		elif dataset == 'fblive':
 			self.data = folders.FBLIVEFolder(

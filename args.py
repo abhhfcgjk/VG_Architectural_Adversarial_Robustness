@@ -44,6 +44,11 @@ def Configs():
                         help='num encoder layers in the transformer')
     parser.add_argument('--dim_feedforwardt', dest='dim_feedforwardt', type=int, default=64,
                         help='dim feedforward in the transformer')
+    parser.add_argument("--cayley", action="store_true", 
+                        help="Use Cayley block")
+    parser.add_argument("--aoc", action="store_true", 
+                        help="Use AOC block")
+    parser.add_argument("--iters", type=int, default=1)
     return parser.parse_args()
     
     

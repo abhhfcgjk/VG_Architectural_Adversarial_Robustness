@@ -18,6 +18,11 @@ import data_loader
 from transformers import Transformer
 from posencode import PositionEmbeddingSine
 
+from pathlib import Path, PosixPath
+import re
+
+import logging
+# logging.getLogger().setLevel(logging.DEBUG)
 
 class L2pooling(nn.Module):
 	def __init__(self, filter_size=5, stride=1, channels=None, pad_off=0):
@@ -38,7 +43,9 @@ class Net(nn.Module):
 	def __init__(self,cfg,device):
 		super(Net, self).__init__()
 		
-		
+		self.is_cayley = cfg.cayley
+		self.is_aoc = cfg.aoc
+		is_strict = not (self.is_cayley or self.is_aoc)
 		self.device = device
 		
 		self.cfg = cfg
@@ -46,9 +53,6 @@ class Net(nn.Module):
 		self.L2pooling_l2 = L2pooling(channels=512)
 		self.L2pooling_l3 = L2pooling(channels=1024)
 		self.L2pooling_l4 = L2pooling(channels=2048)
-		
-
-
 			
 		if cfg.network =='resnet50':
 			from resnet_modify  import resnet50 as resnet_modifyresnet
@@ -73,17 +77,16 @@ class Net(nn.Module):
 			self.L2pooling_l4 = L2pooling(channels=512)
 
 
-		torch.save(modelpretrain.state_dict(), '/workspace/mnt/modelpretrain')
+		torch.save(modelpretrain.state_dict(), f'modelpretrain{cfg.vesion}')
 		
-		self.model = resnet_modifyresnet()
-		self.model.load_state_dict(torch.load('/workspace/mnt/modelpretrain'), strict=True)
+		self.model = resnet_modifyresnet(is_cayley=self.is_cayley,
+								   	   	 is_aoc=self.is_aoc)
+		self.model.load_state_dict(torch.load(f'modelpretrain{cfg.vesion}'), 
+							 	   strict=is_strict)
 
 		self.dim_modelt = dim_modelt
 
-		os.remove("/workspace/mnt/modelpretrain")
-		
-
-
+		os.remove(f"modelpretrain{cfg.vesion}")
 
 		nheadt=cfg.nheadt
 		num_encoder_layerst=cfg.num_encoder_layerst
@@ -134,6 +137,10 @@ class Net(nn.Module):
 		layer2_t = self.avg4(self.drop2d(self.L2pooling_l2(F.normalize(layer2,dim=1, p=2))))
 		layer3_t = self.avg2(self.drop2d(self.L2pooling_l3(F.normalize(layer3,dim=1, p=2))))
 		layer4_t =           self.drop2d(self.L2pooling_l4(F.normalize(layer4,dim=1, p=2)))
+		logging.debug(layer1_t.shape)
+		logging.debug(layer2_t.shape)
+		logging.debug(layer3_t.shape)
+		logging.debug(layer4_t.shape)
 		layers = torch.cat((layer1_t,layer2_t,layer3_t,layer4_t),dim=1)
 
 		out_t_c = self.transformer(layers,self.pos_enc)
@@ -188,6 +195,17 @@ class TReS(object):
 		self.solver = torch.optim.Adam(self.paras, weight_decay=self.weight_decay)
 
 
+		# Load ckpt for long training (+cayley)
+		ckpt_path = self.get_ckpt_path()
+		print(ckpt_path)
+		if ckpt_path is not None:
+			ckpt = torch.load(ckpt_path)
+			self.net.load_state_dict(ckpt["model"])
+			self.solver.load_state_dict(ckpt["optimizer"])
+			self.start_epoch = ckpt["epoch"] + 1
+			print('Weights {} loaded'.format(ckpt_path))
+			print("Start epoch {}".format(self.start_epoch))
+
 		train_loader = data_loader.DataLoader(config.dataset, datapath, 
 											  train_idx, config.patch_size, 
 											  config.train_patch_num, 
@@ -201,7 +219,18 @@ class TReS(object):
 		self.test_data = test_loader.get_data()
 
 
-		
+	def get_ckpt_path(self):
+		pattern = "model_*_2021_[0-4]"
+		save_dir = Path(f"mnt/koniq_{self.config.vesion}_2021/sv")
+		ckpt_path: PosixPath = None
+		# '/scratch/amoskalenko/users/28i_mel/TReS/mnt/koniq_2_2021/sv/model_2_2021_0'
+		# for path in save_dir.rglob(pattern):
+		# 	print(path)
+		# 	if re.match(pattern, path):
+		# 		ckpt_path = path
+		# 		break
+		ckpt_path = sorted(list(save_dir.rglob(pattern)), reverse=True)[0]
+		return ckpt_path
 		
 	def train(self,seed,svPath):
 		best_srcc = 0.0
@@ -213,7 +242,7 @@ class TReS(object):
 		with open(performPath, 'w') as json_file2:
 			json.dump(  {} , json_file2)
 		
-		for epochnum in range(self.epochs):
+		for epochnum in range(self.start_epoch, self.epochs):
 			self.net.train()
 			epoch_loss = []
 			pred_scores = []
@@ -286,7 +315,9 @@ class TReS(object):
 			
 	
 			modelPath = svPath + '/model_{}_{}_{}'.format(str(self.config.vesion),str(seed),epochnum)
-			torch.save(self.net.state_dict(), modelPath)
+			torch.save({'model': self.net.state_dict(),
+			   			'optimizer': self.solver.state_dict(),
+						'epoch': epochnum}, modelPath)
 
 			train_srcc, _ = stats.spearmanr(pred_scores, gt_scores)
 
@@ -305,7 +336,9 @@ class TReS(object):
 			if test_srcc > best_srcc:
 				modelPathbest = svPath + '/bestmodel_{}_{}'.format(str(self.config.vesion),str(seed))
 				
-				torch.save(self.net.state_dict(), modelPathbest)
+				torch.save({'model': self.net.state_dict(),
+			   				'optimizer': self.solver.state_dict(),
+							'epoch': epochnum}, modelPathbest)
 
 				best_srcc = test_srcc
 				best_plcc = test_plcc

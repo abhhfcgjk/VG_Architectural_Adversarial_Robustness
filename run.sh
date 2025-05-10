@@ -1,5 +1,5 @@
 
-OMP_NUM_THREADS=1 python3 /workdir/vg/run.py  --num_encoder_layerst 2 --dim_feedforwardt 64 --nheadt 16 --network 'resnet50' --batch_size 53  --svpath  '/workspace/mnt/'   --droplr 1 --epochs 5 --gpunum '0'  --datapath  '/workspace/KonIQ-10k'    --dataset 'koniq'   --seed 2021 --vesion 1
+OMP_NUM_THREADS=1 python3 /workdir/vg/run.py  --num_encoder_layerst 2 --dim_feedforwardt 64 --nheadt 16 --network 'resnet50' --batch_size 53  --svpath  '/workspace/vg/mnt/'   --droplr 1 --epochs 5 --gpunum '0'  --datapath  '/workspace/KonIQ-10k'    --dataset 'koniq'   --seed 2021 --vesion 1
 
 # this is for resnet50
 OMP_NUM_THREADS=1 python /home/tres/TReS/run.py  --num_encoder_layerst 2 --dim_feedforwardt 64 --nheadt 16 --network 'resnet50' --batch_size 53  --svpath  '/home/tres/Save_TReS/'   --droplr 1 --epochs 5 --gpunum '0'  --datapath  '/home/tres/qadata/fblive'    --dataset 'fblive'   --seed 2021 --vesion 1

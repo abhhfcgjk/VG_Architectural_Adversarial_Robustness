@@ -6,6 +6,7 @@ import torch.nn as nn
 
 from typing import Type, Any, Callable, Union, List, Optional
 from Cayley import CayleyBlockPool as CayleyBlock
+from orthogonium import BcopRkoConv2d
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152', 'resnext50_32x4d', 'resnext101_32x8d',
@@ -174,7 +175,8 @@ class ResNet(nn.Module):
         width_per_group: int = 64,
         replace_stride_with_dilation: Optional[List[bool]] = None,
         norm_layer: Optional[Callable[..., nn.Module]] = None,
-        is_cayley: bool = False
+        is_cayley: bool = False,
+        is_aoc: bool = False
     ) -> None:
         super(ResNet, self).__init__()
         if norm_layer is None:
@@ -182,6 +184,7 @@ class ResNet(nn.Module):
         self._norm_layer = norm_layer
 
         self.is_cayley = is_cayley
+        self.is_aoc = is_aoc
         self.inplanes = 64
         self.dilation = 1
         if replace_stride_with_dilation is None:
@@ -208,7 +211,14 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
                                        dilate=replace_stride_with_dilation[2])
         if self.is_cayley:
-            self.cayley = CayleyBlock(in_channels=256, intermed_channels=128)
+            self.cayley = CayleyBlock(in_channels=1024, 
+                                      intermed_channels=512,
+                                      padding=1)
+        elif self.is_aoc:
+            self.aoc = nn.Sequential(
+                nn.Conv2d(1024, 512, kernel_size=3, stride=1, padding=0),
+                BcopRkoConv2d(512, 1024, kernel_size=3, stride=1, padding=0)
+            )
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.fc = nn.Linear(512 * block.expansion, num_classes)
 
