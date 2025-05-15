@@ -62,8 +62,9 @@ class AdversarialTrainer:
         self.is_gradnorm_regularization = self.config['train']['gr']
         self.h_gradnorm_regularization = 0.01
         self.weight_gradnorm_regularization = 0.001
-        self.is_adv = True if self.config['attack']['train']['type'] != "none" else False
+        self.is_adv = False # True if self.config['attack']['train']['type'] != "none" else False
         self.is_rtoken = self.config['options']['rtoken']
+        self.enable_train_rtoken = self.config['train'].get('enable_train', False)
 
         self.embed_dim = self.config['train']['embed_dim']
         self.img_size = self.config['train']['img_size']
@@ -91,16 +92,17 @@ class AdversarialTrainer:
             std=[0.5, 0.5, 0.5],
         )
         self.model.to(self.gpu)
+        # if self.config["options"]["rtoken"]:
+        #     ckpt = torch.load("db_model/maniqa-backbone_swin-activation_relu.pth")
+        #     self.model.load_state_dict(ckpt["model"], strict=False)
         self._init_logger()
 
     def _init_logger(self):
         if self.gpu == 0:
-            self.wandb_writer = wandb.init(
-                    entity=self.entity,
-                    project="MANIQA",
-                    config=self.config
-                )
-            print(f"=> Logging in {self.wandb_writer}")
+            self.log_dir = Path(self.config["log"]["directory"])
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            self.writer = SummaryWriter(log_dir=self.log_dir)
+            print(f"=> Logging in {self.writer}")
             self.start_training_time = time.time()
 
     def train(self) -> None:
@@ -111,7 +113,7 @@ class AdversarialTrainer:
         self.current_epoch = 0
         self.end_epoch = self.config["train"]["epochs"]
         self.lr = float(self.config["train"]["lr"])
-        # self._prepair_rtoken()
+        self._prepair_rtoken()
         self._prepair_prune()
         (
             self.train_loader,
@@ -135,9 +137,8 @@ class AdversarialTrainer:
         self.scaler = GradScaler()
 
         self._init_lr_scheduler()
-        if self.is_rtoken:
-            # self.loss = nn.CosineSimilarity()
-            self.loss = nn.MSELoss()
+        if self.enable_train_rtoken:
+            self.loss = nn.CosineSimilarity(dim=0, eps=1e-6)
         else:
             self.loss = nn.MSELoss()
         self.train_attack = self._init_attack(
@@ -150,7 +151,11 @@ class AdversarialTrainer:
             self.best_val_criterion, self.best_epoch = -100, -1
 
     def _init_optimizer(self, lr=1e-5) -> None:
-        self.optimizer = Adam(self.model.model.parameters(), lr=lr, weight_decay=1e-5)
+        if self.enable_train_rtoken:
+            self.optimizer = Adam([self.model.model.rtoken], 
+                                  lr=lr, weight_decay=1e-5)
+        else:
+            self.optimizer = Adam(self.model.model.parameters(), lr=lr, weight_decay=1e-5)
 
     def _init_lr_scheduler(self) -> None:
         if self.config['lr_scheduler']['type'] == 'simple':
@@ -233,7 +238,7 @@ class AdversarialTrainer:
                 metrics = self._train_step(data, step, batch_start_time)
                 if self.gpu == 0:
                     dump_scalar_metrics(
-                        metrics, self.wandb_writer, "train", global_step=done_steps + step,
+                        metrics, self.writer, "train", global_step=done_steps + step,
                     )
                 batch_start_time = time.time()
 
@@ -304,7 +309,7 @@ class AdversarialTrainer:
         preds = self.metric_computer.preds
         checkpoint['max'] = np.max(preds)
         checkpoint['min'] = np.min(preds)
-        self.save_checkpoints(checkpoint, self.db_model_path)
+        # self.save_checkpoints(checkpoint, self.db_model_path)
         torch.save(checkpoint, self.db_model_path)
 
     def _train_step(self, data, step: int, start_time: float) -> Dict[str, float]:
@@ -315,17 +320,16 @@ class AdversarialTrainer:
 
         metrics["data_time"] = time.time() - start_time
         self.optimizer.zero_grad()
-        if self.train_attack:
+        if self.enable_train_rtoken and self.train_attack:
             inputs_adv = self.train_attack.run(inputs, label)
-        
+
         pred_d = torch.squeeze(self.model(inputs))
         # print(pred_d)
-        if self.is_rtoken:
-            # pred_adv = torch.squeeze(self.model(inputs_adv))
-            # loss = (self.loss(pred_d.unsqueeze(1), label.unsqueeze(1)) + \
-            #         self.loss(pred_adv.unsqueeze(1), label.unsqueeze(1))
-            #         ).mean()
-            loss = self.loss(pred_d, label)
+        if self.enable_train_rtoken:
+            pred_adv = torch.squeeze(self.model(inputs_adv))
+            loss_inv = self.loss(pred_d, label).mean()
+            loss_adv = self.loss(pred_adv, label).mean()
+            loss = loss_inv + loss_adv
         elif self.is_gradnorm_regularization:
             loss = self.loss(pred_d, label) + \
                    self.weight_gradnorm_regularization * \
@@ -358,22 +362,6 @@ class AdversarialTrainer:
 
 
     def _gradnorm_regularization(self, images):
-        # images = images.clone().detach().requires_grad_(True).cuda()
-        # pred_cur = self.model(images)
-        # dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
-        # dx = dx[0]
-        # images.requires_grad_(False)
-
-        # v = dx.view(dx.shape[0], -1)
-        # v = torch.sign(v)
-
-        # v = v.view(dx.shape).detach()
-        # x2 = images + self.h_gradnorm_regularization*v
-
-        # pred_pert = self.model(x2)
-        # dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
-        # loss = dl.pow(2).mean()/2
-        # return loss
         raise NotImplementedError
 
     def _prepair_prune(self):
@@ -395,8 +383,9 @@ class AdversarialTrainer:
         self.config['lr_scheduler']['points'][self.end_epoch] = self.config['options']['prune_lr']
 
     def _prepair_rtoken(self):
-        ckpt = torch.load(self.config['db_model'].replace('-rtoken', ''))
-        self.model.load_state_dict(ckpt['model'])
+        if self.enable_train_rtoken:
+            ckpt = torch.load(self.config['db_model'].replace('-train', ''))
+            self.model.load_state_dict(ckpt['model'])
 
     def test(self) -> None:
         checkpoint = torch.load(self.db_model_path)
@@ -406,6 +395,8 @@ class AdversarialTrainer:
             self.model.load_state_dict(checkpoint['model'])
             # self.replace_backward_activations(self.config['options']['activation'])
             self.metric_computer = IQAPerformance()
+            checkpoint['min'] = 0
+            checkpoint['max'] = 100
             metric_range = checkpoint['max'] - checkpoint['min']
             self.hash = self.__get_options_hash(self.config['options'])
             
@@ -489,16 +480,11 @@ class AdversarialTrainer:
         self.metric_computer.reset()
         for step, data in enumerate(self.test_loader):
             self._val_step(data)
-        # print(self.metric_computer.preds, self.metric_computer.targs)
-
         checkpoint['SROCC'] = self.metric_computer.srcc
         checkpoint['PLCC'] = self.metric_computer.plcc
         print('SROCC: ', checkpoint['SROCC'])
         print('PLCC: ', checkpoint['PLCC'])
         self.save_checkpoints(checkpoint, self.db_model_path)
-        self.wandb_writer.log_artifact(artifact_or_path=self.db_model_path, 
-                                       name="checkpoints", type="checkpoints")
-        # self.test()
 
     def cleanup_distributed(self):
         dist.destroy_process_group()
@@ -518,7 +504,6 @@ class AdversarialTrainer:
                 x += f"-{key}={options[key]}"
             return x
         hash_value = __help(options)
-        # print(frozen, hash_value)
         return hash_value
     
     def save_checkpoints(self, checkpoint, trained_model_file,):
@@ -535,13 +520,7 @@ class AdversarialTrainer:
             torch.save(checkpoint, trained_model_file)
 
     def replace_backward_activations(self):
-        # if isinstance(self.model.model.Activ, ReLU_SiLU):
-        #     swap_all_activations(self.model, ReLU_SiLU, ReLU)
-        # elif isinstance(self.model.model.Activ, ReLU_ELU):
-        #     swap_all_activations(self.model, ReLU_ELU, ReLU)
-        # else:
-        #     return
-        return
+        pass
 
     @classmethod
     def run(cls, *args):

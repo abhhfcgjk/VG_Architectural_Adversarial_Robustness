@@ -3,7 +3,7 @@ from scipy import stats
 import numpy as np
 # from skimage.metrics import structural_similarity
 
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 
 class IQAPerformance(object):
@@ -50,7 +50,11 @@ def dump_scalar_metrics(
 ):
     prefix = phase + (f"_{dataset}" if dataset else "")
     for metric_name, metric_value in metrics.items():
-        writer.log({f"{metric_name}/{prefix}": metric_value})
+        writer.add_scalar(
+            f"{metric_name}/{prefix}",
+            metric_value,
+            global_step=global_step,
+        )
 
 
 def add_metrics_dict(metrics: dict, metrics_new: dict) -> dict:

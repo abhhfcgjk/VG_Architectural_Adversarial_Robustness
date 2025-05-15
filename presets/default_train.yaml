@@ -11,11 +11,15 @@ data:
   dataset: KonIQ-10k
   data_info: KonIQ-10k/koniq10k_distributions_sets.csv
   directory: KonIQ-10k/1024x768
-  patch_dir: KonIQ-10k/patch
-  patch_info: KonIQ-10k/patch_info.csv
+
+log:
+  directory: runs/maniqa
 
 options:
   activation: relu
+  kde: false
+  regtoken: false
+  rtoken: false
   cayley1: false
   cayley2: false
   cayley3: false

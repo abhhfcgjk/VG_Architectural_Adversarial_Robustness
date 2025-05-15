@@ -6,7 +6,6 @@ import einops
 
 from typing import Optional, List, Tuple, Union
 
-from icecream import ic
 
 # Extend this class to get emulated striding (for stride 2 only)
 class StridedConv(nn.Module):
@@ -193,7 +192,6 @@ class CayleyLinear(nn.Linear):
 class PrintConv(nn.Conv2d):
     def forward(self, X):
         out = super().forward(X)
-        ic(out.shape)
         return out
 
 class CayleyBlock(nn.Module):
@@ -210,15 +208,9 @@ class CayleyBlock(nn.Module):
         self.conv_out = nn.Conv2d(intermed_channels, in_channels, kernel_size=3, stride=stride)
     
     def forward(self, X):
-        ic("Cayley(")
-        ic(X.shape)
         x = self.conv_in(X)
-        ic(x.shape)
         out = self.conv_cayley(x)
-        ic(out.shape)
         out = self.conv_out(out)
-        ic(out.shape)
-        ic(")cayley")
         return out
     
 class CayleyBlockPool(nn.Module):

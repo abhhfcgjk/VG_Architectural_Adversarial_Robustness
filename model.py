@@ -81,6 +81,7 @@ class MANIQA(nn.Module):
             self.vit = timm.create_model('vit_base_patch8_224.augreg2_in21k_ft_in1k', pretrained=True)
         else:
             self.vit = timm.create_model('vit_base_patch8_224', pretrained=True)
+        # print(self.vit)
         self.save_output = SaveOutput()
         hook_handles = []
         for layer in self.vit.modules():
@@ -96,7 +97,8 @@ class MANIQA(nn.Module):
             dim_mlp += 58*n_tokens
             window_size = 5
             self.rtoken = torch.nn.Parameter(
-                1e-2 * torch.randn(1, 58*n_tokens, embed_dim*4)
+                1e-2 * torch.randn(1, 58*n_tokens, embed_dim*4),
+                requires_grad=True
             )
 
         self.tablock1 = nn.ModuleList()
@@ -178,16 +180,17 @@ class MANIQA(nn.Module):
                                                        dropatt=dropatt))
                 else:
                     __help(layer)
-        __help(self)
+        __help(self.vit)
         print(f"All {Attention} objects swaped to {RBFAttention}")
 
     def forward(self, x):
         import logging
-        
+        logging.getLogger().setLevel(logging.DEBUG)
         # logging.debug(x.shape)
         b, _, _, _ = x.shape
 
         _x = self.vit(x)
+        logging.debug(_x.shape)
         x = self.extract_feature(self.save_output)
         self.save_output.clear()
 

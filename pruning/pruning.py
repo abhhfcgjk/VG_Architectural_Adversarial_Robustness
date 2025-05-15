@@ -23,7 +23,6 @@ import copy
 from PIL import Image
 # import h5py
 from tqdm import tqdm
-from icecream import ic
 
 from .projection import PLSRegressionCUDA, ADMM, PwoA
 
@@ -227,13 +226,11 @@ class PLSEsitimator:
         self.model = model
         self.convs = []
         self.discriminative = discriminative
-        ic(self.model)
 
         # self.convs = self.__get_convs_list()
         self.__get_convs_list()
         print(len(self.convs))
         self.feature_maps = self.convs
-        ic(self.feature_maps)
 
     def __get_convs_list(self):
         def __help(model):
