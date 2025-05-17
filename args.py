@@ -48,6 +48,8 @@ def Configs():
                         help="Use Cayley block")
     parser.add_argument("--aoc", action="store_true", 
                         help="Use AOC block")
+    parser.add_argument("--adv", action="store_true", 
+                        help="Use adversarial training")
     parser.add_argument("--iters", type=int, default=1)
     return parser.parse_args()
     

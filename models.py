@@ -17,6 +17,7 @@ from typing import Optional, List
 import data_loader
 from transformers import Transformer
 from posencode import PositionEmbeddingSine
+from attacks.fgsm import FGSM
 
 from pathlib import Path, PosixPath
 import re
@@ -47,13 +48,11 @@ class Net(nn.Module):
 		self.is_aoc = cfg.aoc
 		is_strict = not (self.is_cayley or self.is_aoc)
 		self.device = device
-		
 		self.cfg = cfg
 		self.L2pooling_l1 = L2pooling(channels=256)
 		self.L2pooling_l2 = L2pooling(channels=512)
 		self.L2pooling_l3 = L2pooling(channels=1024)
 		self.L2pooling_l4 = L2pooling(channels=2048)
-			
 		if cfg.network =='resnet50':
 			from resnet_modify  import resnet50 as resnet_modifyresnet
 			dim_modelt = 3840
@@ -76,9 +75,7 @@ class Net(nn.Module):
 			self.L2pooling_l3 = L2pooling(channels=256)
 			self.L2pooling_l4 = L2pooling(channels=512)
 
-
 		torch.save(modelpretrain.state_dict(), f'modelpretrain{cfg.vesion}')
-		
 		self.model = resnet_modifyresnet(is_cayley=self.is_cayley,
 								   	   	 is_aoc=self.is_aoc)
 		self.model.load_state_dict(torch.load(f'modelpretrain{cfg.vesion}'), 
@@ -93,8 +90,7 @@ class Net(nn.Module):
 		dim_feedforwardt=cfg.dim_feedforwardt
 		ddropout=0.5
 		normalize =True
-			
-			
+
 		self.transformer = Transformer(d_model=dim_modelt,nhead=nheadt,
 									   num_encoder_layers=num_encoder_layerst,
 									   dim_feedforward=dim_feedforwardt,
@@ -104,28 +100,17 @@ class Net(nn.Module):
 
 		self.position_embedding = PositionEmbeddingSine(dim_modelt // 2, normalize=True)
 
-
-
-
 		self.fc2 = nn.Linear(dim_modelt, self.model.fc.in_features) 
 		self.fc = nn.Linear(self.model.fc.in_features*2, 1) 
 
-		
-		
 		self.ReLU = nn.ReLU()
 		self.avg7 = nn.AvgPool2d((7, 7))
 		self.avg8 = nn.AvgPool2d((8, 8))
 		self.avg4 = nn.AvgPool2d((4, 4))
 		self.avg2 = nn.AvgPool2d((2, 2))
-		
-			   
-		
+
 		self.drop2d = nn.Dropout(p=0.1)
 		self.consistency = nn.L1Loss()
-		
-		
-		
-		
 
 	def forward(self, x):
 		self.pos_enc_1 = self.position_embedding(torch.ones(1, self.dim_modelt, 7, 7).to(self.device))
@@ -185,6 +170,7 @@ class TReS(object):
 		self.test_patch_num = config.test_patch_num
 		self.l1_loss = torch.nn.L1Loss()
 		self.lr = 2e-5
+		self.start_epoch = 0
 		self.lrratio = 10
 		self.weight_decay = config.weight_decay
 		self.net = Net(config,device).to(device)    
@@ -194,10 +180,18 @@ class TReS(object):
 		self.paras = [{'params': self.net.parameters(), 'lr': self.lr} ]
 		self.solver = torch.optim.Adam(self.paras, weight_decay=self.weight_decay)
 
+		self.is_adv = self.config.adv
+		self.is_cayley = self.config.cayley
 
 		# Load ckpt for long training (+cayley)
-		ckpt_path = self.get_ckpt_path()
+		if self.is_cayley:
+			ckpt_path = self.get_ckpt_path()
+		else:
+			ckpt_path = None
 		print(ckpt_path)
+		if self.is_adv:
+			self.load_pretrained()
+
 		if ckpt_path is not None:
 			ckpt = torch.load(ckpt_path)
 			self.net.load_state_dict(ckpt["model"])
@@ -218,6 +212,17 @@ class TReS(object):
 		self.train_data = train_loader.get_data()
 		self.test_data = test_loader.get_data()
 
+		def loss_comp(y, target):
+			return self.l1_loss(y[0], target)
+
+		self.train_attack = FGSM(model=self.net, 
+								 loss_computer=loss_comp,
+								 **{"alpha": 5.0, "eps": 4.0, "mode": "uniform"})
+
+	def load_pretrained(self):
+		path = "mnt/koniq_1_2021/sv/bestmodel_1_2021"
+		ckpt = torch.load(path)
+		self.net.load_state_dict(ckpt)
 
 	def get_ckpt_path(self):
 		pattern = "model_*_2021_[0-4]"
@@ -252,6 +257,9 @@ class TReS(object):
 			for img, label in pbar:
 				img = torch.as_tensor(img.to(self.device)).requires_grad_(False)
 				label = torch.as_tensor(label.to(self.device)).requires_grad_(False)
+
+				if self.is_adv:
+					img = self.train_attack.run(img, label)
 
 				steps+=1
 				
@@ -309,11 +317,7 @@ class TReS(object):
 				epoch_loss.append(loss.item())
 				loss.backward()
 				self.solver.step()
-				
 
-			
-			
-	
 			modelPath = svPath + '/model_{}_{}_{}'.format(str(self.config.vesion),str(seed),epochnum)
 			torch.save({'model': self.net.state_dict(),
 			   			'optimizer': self.solver.state_dict(),
