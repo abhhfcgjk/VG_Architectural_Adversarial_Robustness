@@ -34,23 +34,13 @@ class DataLoader(object):
 													 std=(0.229, 0.224, 0.225))
 				])
 		elif dataset == 'koniq':
-			if istrain:
-				transforms = torchvision.transforms.Compose([
-					torchvision.transforms.RandomHorizontalFlip(),
-					torchvision.transforms.RandomVerticalFlip(),
-					torchvision.transforms.Resize((512, 384)),
-					torchvision.transforms.RandomCrop(size=patch_size),
-					torchvision.transforms.ToTensor(),
-					torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
-													 std=(0.229, 0.224, 0.225))])
-			else:
-				transforms = torchvision.transforms.Compose([
-					torchvision.transforms.Resize((512, 384)),
-					torchvision.transforms.RandomCrop(size=patch_size),
-					torchvision.transforms.ToTensor(),
-					torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
-														std=(0.229, 0.224, 0.225))
-														])
+			transforms = torchvision.transforms.Compose([
+				torchvision.transforms.Resize((224, 224)),
+				torchvision.transforms.ToTensor()])
+		elif dataset == 'nips':
+			transforms = torchvision.transforms.Compose([
+					torchvision.transforms.Resize((224, 224)),
+					torchvision.transforms.ToTensor()])
 		elif dataset == 'fblive':
 			if istrain:
 				transforms = torchvision.transforms.Compose([
@@ -69,30 +59,13 @@ class DataLoader(object):
 					torchvision.transforms.Normalize(mean=(0.485, 0.456, 0.406),
 													 std=(0.229, 0.224, 0.225))])
 
-		if dataset == 'live':
-			self.data = folders.LIVEFolder(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
-		elif dataset == 'clive':
-			self.data = folders.LIVEChallengeFolder(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
-		elif dataset == 'csiq':
-			self.data = folders.CSIQFolder(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
-		elif dataset == 'koniq':
+
+		if dataset == 'koniq':
 			self.data = folders.Koniq_10kFolder(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
+				root=path, index=img_indx, transform=transforms, patch_num=1)
 		elif dataset == 'nips':
 			self.data = folders.NIPSFolder(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
-		elif dataset == 'fblive':
-			self.data = folders.FBLIVEFolder(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
-		elif dataset == 'tid2013':
-			self.data = folders.TID2013Folder(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)
-		elif dataset == 'kadid10k':
-			self.data = folders.Kadid10k(
-				root=path, index=img_indx, transform=transforms, patch_num=patch_num)			
+				root=path, index=img_indx, transform=transforms, patch_num=1)		
 
 	def get_data(self):
 		if self.istrain:

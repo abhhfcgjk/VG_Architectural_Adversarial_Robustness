@@ -8,7 +8,7 @@ import numpy as np
 import torch
 from args import Configs
 import logging
-import data_loader
+import data_loader_test
 
 
 
@@ -77,7 +77,7 @@ def main(config,device):
 
 
    
-    test_loader = data_loader.DataLoader(config.dataset, folder_path[config.dataset],
+    test_loader = data_loader_test.DataLoader(config.dataset, folder_path[config.dataset],
                                              test_index, config.patch_size,
                                              config.test_patch_num, istrain=False)
     test_data = test_loader.get_data()

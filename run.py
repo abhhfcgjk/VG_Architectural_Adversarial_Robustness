@@ -82,7 +82,7 @@ def main(config,device):
 
     solver = TReS(config,device, svPath, folder_path[config.dataset], train_index, test_index,Net)
     srcc_computed, plcc_computed = solver.train(config.seed,svPath)
-    
+    # srcc_computed, plcc_computed = solver.test(solver.test_data, 4, svPath, config.seed)
     
     
     # logging the performance

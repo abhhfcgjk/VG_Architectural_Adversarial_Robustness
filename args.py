@@ -16,7 +16,7 @@ def Configs():
                         help='the path to save the info')
     parser.add_argument('--train_patch_num', dest='train_patch_num', type=int, default=50, 
                         help='Number of sample patches from training image')
-    parser.add_argument('--test_patch_num', dest='test_patch_num', type=int, default=50, 
+    parser.add_argument('--test_patch_num', dest='test_patch_num', type=int, default=1, 
                         help='Number of sample patches from testing image')
     parser.add_argument('--lr', dest='lr', type=float, default=2e-5, 
                         help='Learning rate')
@@ -44,12 +44,15 @@ def Configs():
                         help='num encoder layers in the transformer')
     parser.add_argument('--dim_feedforwardt', dest='dim_feedforwardt', type=int, default=64,
                         help='dim feedforward in the transformer')
+
     parser.add_argument("--cayley", action="store_true", 
                         help="Use Cayley block")
     parser.add_argument("--aoc", action="store_true", 
                         help="Use AOC block")
     parser.add_argument("--adv", action="store_true", 
                         help="Use adversarial training")
+    parser.add_argument("--nt", action="store_true", 
+                        help="Use normalized training")
     parser.add_argument("--iters", type=int, default=1)
     return parser.parse_args()
     

@@ -10,7 +10,7 @@ from pathlib import Path
 from torchvision.transforms.functional import resize, to_tensor, normalize, crop
 from torchvision.utils import save_image
 from torchvision import transforms
-import data_loader
+import data_loader_test
 import random
 import os
 
@@ -20,16 +20,10 @@ def get_range(model, test_index, config):
     normalize = transforms.Normalize(mean=(0.485, 0.456, 0.406),
 									 std=(0.229, 0.224, 0.225))
     folder_path = {
-        'live':     config.datapath,
-        'csiq':     config.datapath,
-        'tid2013':  config.datapath,
-        'kadid10k': config.datapath,
-        'clive':    config.datapath,
         'koniq':    config.datapath,
-        'nips':     config.datapath,
-        'fblive':   config.datapath,
+        'nips':     config.datapath
         }
-    loader = data_loader.DataLoader(config.dataset, folder_path[config.dataset],
+    loader = data_loader_test.DataLoader(config.dataset, folder_path[config.dataset],
                                         test_index, config.patch_size,
                                         config.test_patch_num, istrain=False)
     test_data = loader.get_data()
@@ -74,30 +68,10 @@ def attack(model, normalize, inputs, eps, alpha, target, loss_computer, iters):
 def run(model, config, iters, eps):
     iters = iters
     eps = eps
-    # folder_path = {
-    #     'live':     config.datapath,
-    #     'csiq':     config.datapath,
-    #     'tid2013':  config.datapath,
-    #     'kadid10k': config.datapath,
-    #     'clive':    config.datapath,
-    #     'koniq':    config.datapath,
-    #     'nips':     config.datapath,
-    #     'fblive':   config.datapath,
-    #     }
     folder_path = {
         'koniq':    config.datapath,
         'nips':     config.datapath,
         }
-    # img_num = {
-    #     'live':     list(range(0, 29)),
-    #     'csiq':     list(range(0, 30)),
-    #     'kadid10k': list(range(0, 80)),
-    #     'tid2013':  list(range(0, 25)),
-    #     'clive':    list(range(0, 1162)),
-    #     'koniq':    list(range(0, 10073)),
-    #     'nips':     list(range(0, 999)),
-    #     'fblive':   list(range(0, 39810)),
-    #     }
     img_num = {
         'koniq':    list(range(0, 10073)),
         'nips':     list(range(0, 999)),
@@ -116,7 +90,7 @@ def run(model, config, iters, eps):
         test_index = total_num_images[int(round(0.8 * len(total_num_images))):len(total_num_images)]
     elif config.dataset == 'nips':
         test_index = img_num[config.dataset]
-    loader = data_loader.DataLoader(config.dataset, folder_path[config.dataset],
+    loader = data_loader_test.DataLoader(config.dataset, folder_path[config.dataset],
                                         test_index, config.patch_size,
                                         config.test_patch_num, istrain=False)
     test_data = loader.get_data()
@@ -152,7 +126,7 @@ if __name__=='__main__':
     config = Configs()
     model = Net(config, 'cuda')
     ckpt = torch.load('mnt/koniq_{}_2021/sv/bestmodel_{}_2021'.format(config.vesion, config.vesion))
-    model.load_state_dict(ckpt)
+    model.load_state_dict(ckpt["model"])
     model.eval()
     attack_pref = {'iters': (1,3,5,8), 'eps': (2.0, 4.0, 6.0, 8.0, 10.0)}
 

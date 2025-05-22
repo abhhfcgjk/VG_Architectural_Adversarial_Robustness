@@ -15,6 +15,7 @@ import json
 from typing import Optional, List
 
 import data_loader
+import data_loader_test
 from transformers import Transformer
 from posencode import PositionEmbeddingSine
 from attacks.fgsm import FGSM
@@ -181,6 +182,7 @@ class TReS(object):
 		self.solver = torch.optim.Adam(self.paras, weight_decay=self.weight_decay)
 
 		self.is_adv = self.config.adv
+		self.is_nt = self.config.nt
 		self.is_cayley = self.config.cayley
 
 		# Load ckpt for long training (+cayley)
@@ -191,6 +193,7 @@ class TReS(object):
 		print(ckpt_path)
 		if self.is_adv:
 			self.load_pretrained()
+			print('loaded pretrained for AT')
 
 		if ckpt_path is not None:
 			ckpt = torch.load(ckpt_path)
@@ -205,7 +208,7 @@ class TReS(object):
 											  config.train_patch_num, 
 											  batch_size=config.batch_size, istrain=True)
 		
-		test_loader = data_loader.DataLoader(config.dataset, datapath,
+		test_loader = data_loader_test.DataLoader(config.dataset, datapath,
 											 test_idx, config.patch_size,
 											 config.test_patch_num, istrain=False)
 		
@@ -217,7 +220,7 @@ class TReS(object):
 
 		self.train_attack = FGSM(model=self.net, 
 								 loss_computer=loss_comp,
-								 **{"alpha": 5.0, "eps": 4.0, "mode": "uniform"})
+								 **{"alpha": 3.0, "eps": 2.0, "mode": "uniform"})
 
 	def load_pretrained(self):
 		path = "mnt/koniq_1_2021/sv/bestmodel_1_2021"
@@ -236,7 +239,28 @@ class TReS(object):
 		# 		break
 		ckpt_path = sorted(list(save_dir.rglob(pattern)), reverse=True)[0]
 		return ckpt_path
-		
+
+	def gradnorm_regularize(self, images):
+		self.h_gradnorm_regularization = 0.01
+		self.weight_gradnorm_regularization = 0.0005
+
+		images = images.cuda()
+		images.requires_grad_(True)
+		output_cur = self.net(images)
+		pred_cur = output_cur[0]
+		dx = torch.autograd.grad(pred_cur, images, grad_outputs=torch.ones_like(pred_cur), retain_graph=True)
+		dx = dx[0]
+		images.requires_grad_(False)
+		v = dx.view(dx.shape[0], -1)
+		v = torch.sign(v)
+		v = v.view(dx.shape).detach()
+		x2 = images + self.h_gradnorm_regularization*v
+		output_pert = self.net(x2)
+		pred_pert = output_pert[0]
+		dl = (pred_pert - pred_cur)/self.h_gradnorm_regularization
+		loss = dl.pow(2).mean()/2
+		return loss
+
 	def train(self,seed,svPath):
 		best_srcc = 0.0
 		best_plcc = 0.0
@@ -260,9 +284,9 @@ class TReS(object):
 
 				if self.is_adv:
 					img = self.train_attack.run(img, label)
-
+				if self.is_nt:
+					loss_nt = self.gradnorm_regularize(img)
 				steps+=1
-				
 				self.net.zero_grad()
 
 				pred,closs = self.net(img)
@@ -296,8 +320,6 @@ class TReS(object):
 				fpositive2 = torch.unsqueeze(pred2[indexlabel[-2],...].contiguous(),dim=0)
 				fnegative2_1 = torch.unsqueeze(pred2[indexlabel[0],...].contiguous(),dim=0)
 
-
-
 				consistency = nn.L1Loss()
 				assert (label[indexlabel[-1]]-label[indexlabel[1]])>=0
 				assert (label[indexlabel[-2]]-label[indexlabel[0]])>=0
@@ -312,7 +334,8 @@ class TReS(object):
 					triplet_loss2(fanchor2, fpositive2, fnegative2_1)
 				
 				loss = loss_qa + closs + loss_qa2 + closs2 + 0.5*( self.l1_loss(tripletlosses,ftripletlosses.detach())+ self.l1_loss(ftripletlosses,tripletlosses.detach()))+0.05*(tripletlosses+ftripletlosses)
-
+				if self.is_nt:
+					loss += self.weight_gradnorm_regularization*loss_nt
 				
 				epoch_loss.append(loss.item())
 				loss.backward()
