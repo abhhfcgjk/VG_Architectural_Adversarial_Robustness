@@ -25,6 +25,8 @@ from torch import nn
 import copy
 from icecream import ic
 # metrics_printed = ['SROCC', 'PLCC', 'RMSE', 'SROCC1', 'PLCC1', 'RMSE1', 'SROCC2', 'PLCC2', 'RMSE2']
+import logging
+logging.getLogger().setLevel(logging.DEBUG)
 
 from _codecs import encode
 torch.serialization.add_safe_globals([np._core.multiarray.scalar, 
@@ -56,22 +58,24 @@ class Trainer:
         self.gradnorm_regularization = args.gradnorm_regularization
         self.h_gradnorm_regularization = 6/255 # 10/255
         self.weight_gradnorm_regularization = 1e-1 # 1e-2
-        self.cayley = args.cayley
+        self.cayley      = args.cayley
         self.cayley_pool = args.cayley_pool
         self.cayley_pair = args.cayley_pair
-        self.cayley1 = args.cayley1
-        self.cayley2 = args.cayley2
-        self.cayley3 = args.cayley3
-        self.cayley4 = args.cayley4
+        self.cayley1     = args.cayley1
+        self.cayley2     = args.cayley2
+        self.cayley3     = args.cayley3
+        self.cayley4     = args.cayley4
         self.aoc     = args.aoc
+        self.aol     = args.aol
+        self.sll     = args.sll
 
-        self.pruning = args.pruning
-        self.prune_iters = args.prune_iters
-        self.width_prune = args.width_prune
-        self.height_prune = args.height_prune
+        self.pruning            = args.pruning
+        self.prune_iters        = args.prune_iters
+        self.width_prune        = args.width_prune
+        self.height_prune       = args.height_prune
         self.images_count_prune = args.pls_images
-        self.kernel_prune = args.kernel_prune
-        self.use_mask = True if self.pruning > 0 else False
+        self.kernel_prune       = args.kernel_prune
+        self.use_mask           = True if self.pruning > 0 else False
 
         self.adv = self.args.adv
 
@@ -95,7 +99,7 @@ class Trainer:
                               cayley_pair=self.cayley_pair, quantize=False,
                               cayley1=self.cayley1, cayley2=self.cayley2,
                               cayley3=self.cayley3, cayley4=self.cayley4,
-                              aoc=self.aoc).to(self.device)
+                              aoc=self.aoc, aol=self.aol, sll=self.sll).to(self.device)
 
         print(self.model)
         # self.scaler = GradScaler()
@@ -272,7 +276,7 @@ class Trainer:
             )
             val_criterion = abs(metrics[self.args.val_criterion])
             # print(val_criterion, self.best_val_criterion)
-            if (val_criterion > self.best_val_criterion) and (self.current_epoch > 0): # for adv epochs>10
+            if (val_criterion > self.best_val_criterion) and (self.current_epoch > 10): # for adv epochs>10
                 # if self.args.debug:
                 # print('max:', 'max_pred', 'min:', 'min_pred')
                 checkpoint = {

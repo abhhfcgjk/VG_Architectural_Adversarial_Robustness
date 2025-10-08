@@ -44,7 +44,11 @@ def get_format_string(args):
     if args.cayley_pair:
         format_str += f'-cp={args.cayley_pair}'
     if args.aoc:
-        format_str += f'-aoc={args.aoc}'
+        format_str += f'-aoc=True'
+    if args.aol:
+        format_str += f'-aol=True'
+    if args.sll:
+        format_str += f'-sll=True'
     if args.gabor:
         format_str += f'-gabor=True'
     if args.noise:
@@ -67,16 +71,17 @@ def run(args):
                            cayley4=args.cayley4,
                            quantize=args.quantize, 
                            cayley1=args.cayley1, cayley2=args.cayley2, cayley3=args.cayley3,
-                           aoc=args.aoc
+                           aoc=args.aoc, aol=args.aol, sll=args.sll
                            )
-
     exec_.load_checkpoints(checkpoints_path=args.trained_model_file)
 
     with open(YAML_PATH, 'r') as file:
         yaml_conf = yaml.safe_load(file)
     datasets = yaml_conf['dataset']['data']
-    # datasets = {"KonIQ-10k": "KonIQ-10k/1024x768"}
-    datasets = {"NIPS": "NIPS_test"}
+    if args.nips:
+        datasets = {"NIPS": "NIPS_test"}
+    elif args.koniq:
+        datasets = {"KonIQ-10k": "KonIQ-10k/1024x768"}
     data_info = yaml_conf['dataset']['labels']
     save_results_dir = yaml_conf['save']['results']
     
@@ -174,7 +179,12 @@ if __name__ == "__main__":
     parser.add_argument('--crop', action='store_true', help='Use crop for image')
 
     parser.add_argument('--aoc', action='store_true', help="Use orthogonium")
+    parser.add_argument('--aol', action='store_true', help="Use orthogonium")
+    parser.add_argument('--sll', action='store_true', help="Use orthogonium")
+
     parser.add_argument('--adversarial', '-adv', dest='adv', action='store_true')
+    parser.add_argument('--nips', action='store_true', help='Use NIPS dataset')
+    parser.add_argument('--koniq', action='store_true', help='Use KonIQ dataset')
     args = parser.parse_args()
     # task.connect(vars(args))
 

@@ -7,6 +7,7 @@ import einops
 from typing import Optional, List, Tuple, Union
 
 from icecream import ic
+import logging
 
 # Extend this class to get emulated striding (for stride 2 only)
 class StridedConv(nn.Module):
@@ -70,6 +71,7 @@ class CayleyConv(StridedConv, nn.Conv2d):
             self.shift_matrix = self.fft_shift_matrix(n, -s)[:, :(n//2 + 1)]\
                 .reshape(n * (n // 2 + 1), 1, 1).to(x.device)
         xfft = torch.fft.rfft2(x).permute(2, 3, 1, 0)
+        logging.debug(xfft.shape)
         xfft = xfft.reshape(n * (n // 2 + 1), cin, batches)
         wfft = self.shift_matrix * torch.fft.rfft2(self.weight, (n, n))\
                    .reshape(cout, cin, n * (n // 2 + 1)).permute(2, 0, 1).conj()
@@ -164,20 +166,10 @@ class CayleyBlockPool(nn.Module):
         return x
 
     def forward(self, X):
-        ic("Cayley(")
-        # ic(X.shape)
-        # x = self.conv_in(X)
-        ic(X.shape)
         _, _, h, w = X.shape
         x = self.pool_to_square(X, h, w)
-        ic(x.shape)
         x = self.conv_in(x)
-        ic(x.shape)
         out = self.conv_cayley(x)
-        ic(out.shape)
-        # out = self.conv_out(out)
-        # ic(out.shape)
-        ic(")cayley")
         return out
 
 def swap_conv_to_lipschitz(model):

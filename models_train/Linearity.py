@@ -20,9 +20,12 @@ from models_train.pruning import PLSPrune, l1_prune, pls_prune, ln_prune, displs
 
 from models_train.baseIQAmodel import IQA
 from models_train import swap_convs
-from orthogonium import BcopRkoConv2d
+from AOC import BcopRkoConv2d, BcopRkoFurierConv2d
+from AOL import AOLConv2D, AOLFurierConv2D
+from SLL import SLLxAOCLipschitzResBlock
 
 from icecream import ic
+import logging
 
 def SPSP(x, P=1, method='avg'):
     batch_size = x.size(0)
@@ -94,6 +97,9 @@ class Linearity(IQA):
         # self.kernel_prune = kwargs.get('kernel_prune')
 
         self.aoc = kwargs.get('aoc', False)
+        self.aol = kwargs.get('aol', False)
+        self.sll = kwargs.get('sll', False)
+
         self.gabor = kwargs.get('gabor', False)
         self.cayley = kwargs.get('cayley', False)
         self.cayley_pool = kwargs.get('cayley_pool', False)
@@ -144,9 +150,23 @@ class Linearity(IQA):
             self.cayley_block6 = CayleyBlockPool(1024, 200, stride=1, padding=0, kernel_size=3)
         if self.aoc:
             self.aoc_block = nn.Sequential(
-                nn.Conv2d(1024, 512, kernel_size=3, stride=1, padding=0),
-                BcopRkoConv2d(512, 1024, kernel_size=3, stride=1, padding=0)
+                nn.Conv2d(1024, 200, kernel_size=3, stride=1, padding=0),
+                BcopRkoFurierConv2d(200, 1024, kernel_size=3, stride=1, padding=0)
+                # BcopRkoFurierConv2d(512, 1024, kernel_size=3, stride=1, padding=0)
+                # nn.Conv2d(512, 1024, kernel_size=3, stride=1, padding=0)
                 )
+        if self.aol:
+            self.aol_block = nn.Sequential(
+                nn.Conv2d(1024, 200, kernel_size=3, stride=1, padding=0),
+                AOLFurierConv2D(200, 1024, kernel_size=3, stride=1, padding=0)
+                )
+        # if self.aoc:
+        #     swap_convs.swap_to_aoc(self.features[7])
+        # if self.aol:
+        #     swap_convs.swap_to_aol(self.features[7])
+        # if self.sll:
+        #     pass
+            # swap_convs.swap_to_sll(self.features[7])
         
         if self.cayley_pair:
             self.cayley_conv4 = CayleyBlockPool(1024, 200, stride=1, padding=0, kernel_size=3)
@@ -253,6 +273,13 @@ class Linearity(IQA):
                         print('cayley4:', x.shape)
                         x = self.cayley_block4(x)
                     x = layer(x)
+            # elif ii == self.id1 and self.aoc:
+            #     n1 = torch.norm(x)
+            #     logging.debug(n1)
+            #     x = self.aoc_block(x)
+            #     n2 = torch.norm(x)
+            #     logging.debug(n2)
+            #     logging.debug(n1/n2)
             else:
                 x = model(x)
             # x = model(x)
@@ -265,7 +292,19 @@ class Linearity(IQA):
                     # print('cayley_pool:', x.shape)
                     x = self.cayley_block6(x)
                 if self.aoc:
+                    # n1 = torch.norm(x)
+                    # logging.debug(n1)
                     x = self.aoc_block(x)
+                    # n2 = torch.norm(x)
+                    # logging.debug(n2)
+                    # logging.debug(n1/n2)
+                if self.aol:
+                    # n1 = torch.norm(x)
+                    # logging.debug(n1)
+                    x = self.aol_block(x)
+                    # n2 = torch.norm(x)
+                    # logging.debug(n2)
+                    # logging.debug(n1/n2)
                 x6 = x
                 if self.cayley_pair:
                     print('cayley_pair:', x.shape)

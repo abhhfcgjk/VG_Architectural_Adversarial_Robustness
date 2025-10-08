@@ -32,7 +32,8 @@ class Attack:
                  P6, P7, pruning,t_prune, activation, device='cpu',
                  gabor=False, gradnorm_regularization=False, adv=False, cayley=False, 
                  cayley_pool=False, cayley_pair=False, quantize=False, cayley1=False,
-                 cayley2=False, cayley3=False, cayley4=False, aoc=False) -> None:
+                 cayley2=False, cayley3=False, cayley4=False, 
+                 aoc=False, aol=False, sll=False) -> None:
         if device == "cuda":
             assert torch.cuda.is_available()
         self.device = device
@@ -52,6 +53,8 @@ class Attack:
         self.cayley_pool = cayley_pool
         self.cayley_pair = cayley_pair
         self.aoc = aoc
+        self.aol = aol
+        self.sll = sll
         self.adv = adv
         self.quantize = quantize
         self.to_save_images = 700
@@ -64,7 +67,7 @@ class Attack:
                                cayley=cayley, cayley_pool=cayley_pool, 
                                cayley_pair=cayley_pair, quantize=quantize,
                                cayley1=cayley1, cayley2=cayley2, cayley3=cayley3, 
-                               cayley4=cayley4, aoc=aoc).to(self.device)
+                               cayley4=cayley4, aoc=aoc, aol=aol, sll=sll).to(self.device)
         ic(self.model)
         # self.model.eval()
 
@@ -303,18 +306,6 @@ class Attack:
             if self.to_save_images is not None and image_num % self.to_save_images==0:
                 save_image(img_, f'{debug_dir}/clear{image_num}.png')
                 save_image(img_attacked_, f'{debug_dir}/attacked{image_num}_{int(self.epsilons[-1]*255)}.png')
-                # Logger.current_logger().report_media(
-                #     title=self.dataset,
-                #     series="clear",
-                #     iteration=image_num,
-                #     local_path=os.path.join(debug_dir, f"clear{image_num}.png")
-                # )
-                # Logger.current_logger().report_media(
-                #     title=self.dataset,
-                #     series="max perturbation",
-                #     iteration=image_num,
-                #     local_path=os.path.join(debug_dir, f"attacked{image_num}_{int(self.epsilons[-1]*255)}.png")
-                # )
                 
             frame = {
                         'image_name': img_name,
@@ -326,15 +317,6 @@ class Attack:
         
         gain_graph = [[key, np.array(values).mean()] for key, values in self.gains.items()]
         gain_graph = np.array(gain_graph)
-        # Logger.current_logger().report_scatter2d(
-        #     title=self.arch,
-        #     series=self.dataset,
-        #     iteration=0,
-        #     scatter=gain_graph,
-        #     xaxis='eps',
-        #     yaxis='gain',
-        #     mode='lines+markers'
-        # )
 
     def save_vals_to_file(self, csv_results_dir='.'):
         # data = pd.DataFrame(columns=['clear', 'attack'])
@@ -349,12 +331,14 @@ class Attack:
         cp = f'++cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
         aoc = f'+aoc' if self.aoc else ''
+        aol = f'+aol' if self.aol else ''
+        sll = f'+sll' if self.sll else ''
         resize_flag = '+resize={}x{}'.format(self.resize_size_h, self.resize_size_w) if self.resize else ''
         prune = f"+{self.prune}_{self.prune_method}" if self.prune else ''
         quant = f"+quantize" if self.quantize else ''
         adv = f"+adv" if self.adv else ''
         activation =  self.activation
-        arch_status = f'{self.arch}{cl}{clp}{cp}{cl1}{cl2}{cl3}{cl4}{aoc}{gr}{adv}{prune}{quant}+{activation}'
+        arch_status = f'{self.arch}{cl}{clp}{cp}{cl1}{cl2}{cl3}{cl4}{aoc}{aol}{sll}{gr}{adv}{prune}{quant}+{activation}'
         result_path = "{}_{}_{}={}{}.csv".format(
                                             self.dataset,
                                             arch_status,
@@ -365,20 +349,6 @@ class Attack:
         csv_path = os.path.join(csv_results_dir, result_path)
         self.df_attack_csv.to_csv(csv_path)
         print(f"Results saved to {csv_path}")
-        # Task.current_task().register_artifact(
-        #     name=result_path,
-        #     artifact=self.df_attack_csv,
-        #     metadata={
-        #         'Arch': self.arch, 
-        #         'Cayley': cl,
-        #         'Cayley pool': clp,
-        #         'Cayley pair': cp,
-        #         'Gradnorm regularization': gr,
-        #         'Activation': activation,
-        #         'Dataset': self.dataset, 
-        #         'PGD': self.iterations
-        #         }
-        # )
 
     def save_results(self, csv_results_dir='.'):
         self.results = []
@@ -389,7 +359,9 @@ class Attack:
         cp = f'+cayley_pair' if self.cayley_pair else ''
         gr = f'+gr' if self.gradnorm_regularization else ''
         aoc = f'+aoc' if self.aoc else ''
-        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + clp + cp + aoc,
+        aol = f'+aol' if self.aol else ''
+        sll = f'+sll' if self.sll else ''
+        mdif = {'arch': self.arch + '-' + self.model_name + prune_status + gr + cl + clp + cp + aoc + aol + sll,
                 'activation': self.activation,
                 'attack': self.attack_type,
                 'iterations': self.iterations}

@@ -4,6 +4,8 @@ from torch import nn
 # import torch.ao.nn.quantized as nq
 import pytorch_quantization.nn as nq
 from pytorch_quantization.tensor_quant import QuantDescriptor
+from AOC import BcopRkoConv2d
+from AOL import AOLConv2D
 
 def swap_to_gabor(model):
     for name, layer in model.named_children():
@@ -15,6 +17,30 @@ def swap_to_gabor(model):
             setattr(model, name, gabor_conv)
         else:
             swap_to_gabor(layer)
+
+def swap_to_aoc(model):
+    for name, layer in model.named_children():
+        if isinstance(layer, nn.Conv2d) and (layer.kernel_size[0] > 1):
+            print(name, layer, layer.kernel_size[0], layer.stride[0])
+            aoc_conv = BcopRkoConv2d(layer.in_channels, layer.out_channels,
+                                     kernel_size=layer.kernel_size,
+                                     stride=layer.stride, 
+                                     padding=layer.padding)
+            setattr(model, name, aoc_conv)
+        else:
+            swap_to_aoc(layer)
+
+def swap_to_aol(model):
+    for name, layer in model.named_children():
+        if isinstance(layer, nn.Conv2d):
+            print(name, layer, layer.kernel_size[0], layer.stride[0])
+            aoc_conv = AOLConv2D(layer.in_channels, layer.out_channels,
+                                     kernel_size=layer.kernel_size,
+                                     stride=layer.stride, 
+                                     padding=layer.padding)
+            setattr(model, name, aoc_conv)
+        else:
+            swap_to_aol(layer)
 
 def swap_to_quntized(model, precision=16, full_copy=False):
     for name, layer in model.named_children():
