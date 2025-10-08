@@ -230,7 +230,7 @@ class AdversarialTrainer:
         if attack_name == "none":
             return None
 
-        if self.is_adv:
+        if self.is_adv and not self.eval_only:
             path = self.config['db_model'].replace('-adv', '')
             ckpt = torch.load(path)['model']
             self.model.load_state_dict(ckpt)
@@ -452,8 +452,8 @@ class AdversarialTrainer:
     def test(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints'])
         # datasets = ['KonIQ-10k', 'NIPS']
-        datasets = ['NIPS']
-        # datasets = ['KonIQ-10k']
+        # datasets = ['NIPS']
+        datasets = ['KonIQ-10k']
         self.model.load_state_dict(checkpoint['model'])
         self.replace_backward_activations(self.config['options']['activation'])
         self.metric_computer = IQAPerformance()
@@ -536,6 +536,7 @@ class AdversarialTrainer:
                     output_file,
                     index=False
                 )
+                print(f"SAVED TO {output_file}")
 
     def eval(self) -> None:
         checkpoint = torch.load(self.config['attack']['path']['checkpoints']) #torch.load(self.log_dir / 'best_model.pth')
